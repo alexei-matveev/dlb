@@ -724,7 +724,7 @@ contains
     ! There are two function calls inside: one to get the data and check if it may be accessed
     ! second one to show to other procs, that this one is interested in modifing the data
 
-    call time_stamp("RMW, first lock start")
+    call time_stamp("rmw, first lock start")
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
@@ -737,7 +737,7 @@ contains
     call MPI_WIN_UNLOCK(source, win, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
-    call time_stamp("RMW, first lock exit")
+    call time_stamp("rmw, first lock exit")
 
     jobs_infom(my_rank+1+SJOB_LEN) = 0
     print *, time_stamp_prefix(MPI_Wtime()), "available jobs",source,"are", jobs_infom(:SJOB_LEN)
@@ -753,7 +753,7 @@ contains
       rmw_tgetm = .false.
       ! Just set back the want of access (there is anyhow no method to store another order, than 
       ! first and rest)
-!   print *, my_rank, "RMW, second no acces lock start"
+!   print *, my_rank, "rmw, second no acces lock start"
 !     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
 !     !ASSERT(ierr==MPI_SUCCESS)
 !     call assert_n(ierr==MPI_SUCCESS, 4)
@@ -761,7 +761,7 @@ contains
 !     !ASSERT(ierr==MPI_SUCCESS)
 !     call assert_n(ierr==MPI_SUCCESS, 4)
 !     call MPI_WIN_UNLOCK(source, win, ierr)
-!   print *, my_rank, "RMW, second no acces lock exit"
+!   print *, my_rank, "rmw, second no acces lock exit"
       !ASSERT(ierr==MPI_SUCCESS)
 !     call assert_n(ierr==MPI_SUCCESS, 4)
     else ! is the first one, therefor do what you want with it
@@ -789,7 +789,7 @@ contains
       ! Final lock of this memory, to give back unstolen jobs and to free the 
       ! user setted outer lock for the others
       !
-      call time_stamp("RMW, second access lock start")
+      call time_stamp("rmw, second access lock start")
 
       call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
       !ASSERT(ierr==MPI_SUCCESS)
@@ -803,7 +803,7 @@ contains
       !ASSERT(ierr==MPI_SUCCESS)
       call assert_n(ierr==MPI_SUCCESS, 4)
 
-      call time_stamp("RMW, second access lock exit")
+      call time_stamp("rmw, second access lock exit")
 
       ! The give_grid function needs only up to m' jobs at once, thus
       ! divide the jobs
