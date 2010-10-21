@@ -142,7 +142,8 @@ contains
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, sizeofint
-    integer(kind=MPI_ADDRESS_KIND)       :: size_alloc, alloc_stat, size_all
+    integer(kind=MPI_ADDRESS_KIND)       :: size_alloc, size_all
+    integer(kind=i4_kind)                :: alloc_stat
     !------------ Executable code --------------------------------
     ! some aliases, highly in use during the whole module
     call MPI_COMM_RANK( comm_world, my_rank, ierr )
