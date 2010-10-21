@@ -1,21 +1,8 @@
 # -*- makefile -*-
 #  ### Makefile for utilites
 
-v v v v v v v
 # executable:
 EXE = test_dlb
-*************
-#### NAME OF EXECUTABLE ####
-v v v v v v v
-EXE = test_dlb
-*************
-EXE = test_dlbmpi
-EXE2      = test_dlb
-EXE3      = test_static
-
-CEXE = $(EXE)
-^ ^ ^ ^ ^ ^ ^
-^ ^ ^ ^ ^ ^ ^
 
 # default build target:
 default: $(EXE)
@@ -42,7 +29,6 @@ LIBS = $(MPILIBS) #$(THREADLIBS)
 #
 objs = main.o test.o
 
-v v v v v v v
 #
 # Depending on the target set $(dlb_objs):
 #
@@ -51,35 +37,8 @@ v v v v v v v
 dlb_objs = dlbmpi_module.o thread_wrapper.o
 
 # WHY? dlbmpi_module.o: thread_wrapper.o
-*************
-v v v v v v v
-#
-# Change this depending on DLB implementation:
-#
-dlb_objs = dlb_module.o
-#dlb_objs = dlbmpi_module.o thread_wrapper.o
-
-test_dlb: main.o test.o $(dlb_objs)
-*************
-#FFSOURCES = main.f90 test.f90 dlb_module.f90
-EXESOURCE = main.o test.o dlbmpi_module.o thread_wrapper.o
-EXESOURCE2 = main.o test.o dlb_module.o
-EXESOURCE3 = main.o test.o dlb_static.o
-^ ^ ^ ^ ^ ^ ^
-^ ^ ^ ^ ^ ^ ^
-
-v v v v v v v
-main.o: test.o $(dlb_objs)
-*************
-v v v v v v v
-dlbmpi_module.o test.o: thread_wrapper.o
 
 main.o: test.o $(dlb_objs)
-*************
-dlbmpi_module.o: thread_wrapper.o
-main.o: test.o dlbmpi_module.o dlb_module.o dlb_static.o thread_wrapper.o
-^ ^ ^ ^ ^ ^ ^
-^ ^ ^ ^ ^ ^ ^
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $(<)
