@@ -19,12 +19,13 @@ integer, pointer :: sec(:)
 integer, parameter :: num_jobs = 20
 integer, parameter :: n = 3
 integer, target    :: my_parts(n)
+double precision :: sum_all(2,1)
 
 double precision :: time
 double precision, allocatable :: times(:, :)
 
 call MPI_INIT_THREAD(MPI_THREAD_MULTIPLE, prov, ierr)
-
+sum_all = 0
 select case(prov)
 case (MPI_THREAD_SINGLE)
   print *, 'MPI_THREAD_SINGLE'
@@ -77,6 +78,8 @@ do while (more_work(n, sec))
 
    do i = 1, size(sec)
      res = test_calc(sec(i))
+     sum_all(1,:) = sum_all(1,:) + res
+     sum_all(2,:) = sum_all(2,:) + sec(i)
    enddo
 
    call time_stamp("STOP USEFUL WORK",0)
@@ -88,16 +91,18 @@ enddo
 call dlb_finalize()
 
 call time_stamp("END",0)
-
 ! elapsed time:
 times(rank, 1) = MPI_WTIME() - times(rank, 1)
 
 call reduce(times)
+call reduce(sum_all)
 
 if ( rank == 0 ) then
   print *,'elapsed times = ', times(:, 1)
   print *,'working times = ', times(:, 2)
   print *,'efficiency =', sum(times(:, 2)) / maxval(times(:, 1)) / size(times, 1)
+  print *, 'result of calculation =', sum_all(1,:)
+  print *, 'sum of job numbers = ', sum_all(2,:)
 endif
 
 call MPI_FINALIZE(ierr)
