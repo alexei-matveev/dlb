@@ -96,8 +96,10 @@ module dlb
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
   use iso_c_binding
+  use thread_handle
+  use mpi
   implicit none
-  include 'mpif.h'
+  !include 'mpif.h'
   !use type_module ! type specification parameters
   save            ! save all variables defined in this module
   private         ! by default, all names are private
@@ -116,73 +118,10 @@ module dlb
   ! End of public interface of module
   !================================================================
 
-
-  interface
-    !
-    ! These interfaces need to be consistent with implementations
-    ! in thread_wrapper.c
-    !
-    subroutine th_inits() bind(C)
-    end subroutine th_inits
-
-    subroutine th_exit() bind(C)
-    end subroutine th_exit
-
-    subroutine th_join_all() bind(C)
-    end subroutine th_join_all
-
-    subroutine th_create_all() bind(C)
-    end subroutine th_create_all
-
-    subroutine th_mutex_lock(lock) bind(C)
-      use iso_c_binding
-      implicit none
-      integer(C_INT), intent(in) :: lock
-    end subroutine th_mutex_lock
-
-    subroutine th_mutex_unlock(lock) bind(C)
-      use iso_c_binding
-      implicit none
-      integer(C_INT), intent(in) :: lock
-    end subroutine th_mutex_unlock
-
-    subroutine th_cond_signal(condition) bind(C)
-      use iso_c_binding
-      implicit none
-      integer(C_INT), intent(in) :: condition
-    end subroutine th_cond_signal
-
-    subroutine th_cond_wait(condition, mutex) bind(C)
-      use iso_c_binding
-      implicit none
-      integer(C_INT), intent(in) :: condition, mutex
-    end subroutine th_cond_wait
-
-    subroutine th_rwlock_rdlock(rwlock) bind(C)
-      use iso_c_binding
-      implicit none
-      integer(C_INT), intent(in) :: rwlock
-    end subroutine th_rwlock_rdlock
-
-    subroutine th_rwlock_wrlock(rwlock) bind(C)
-      use iso_c_binding
-      implicit none
-      integer(C_INT), intent(in) :: rwlock
-    end subroutine th_rwlock_wrlock
-
-    subroutine th_rwlock_unlock(rwlock) bind(C)
-      use iso_c_binding
-      implicit none
-      integer(C_INT), intent(in) :: rwlock
-    end subroutine th_rwlock_unlock
-  end interface
-
   !------------ Declaration of types ------------------------------
-  integer(kind=i4_kind), parameter  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
-  integer(kind=i4_kind), parameter  :: JOBS_LEN = SJOB_LEN  ! Length of complete jobs storage
+
   !------------ Declaration of constants and variables ----
   ! IDs of mutexes, use base-0 indices:
-  integer(kind=i4_kind), parameter :: LOCK_JS   = 0
   integer(kind=i4_kind), parameter :: LOCK_NJ   = 1
 
   ! IDs for condition variables, use base-0 indices:
@@ -194,10 +133,9 @@ module dlb
   integer(kind=i4_kind), parameter :: MAILBOX = 0
   integer(kind=i4_kind), parameter :: CONTROL = 1
 
-  logical, parameter :: masterserver = .false. ! changes to different variant (master slave concept for comparision)
 
-  integer(kind=i4_kind)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
-  logical                           :: terminated ! for termination algorithm
+
+
   integer(kind=i4_kind)             :: new_jobs(SJOB_LEN) ! stores new job, just arrived from other proc
   integer(kind=i4_kind)             :: start_job(SJOB_LEN) ! job_storage is changed a lot, backup for
                                      ! finding out, if someone has stolen something, or how many jobs one
@@ -205,6 +143,13 @@ module dlb
   integer(kind=i4_kind)             :: my_resp ! number of jobs, this processor is responsible for (given
                                               ! in setup
   logical                           :: i_am_waiting ! Thead 0 (main thread) is waiting for CONTROL
+
+  ! These variables are also essentiel but as they are also needed in thread_handle and to avoid
+  ! cyclic dependencies they are stored there:
+  !integer(kind=i4_kind), parameter :: LOCK_JS   = 0 !declared in thread_handle
+  !logical, parameter :: masterserver = .false. ! changes to different variant (master slave concept for comparision)
+  !integer(kind=i4_kind)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
+  !logical                           :: terminated ! for termination algorithm
 
   ! some variables are shared between the three threads, there are also locks and conditions to obtain
   ! following a list, which of the three threads (MAIN, CONTROL, MAILBOX) does read or write on them
@@ -263,28 +208,10 @@ contains
     !  Purpose: initalization of needed stuff
     !           is in one thread context
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: dlb_common_my_rank, dlb_common_init
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    call dlb_common_init()
-    call MPI_COMM_RANK( comm_world, my_rank, ierr )
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 1)
-    call MPI_COMM_SIZE(comm_world, n_procs, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 2)
-
-    ! for prefixing debug messages with proc rank set this var:
-    dlb_common_my_rank = my_rank
-
-    termination_master = n_procs - 1
-    if (my_rank == termination_master) then
-      allocate(all_done(n_procs), stat = alloc_stat)
-      !ASSERT(alloc_stat==0)
-      call assert_n(alloc_stat==0, 1)
-    endif
-    call th_inits()
+    call dlb_thread_init()
   end subroutine dlb_init
 
   subroutine dlb_finalize()
@@ -360,21 +287,6 @@ contains
       ! would try to join the thread in the next cycle again
     my_job = jobs(:L_JOB)
   end subroutine dlb_give_more
-
-  logical function termination()
-    ! Purpose: make lock around terminated, but have it as one function
-    !
-    ! Context: main, control, and mailbox threads.
-    !
-    ! Locks: rdlock
-    !
-    implicit none
-    ! *** end of interface ***
-
-    call rdlock()
-    termination = terminated
-    call unlock()
-  end function termination
 
   integer(i4_kind) function decrease_resp(n)
     ! Purpose: make lock around my_resp, decrease it by done jobs
@@ -644,9 +556,7 @@ contains
     case (WORK_REQUEST) ! other proc wants something from my jobs
       count_requests = count_requests + 1
 
-      if (divide_jobs(stat(MPI_SOURCE), req)) then
-        call add_request(req, requ_m)
-      endif
+      call divide_jobs(stat(MPI_SOURCE), requ_m)
 
     case default
       ! This message makes no sense in this context, thus give warning
@@ -656,63 +566,6 @@ contains
 
     end select
   end subroutine check_messages
-
-  subroutine check_termination(proc)
-    !  Purpose: only on termination_master, checks if all procs
-    !           have reported termination
-    !
-    ! Context: mailbox thread, control. (termination master only)
-    !
-    ! Locks: wrlock on "terminated" flag.
-    !
-    ! Signals: none.
-    !
-    !------------ Modules used ------------------- ---------------
-    implicit none
-    !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in)    :: proc
-    !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, i, alloc_stat, req_self, stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind), allocatable   :: request(:), stats(:,:)
-    integer(kind=i4_kind)                :: receiver, message(1+SJOB_LEN)
-    !------------ Executable code --------------------------------
-    ! all_done stores the procs, which have already my_resp = 0
-    all_done(proc+1) = .true.
-
-    ! check if there are still some procs not finished
-    if (.not. all(all_done)) RETURN
-
-    ! there will be only a send to the other procs, telling them to terminate
-    ! thus the termination_master sets its termination here
-    call wrlock()
-    terminated = .true.
-    call unlock()
-
-    ! masterserver handles termination seperatly, this here is only for its own termination
-    ! I'm not sure what MPI does with requests of the size 0, thus quit if there is only one
-    ! processor
-    if (masterserver .or. n_procs == 1) RETURN
-
-    allocate(request(n_procs -1), stats(n_procs -1, MPI_STATUS_SIZE),&
-    stat = alloc_stat)
-    !ASSERT(alloc_stat==0)
-    call assert_n(alloc_stat==0,9)
-    message(1) = NO_WORK_LEFT
-    message(2:) = 0
-    do i = 0, n_procs-2
-    receiver = i
-    ! skip the termination master (itsself)`
-    if (i >= termination_master) receiver = i+1
-    call time_stamp("send termination", 5)
-    call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, receiver, MSGTAG,comm_world ,request(i+1), ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
-    enddo
-    call MPI_WAITALL(size(request), request, stats, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
-  end subroutine check_termination
 
   subroutine local_tgetm(m, my_jobs)
     !  Purpose: takes m jobs from the left from object job_storage
@@ -827,26 +680,5 @@ contains
     call th_create_all()
     call time_stamp("finished setup", 3)
   end subroutine dlb_setup
-
-  subroutine rdlock()
-    implicit none
-    ! *** end of interface ***
-
-    call th_rwlock_rdlock(0)
-  end subroutine rdlock
-
-  subroutine wrlock()
-    implicit none
-    ! *** end of interface ***
-
-    call th_rwlock_wrlock(0)
-  end subroutine wrlock
-
-  subroutine unlock()
-    implicit none
-    ! *** end of interface ***
-
-    call th_rwlock_unlock(0)
-  end subroutine unlock
 
 end module dlb
