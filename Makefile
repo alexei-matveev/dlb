@@ -30,9 +30,8 @@ THREADLIBS = -lpthread #-lfpthread
 CCLIBS = -lstdc++
 
 #### COMPILER FLAGS ####
-# These are not critical:
 FFLAGS = -Wall -g -O2 #-fbounds-check
-CFLAGS = -Wall -g -O1
+CFLAGS = -Wall -g -O1 -std=c99
 LINKFLAGS =
 
 #### LDFLAGS, LIBRARY-PATH ####
@@ -82,7 +81,7 @@ main.o: test.o dlbmpi_module.o dlb_module.o dlb_static.o thread_wrapper.o
 ^ ^ ^ ^ ^ ^ ^
 ^ ^ ^ ^ ^ ^ ^
 
-%.o: %.cpp
+%.o: %.c
 	$(CC) $(CFLAGS) -c $(<)
 
 %.o: %.f90
