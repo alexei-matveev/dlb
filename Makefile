@@ -17,7 +17,8 @@ THREADLIBS = -lpthread
 
 #### COMPILER FLAGS ####
 FFLAGS = -frecursive -g -O2 #-fbounds-check # Intel: -diag-enable warn
-CFLAGS = -Wall -g -O1 -std=c99
+CFLAGS = -Wall -g -O1 -std=c99 -D_XOPEN_SOURCE=500
+# set _XOPEN_SOURCE=500 to make rwlocks available
 LINKFLAGS =
 
 #### LDFLAGS, LIBRARY-PATH ####
