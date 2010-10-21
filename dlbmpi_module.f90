@@ -422,7 +422,7 @@ contains
 
     do while (.not. termination())
       call check_messages(requ_m)
-      call test_requests(requ_m)
+      if (allocated(requ_m)) call test_requests(requ_m)
     enddo
 
     ! now finish all messges still available, no matter if they have been received
@@ -474,43 +474,41 @@ contains
     logical     :: flag
     logical, allocatable :: finished(:)
     !------------ Executable code --------------------------------
-    if (allocated(requ)) then
-      len_req = size(requ)
-      allocate(finished(len_req), requ_int(len_req), stat = alloc_stat)
+    len_req = size(requ)
+    allocate(finished(len_req), requ_int(len_req), stat = alloc_stat)
+    !ASSERT(alloc_stat==0)
+    call assert_n(alloc_stat==0, 4)
+    finished = .false.
+    len_new = len_req
+    do i = 1, len_req
+      req = requ(i)
+      call MPI_TEST(req, flag, stat, ierr)
+      !ASSERT(ierr==MPI_SUCCESS)
+      call assert_n(ierr==MPI_SUCCESS, 4)
+      if (flag) then
+        finished(i) = .true.
+        len_new = len_new - 1
+      endif
+    enddo
+    requ_int(:) = requ(:)
+    deallocate(requ, stat = alloc_stat)
+    !ASSERT(alloc_stat==0)
+    call assert_n(alloc_stat==0, 4)
+    if (len_new > 0) then
+      allocate(requ(len_new), stat = alloc_stat)
       !ASSERT(alloc_stat==0)
       call assert_n(alloc_stat==0, 4)
-      finished = .false.
-      len_new = len_req
+      j = 0
       do i = 1, len_req
-        req = requ(i)
-        call MPI_TEST(req, flag, stat, ierr)
-        !ASSERT(ierr==MPI_SUCCESS)
-        call assert_n(ierr==MPI_SUCCESS, 4)
-        if (flag) then
-          finished(i) = .true.
-          len_new = len_new - 1
+        if (.not. finished(i)) then
+          j = j + 1
+          requ(j) = requ_int(i)
         endif
       enddo
-      requ_int(:) = requ(:)
-      deallocate(requ, stat = alloc_stat)
-      !ASSERT(alloc_stat==0)
-      call assert_n(alloc_stat==0, 4)
-      if (len_new > 0) then
-        allocate(requ(len_new), stat = alloc_stat)
-        !ASSERT(alloc_stat==0)
-        call assert_n(alloc_stat==0, 4)
-        j = 0
-        do i = 1, len_req
-          if (.not. finished(i)) then
-            j = j + 1
-            requ(j) = requ_int(i)
-          endif
-        enddo
-      endif
-      deallocate(requ_int, finished, stat = alloc_stat)
-      !ASSERT(alloc_stat==0)
-      call assert_n(alloc_stat==0, 4)
     endif
+    deallocate(requ_int, finished, stat = alloc_stat)
+    !ASSERT(alloc_stat==0)
+    call assert_n(alloc_stat==0, 4)
   end subroutine test_requests
 
   subroutine thread_control() bind(C)
@@ -568,9 +566,7 @@ contains
         ! not if masterserver is wanted, then there is no need for the termination algorithm, master knows
         ! where are all jobs by its own
         if (.not. masterserver) then
-           if (report_or_store(job_storage(:SJOB_LEN), req)) then
-             call add_request(req, requ_c)
-           endif
+           call report_or_store(job_storage(:SJOB_LEN), requ_c)
         endif
 
         my_jobs = job_storage(:SJOB_LEN)
@@ -592,9 +588,8 @@ contains
           call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, v, MSGTAG, comm_world, requ_wr, ierr)
           !ASSERT(ierr==MPI_SUCCESS)
           call assert_n(ierr==MPI_SUCCESS, 4)
-
-          call test_requests(requ_c)
-          call time_stamp("COTNROL waits for reply", 5)
+          if (allocated(requ_c)) call test_requests(requ_c)
+          call time_stamp("CONTROL waits for reply", 5)
           call th_cond_wait(COND_NJ_UPDATE, LOCK_NJ) !while waiting is unlocked for MAILBOX
           call time_stamp("COTNROL got reply", 5)
             my_jobs = new_jobs
@@ -695,9 +690,8 @@ contains
       !ASSERT(message>0)
       call assert_n(message(2)>0, 4)
 
-      my_resp_local = decrease_resp(message(2))
-      if (is_my_resp_done( req, my_resp_local)) then
-        call add_request(req, requ_m)
+      if (decrease_resp(message(2)) == 0) then
+        call send_resp_done( requ_m)
       endif
 
     case (RESP_DONE) ! finished responsibility
@@ -829,7 +823,7 @@ contains
     call assert_n(ierr==MPI_SUCCESS, 4)
   end subroutine check_termination
 
-  logical function is_my_resp_done(requ, respon)
+  subroutine send_resp_done(requ)
     !  Purpose: my_resp holds the number of jobs, assigned at the start
     !           to this proc, so this proc is responsible that they will
     !           be finished, if my_resp == 0, I should tell termination_master
@@ -846,23 +840,20 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
-    integer(kind=i4_kind), intent(out)   :: requ
-    integer(kind=i4_kind), intent(in)   :: respon
+    integer(kind=i4_kind), allocatable   :: requ(:)
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr
+    integer(kind=i4_kind)                :: ierr, req
     integer(kind=i4_kind)                :: message(1+SJOB_LEN)
     !------------ Executable code --------------------------------
-    is_my_resp_done = .false.
-    if (respon == 0) then
-      message(1) = RESP_DONE
-      message(2) = my_rank
-      message(3:) = 0
-      call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, termination_master, MSGTAG,comm_world, requ, ierr)
-      !ASSERT(ierr==MPI_SUCCESS)
-      call assert_n(ierr==MPI_SUCCESS, 4)
-      is_my_resp_done = .true.
-    endif
-  end function is_my_resp_done
+
+    message(1) = RESP_DONE
+    message(2) = my_rank
+    message(3:) = 0
+    call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, termination_master, MSGTAG,comm_world, req, ierr)
+    !ASSERT(ierr==MPI_SUCCESS)
+    call assert_n(ierr==MPI_SUCCESS, 4)
+    call add_request(req, requ)
+  end subroutine send_resp_done
 
   subroutine local_tgetm(m, my_jobs, first)
     !  Purpose: takes m jobs from the left from object job_storage
@@ -908,7 +899,7 @@ contains
     call th_mutex_unlock(LOCK_JS)
   end subroutine local_tgetm
 
-  logical function report_or_store(my_jobs, req)
+  subroutine report_or_store(my_jobs, requ)
     !  Purpose: If a job is finished, this cleans up afterwards
     !           Needed for termination algorithm, there are two
     !           cases, it was a job of the own responsibilty or
@@ -925,15 +916,14 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in  ) :: my_jobs(SJOB_LEN)
-    integer(kind=i4_kind), intent(out ) :: req
+    integer(kind=i4_kind), allocatable  :: requ(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr
+    integer(kind=i4_kind)                :: ierr, req
     integer(kind=i4_kind)                :: my_resp_local
     integer(kind=i4_kind)                :: num_jobs_done, message(1 + SJOB_LEN)
     !------------ Executable code --------------------------------
     call time_stamp("finished a job",4)
-    report_or_store = .false.
     ! my_jobs hold recent last point, as proc started from beginning and
     ! steal from the back, this means that from the initial starting point on
     ! (stored in start_job) to this one, all jobs were done
@@ -942,13 +932,13 @@ contains
     !if (num_jobs_done == 0) return ! there is non job, thus why care
     if (start_job(NRANK) == my_rank) then
       my_resp_self = my_resp_self + num_jobs_done
-      my_resp_local = decrease_resp(num_jobs_done)
-      report_or_store = is_my_resp_done(req, my_resp_local) ! check if all my jobs are done
+      if(decrease_resp(num_jobs_done)== 0) then ! if all my jobs are done
+         call send_resp_done(requ)
+      endif
     else
       your_resp = your_resp + num_jobs_done
       ! As all isends have to be closed sometimes, storage of
       ! the request handlers is needed
-      report_or_store = .true.
       message(1) = DONE_JOB
       message(2) = num_jobs_done
       message(3:) = 0
@@ -957,8 +947,9 @@ contains
                                   MSGTAG,comm_world, req, ierr)
       !ASSERT(ierr==MPI_SUCCESS)
       call assert_n(ierr==MPI_SUCCESS, 4)
+      call add_request(req, requ)
     endif
-  end function report_or_store
+  end subroutine report_or_store
 
   logical function divide_jobs(partner, requ)
     !  Purpose: share jobs from job_storage with partner, tell
