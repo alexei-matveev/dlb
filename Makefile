@@ -80,5 +80,5 @@ clean:
 	rm -f *.o
 	rm -f *.mod
 	rm -f *~
-	rm -f $(CEXE)
+	rm -f $(EXE)
 
