@@ -269,7 +269,8 @@ module dlb
   integer(kind=i4_kind)             :: count_messages, count_requests, count_offers ! how many messages arrived, MAILBOX
   integer(kind=i4_kind)             :: my_resp_start, my_resp_self, your_resp !how many jobs doen where, CONTROL
   integer(kind=i4_kind)             :: many_tries, many_searches !how many times asked for jobs, CONTROL
-
+  integer(kind=i4_kind)             :: many_zeros !how many times asked for jobs, CONTROL
+  double precision  :: timemax
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
 contains
@@ -367,9 +368,12 @@ contains
     if (jobs(J_STP) >= jobs(J_EP)) then
        call th_join_all()
        ! now only one thread left, thus all variables belong him:
-       print *, my_rank, "CONTROL: tried", many_searches, "times to get new jobs, by trying to steal", many_tries
-       print *, my_rank, "CONTROL: done", my_resp_self, "of my own, gave away", my_resp_start - my_resp_self, "and stole", your_resp
-       print *,my_rank, "MAILBOX: got ", count_messages, "messages with", count_requests, "requests and", count_offers, "offers"
+       print *, my_rank, "C: tried", many_searches, "for new jobs andstealing", many_tries
+       print *, my_rank, "C: locked", many_zeros
+       print *, my_rank, "C: longest wait for answer", timemax
+       !print *, my_rank, "CONTROL: tried", many_searches, "times to get new jobs, by trying to steal", many_tries
+       !print *, my_rank, "CONTROL: done", my_resp_self, "of my own, gave away", my_resp_start - my_resp_self, "and stole", your_resp
+       !print *,my_rank, "MAILBOX: got ", count_messages, "messages with", count_requests, "requests and", count_offers, "offers"
     endif
       ! if true means MAIN did not intent to come back (check termination is
       ! too dangerous, because MAIN may still have work for one go and thus
@@ -550,11 +554,14 @@ contains
     integer(kind=i4_kind)                :: message(1 + SJOB_LEN), requ_wr
     integer(kind=i4_kind)                :: my_jobs(SJOB_LEN)
     integer(kind=i4_kind),allocatable    :: requ_c(:) !requests storages for CONTROL
+    double precision :: timestart, timeend
     !------------ Executable code --------------------------------
     many_tries = 0
     many_searches = 0
+    many_zeros = 0
     my_resp_self = 0
     your_resp = 0
+    timemax = 0.0
     ! message is always the same (WORK_REQUEST)
     message = 0
     message(1) = WORK_REQUEST
@@ -595,6 +602,7 @@ contains
             v = select_victim(my_rank, n_procs)
           endif
 
+          timestart = MPI_WTIME()
           call time_stamp("CONTROL sends message",5)
           call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, v, MSGTAG, comm_world, requ_wr, ierr)
           !ASSERT(ierr==MPI_SUCCESS)
@@ -602,6 +610,8 @@ contains
           if (allocated(requ_c)) call test_requests(requ_c)
           call time_stamp("CONTROL waits for reply", 5)
           call th_cond_wait(COND_NJ_UPDATE, LOCK_NJ) !while waiting is unlocked for MAILBOX
+          timeend = MPI_WTIME()
+          if ((timeend - timestart) > timemax) timemax = timeend - timestart
           call time_stamp("COTNROL got reply", 5)
             my_jobs = new_jobs
             new_jobs(J_STP) = 0
@@ -617,6 +627,7 @@ contains
           call MPI_WAIT(requ_wr, stat, ierr)
           !ASSERT(ierr==MPI_SUCCESS)
           call assert_n(ierr==MPI_SUCCESS, 4)
+          if (my_jobs(J_STP) >= my_jobs(J_EP)) many_zeros = many_zeros + 1
         enddo
         call th_mutex_unlock(LOCK_NJ) ! unlock LOCK_NJ
 
