@@ -11,20 +11,12 @@ void th_inits();
 void th_create_mail(int *tid);
 void th_create_control(int *tid);
 
-v v v v v v v
-void *th_exit_();
-void *th_mutex_lock_(int *mutex);
-void *th_mutex_unlock_(int * mutex);
-void *th_cond_wait_( int *condition, int *mutex);
-void *th_cond_signal_(int * condition);
-void * th_join_(int * name);
-*************
 void th_exit();
 void th_mutex_lock(int *mutex);
 void th_mutex_unlock(int *mutex);
 void th_cond_wait(int *condition, int *mutex);
 void th_cond_signal(int *condition);
-^ ^ ^ ^ ^ ^ ^
+void th_join_(int * name);
 
 #define NMUTEXES 4
 #define NCONDS 3
@@ -121,8 +113,7 @@ void th_exit()
   pthread_exit(NULL);
 }
 
-v v v v v v v
-void * th_join_(int * name)
+void th_join_(int * name)
 {
   int rc;
   void *status;
@@ -133,10 +124,7 @@ void * th_join_(int * name)
       }
 }
 
-void * th_mutex_lock_(int *mutex)
-*************
 void th_mutex_lock(int *mutex)
-^ ^ ^ ^ ^ ^ ^
 {
   pthread_mutex_lock(&mutexes[*mutex]);
 }
