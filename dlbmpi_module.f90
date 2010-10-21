@@ -992,23 +992,30 @@ contains
     call th_mutex_unlock(LOCK_JS)
   end function divide_jobs
 
-  integer(kind=i4_kind) function reserve_workm(m, jobs)
+  pure function reserve_workm(m, jobs) result(n)
     ! PURPOSE: give back number of jobs to take, should be up to m, but
     ! less if there are not so many available
-    integer(kind=i4_kind), intent(in   ) :: m
-    integer(kind=i4_kind), intent(in   ) :: jobs(:)
+    implicit none
+    integer(i4_kind), intent(in) :: m
+    integer(i4_kind), intent(in) :: jobs(:)
+    integer(i4_kind)             :: n ! result
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    !------------ Executable code --------------------------------
-    reserve_workm = min(jobs(J_EP) - jobs(J_STP), m)
-    reserve_workm = max(reserve_workm, 0)
+
+    n = min(jobs(J_EP) - jobs(J_STP), m)
+    n = max(n, 0)
   end function reserve_workm
 
-  integer(kind=i4_kind) function reserve_workh(m,jobs)
+  pure function reserve_workh(m, jobs) result(n)
     ! Purpose: give back number of jobs to take, half what is there
+    !
+    ! Context: mailbox thread.
+    !
+    implicit none
+    integer(i4_kind), intent(in) :: m
+    integer(i4_kind), intent(in) :: jobs(:)
+    integer(i4_kind)             :: n ! result
     !** End of interface *****************************************
-    integer(kind=i4_kind), intent(in   ) :: m
-    integer(kind=i4_kind), intent(in   ) :: jobs(:)
+
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: many_jobs
     !------------ Executable code --------------------------------
@@ -1021,19 +1028,19 @@ contains
     ! on one processor, it should give less than half of it back
     if (master_server) then
       if(chunk_m == 0) then !just a jobslice the proc will do at once (too frequently?)
-       reserve_workh = min(many_jobs, m)
+       n = min(many_jobs, m)
       elseif(chunk_m ==1) then !serveral jobs if possible but still a fixed block
-        reserve_workh = min(many_jobs, chunksize*m)
+        n = min(many_jobs, chunksize*m)
       else ! exponential decrease, but not less than m (a job bunch at a time)
-        reserve_workh = many_jobs/n_procs
-        if(reserve_workh < m) reserve_workh = m
-        if (reserve_workh > many_jobs) reserve_workh = 0
+        n = many_jobs/n_procs
+        if(n < m) n = m
+        if (n > many_jobs) n = 0
       endif
     else ! with not master_server all procs may chare, thus this one can give half of it
-      !reserve_workh =  (many_jobs /(2* m))* m
-      reserve_workh =  many_jobs /(2)
+      !n =  (many_jobs /(2* m))* m
+      n =  many_jobs / 2
     endif
-    reserve_workh = max(reserve_workh, 0)
+    n = max(n, 0)
   end function reserve_workh
 
   subroutine dlb_setup(job)
