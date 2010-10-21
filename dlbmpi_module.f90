@@ -398,7 +398,7 @@ contains
 
   integer(i4_kind) function decrease_resp(n)
     ! Purpose: make lock around my_resp, decrease it by done jobs
-    !          and retruns updated value further inspections
+    !          and return updated value for further inspections
     !
     ! Context: control, and mailbox threads.
     !
