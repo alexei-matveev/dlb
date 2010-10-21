@@ -88,8 +88,8 @@ module dlb
   ! Description: ...
   !
   !----------------------------------------------------------------
-  !#include 'thread_wrapper.h'
-  !use mpi
+  use dlb_common, only: i4_kind, r8_kind, comm_world
+  use dlb_common, only: assert_n, time_stamp, time_stamp_prefix ! for debug only
   use iso_c_binding
   implicit none
   include 'mpif.h'
@@ -99,8 +99,7 @@ module dlb
   !== Interrupt end of public interface of module =================
 
   !------------ public functions and subroutines ------------------
-  public dlb_init, dlb_finalize, dlb_setup, dlb_give_more !for using the module
-  public :: time_stamp
+  public :: dlb_init, dlb_finalize, dlb_setup, dlb_give_more
   !
   ! public :: thread_control, thread_mailbox ! needed for the c-wrapper on the pthreads
   !
@@ -164,17 +163,6 @@ module dlb
   end interface
 
   !------------ Declaration of types ------------------------------
-! ONLY FOR DEBBUGING WITHOUT PARAGAUSS
-! integer with 4 bytes, range 9 decimal digits
-integer, parameter :: integer_kind = selected_int_kind(9)
-integer, parameter :: i4_kind = integer_kind
-! real with 8 bytes, precision 15 decimal digits
-integer, parameter :: double_precision_kind = selected_real_kind(15)
-integer, parameter :: r8_kind = double_precision_kind
-integer, parameter :: comm_world = MPI_COMM_WORLD
-
-
-! END ONLY FOR DEBUGGING
 
   ! first three variables for the use with the other form
   logical, parameter  :: master_server = .false.
@@ -274,7 +262,7 @@ integer, parameter :: comm_world = MPI_COMM_WORLD
   integer(kind=i4_kind)             :: count_messages, count_requests, count_offers ! how many messages arrived
   integer(kind=i4_kind)             :: my_resp_start, my_resp_self, your_resp !how many jobs doen where
   integer(kind=i4_kind)             :: many_tries, many_searches !how many times asked for jobs
-  double precision :: time_offset = -1.0
+
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
 contains
@@ -297,47 +285,12 @@ contains
 
     print *,"GGG", my_rank, "parallel", place,  MPI_Wtime()
   end subroutine timepar
-
-  function time_stamp_prefix(time) result(prefix)
-    implicit none
-    double precision, intent(in) :: time
-    character(len=28) :: prefix
-    ! *** end of interface ***
-    write(prefix, '(A,"#", I3, G20.10)')"GGG"  , my_rank, time - time_offset
-  end function time_stamp_prefix
-
-  subroutine time_stamp(msg)
-    implicit none
-    character(len=*), intent(in) :: msg
-    ! *** end of interface ***
-
-    double precision :: time
-
-    time = MPI_Wtime()
-    if ( time_offset < 0.0 ) then
-      time_offset = 0.0
-      print *, time_stamp_prefix(time), "(BASE TIME)"
-      time_offset = time
-    endif
-
-    print *, time_stamp_prefix(time), msg
-  end subroutine time_stamp
-
-  subroutine assert_n(exp,num)
-    implicit none
-    logical, intent(in) :: exp
-    integer, intent(in) :: num
-    if (.not. exp) then
-       print *, "ASSERT FAILED", num
-       call abort
-    endif
-  end subroutine assert_n
-
 ! END ONLY FOR DEBUGGING
 
   subroutine dlb_init()
     !  Purpose: initalization of needed stuff
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: dlb_common_my_rank
     implicit none
     !** End of interface *****************************************
     integer(kind=i4_kind)       ::  alloc_stat, ierr
@@ -348,6 +301,10 @@ contains
     call MPI_COMM_SIZE(comm_world, n_procs, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 2)
+
+    ! for prefixing debug messages with proc rank set this var:
+    dlb_common_my_rank = my_rank
+
     termination_master = n_procs - 1
     if (my_rank == termination_master) then
       allocate(all_done(n_procs), stat = alloc_stat)
@@ -539,6 +496,7 @@ contains
     !          but also after termination message (MAILBOX will wake it up)
     !          after termination first check if MAIN is waiting, wake it, than exit
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: select_victim
     implicit none
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
@@ -590,7 +548,12 @@ contains
         do while (.not. termination() .and. (my_jobs(J_STP) >= my_jobs(J_EP))) ! two points to stop: if there are again new jobs
                                                                                ! or if all is finished
           many_tries = many_tries + 1
-          v = select_victim()
+
+          ! FIXME: why there is a special logic in case master_server == true?
+          call assert_n(.not.master_server, 0)
+
+          v = select_victim(my_rank, n_procs)
+
           print *, my_rank, "CONTROL send message to", v
           call timeloc("sendmessage",v)
           call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, v, MSGTAG, comm_world, requ_wr, ierr)
@@ -844,72 +807,6 @@ contains
       endif
     endif
   end function is_my_resp_done
-
-  integer(kind=i4_kind) function select_victim()
-     ! Purpose: decide of who to try next to get any jobs
-     if (master_server) then
-       select_victim = termination_master
-     else
-       select_victim = select_victim_random2()
-       !select_victim = select_victim_r()
-     endif
-  end function select_victim
-
-  integer(kind=i4_kind) function select_victim_r()
-     ! Purpose: decide of who to try next to get any jobs
-     ! Each in a row
-     integer(kind=i4_kind), save :: count = 1
-     select_victim_r = mod(my_rank + count, n_procs)
-     count = count + 1
-     if (select_victim_r == my_rank) then
-        select_victim_r = mod(my_rank + count, n_procs)
-        count = count + 1
-     endif
-     !print *, "RRRRRRRRRRRRRR selcet victim round", select_victim_r, my_rank
-  end function select_victim_r
-
-  integer(kind=i4_kind) function select_victim_random2()
-     ! Purpose: decide of who to try next to get any jobs
-     ! Uses primitive pseudorandom code X_n+1 = (aX_n + b)mod m
-     !integer, save, dimension(1) :: random
-     integer, allocatable, save :: random(:)
-     real(kind=r8_kind), allocatable     ::  harv(:)
-     integer(kind=i4_kind)  :: i, s, alloc_stat
-     !f (random(1)==-1) random(1) = my_rank
-     call random_seed()
-     call random_seed(size=s)
-     if (.not. allocated(random)) then
-       allocate(random(s), stat=alloc_stat)
-       !ASSERT(alloc_stat==0)
-       call assert_n(alloc_stat==0, 4)
-       call random_seed(get=random)
-       do i = 1, s
-          random(i) = my_rank + i
-       enddo
-       !print *, my_rank, s, random
-     endif
-     allocate(harv(s), stat=alloc_stat)
-     !ASSERT(alloc_stat==0)
-     !all assert_n(alloc_stat==0, 4)
-
-     !print *,my_rank, "random=", random
-     call random_seed(put=random)
-     call random_number(harv)
-     !print *,my_rank, "harv=",harv
-     select_victim_random2 = int(harv(1)*n_procs)
-     i = 0
-     do while (select_victim_random2 == my_rank .and. i < 10)
-       call random_number(harv)
-       select_victim_random2 = int(harv(1)*n_procs)
-       i = i + 1
-     enddo
-     if ((select_victim_random2 == n_procs) .or. (select_victim_random2 &
-        ==my_rank)) select_victim_random2 = select_victim_r()
-     call random_number(harv)
-     call random_seed(get=random)
-     !print *,my_rank, "random=", random
-     !print *, "RRRRRRRRRRR random victim", select_victim_random2, my_rank
-  end function select_victim_random2
 
   subroutine local_tgetm(m, my_jobs, first)
     !  Purpose: takes m jobs from the left from object job_storage

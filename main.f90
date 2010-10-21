@@ -5,6 +5,7 @@ program main
 ! Purpose: starts tests
 ! End of public interface
 
+use dlb_common, only: time_stamp ! for debug prints
 use dlb
 use test2, only: test_calc
 implicit none

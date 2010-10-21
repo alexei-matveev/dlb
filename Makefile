@@ -27,7 +27,7 @@ LIBS = $(MPILIBS) #$(THREADLIBS)
 #
 # Objects common for all implementations:
 #
-objs = main.o test.o
+objs = main.o test.o dlb_common.o
 
 #
 # Depending on the target set $(dlb_objs):
@@ -39,6 +39,7 @@ dlb_objs = dlbmpi_module.o thread_wrapper.o
 # WHY? dlbmpi_module.o: thread_wrapper.o
 
 main.o: test.o $(dlb_objs)
+dlb_module.o dlbmpi_module.o: dlb_common.o
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $(<)
