@@ -124,19 +124,11 @@ module dlb
     subroutine th_exit() bind(C)
     end subroutine th_exit
 
-    ! FIXME: why do these need an argument?
-    subroutine th_create_control(tid) bind(C)
-      use iso_c_binding
-      implicit none
-      integer(C_INT), intent(in) :: tid
-    end subroutine th_create_control
+    subroutine th_join_all() bind(C)
+    end subroutine th_join_all
 
-    ! FIXME: why do these need an argument?
-    subroutine th_create_mail(tid) bind(C)
-      use iso_c_binding
-      implicit none
-      integer(C_INT), intent(in) :: tid
-    end subroutine th_create_mail
+    subroutine th_create_all() bind(C)
+    end subroutine th_create_all
 
     subroutine th_mutex_lock(lock) bind(C)
       use iso_c_binding
@@ -384,13 +376,10 @@ contains
     ! or a terminated algorithm
     print *, my_rank,"GOT JOB: its", jobs
     ! only the start and endpoint of job slice is needed external
-    if (jobs(J_STP) >= jobs(J_EP)) then
-      ! this means MAIN did not intent to come back (check termination is
+    if (jobs(J_STP) >= jobs(J_EP)) call th_join_all()
+      ! if true means MAIN did not intent to come back (check termination is
       ! too dangerous, because MAIN may still have work for one go and thus
       ! would try to join the thread in the next cycle again
-      call th_join(CONTROL)
-      if (n_procs > 1) call th_join(MAILBOX)
-    endif
     my_job = jobs(:L_JOB)
   end subroutine dlb_give_more
 
@@ -857,17 +846,17 @@ contains
         call MPI_WAITALL(size(request), request, stats, ierr)
         !ASSERT(ierr==MPI_SUCCESS)
         call assert_n(ierr==MPI_SUCCESS, 4)
-         if (thread == CONTROL) then ! in this (seldom) case shut also down my own mailbox (should be
-                ! waiting for any message
-          print *, "Send termination to myself", termination_master
-          call timeloc("term", termination_master)
-           call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, termination_master, MSGTAG,comm_world ,req_self, ierr)
-           !ASSERT(ierr==MPI_SUCCESS)
-           call assert_n(ierr==MPI_SUCCESS, 4)
-           call MPI_WAIT(req_self, stat, ierr)
-           !ASSERT(ierr==MPI_SUCCESS)
-           call assert_n(ierr==MPI_SUCCESS, 4)
-         endif
+      endif
+      if (thread == CONTROL) then ! in this (seldom) case shut also down my own mailbox (should be
+             ! waiting for any message
+       !print *, "Send termination to myself", termination_master
+       !call timeloc("term", termination_master)
+        call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, termination_master, MSGTAG,comm_world ,req_self, ierr)
+        !ASSERT(ierr==MPI_SUCCESS)
+        call assert_n(ierr==MPI_SUCCESS, 4)
+        call MPI_WAIT(req_self, stat, ierr)
+        !ASSERT(ierr==MPI_SUCCESS)
+        call assert_n(ierr==MPI_SUCCESS, 4)
       endif
     endif
   end subroutine check_termination
@@ -1100,8 +1089,7 @@ contains
     job_storage(:SJOB_LEN) = start_job
     ! from now on, there are several threads, so chared objects have to
     ! be locked/unlocked in order to use them!!
-    call th_create_control(CONTROL)
-    if (n_procs > 1) call th_create_mail(MAILBOX)
+    call th_create_all()
     call timepar("endsetup")
   end subroutine dlb_setup
 

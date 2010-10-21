@@ -8,11 +8,7 @@ void thread_control(); // extern, Fortran sub
 void thread_mailbox(); // extern, Fortran sub
 
 void th_inits();
-
-// Better make a single func th_create() that starts both
-// threads unconditionally:
-void th_create_mail(int *tid);
-void th_create_control(int *tid);
+void th_create_all();
 
 // Then this should join both of them, does not need
 // a thread ID:
@@ -23,6 +19,7 @@ void th_mutex_lock(int *mutex);
 void th_mutex_unlock(int *mutex);
 void th_cond_wait(int *condition, int *mutex);
 void th_cond_signal(int *condition);
+void th_join_all();
 void th_rwlock_rdlock(int *rwlock);
 void th_rwlock_wrlock(int *rwlock);
 void th_rwlock_unlock(int *rwlock);
@@ -37,7 +34,7 @@ pthread_mutex_t mutexes[NMUTEXES];
 pthread_cond_t conds[NCONDS];
 pthread_rwlock_t rwlocks[NRWLOCKS];
 
-// why are these vars made global?
+// set up in th_init(once for all), used later in th_create_all
 pthread_attr_t ThreadAttribute;
 
 void th_inits()
@@ -46,7 +43,6 @@ void th_inits()
   pthread_mutexattr_t mutex_attr;
   pthread_condattr_t cond_attr;
   pthread_rwlockattr_t rwlock_attr;
-
   rc = pthread_attr_init(&ThreadAttribute);
   assert(!rc);
 
@@ -100,21 +96,12 @@ void th_inits()
   assert(!rc);
 }
 
-void th_create_control(int *tid)
+void th_create_all()
 {
   int rc;
-
-  assert(*tid >= 0 && *tid < NTHREADS);
-  rc = pthread_create(&threads[*tid], &ThreadAttribute,(void *(*)(void *)) thread_control, NULL);
+  rc = pthread_create(&threads[0], &ThreadAttribute,(void *(*)(void *)) thread_mailbox, NULL);
   assert(!rc);
-}
-
-void th_create_mail(int *tid)
-{
-  int rc;
-
-  assert(*tid >= 0 && *tid < NTHREADS);
-  rc = pthread_create(&threads[*tid], &ThreadAttribute,(void *(*)(void *)) thread_mailbox, NULL);
+  rc = pthread_create(&threads[1], &ThreadAttribute,(void *(*)(void *)) thread_control, NULL);
   assert(!rc);
 }
 
@@ -123,14 +110,21 @@ void th_exit()
   pthread_exit(NULL);
 }
 
-void th_join_(int *tid)
+void th_join_all()
 {
   int rc;
   void *status;
-
-  assert(*tid >= 0 && *tid < NTHREADS);
-  rc = pthread_join(threads[*tid], &status);
+  rc = pthread_join(threads[0], &status);
+  if (rc) {
+      printf("ERROR; return code from pthread_join(MAILBOX) is %d\n", rc);
+      //exit(-1);
+      }
+  rc = pthread_join(threads[1], &status);
   assert(!rc);
+  if (rc) {
+      printf("ERROR; return code from pthread_join(CONTROL) is %d\n", rc);
+      //exit(-1);
+      }
 }
 
 void th_mutex_lock(int *mutex)
