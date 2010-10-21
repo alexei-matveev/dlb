@@ -576,7 +576,7 @@ contains
       if (job_storage(J_STP) >= job_storage(J_EP)) then !point where CONTROL actually has something to do
         call timepar("controlworking")
         !print *, my_rank, "CONTROL find new jobs"
-        many_searches = many_searches + 1
+        many_searches = many_searches + 1 ! just for debugging
 
         if (report_or_store(job_storage(:SJOB_LEN), req)) then
           call add_request(req, requ_c)
@@ -588,7 +588,7 @@ contains
         call th_mutex_lock(LOCK_NJ) ! LOCKED NJ but unlocked LOCK_JS
         do while (.not. termination() .and. (my_jobs(J_STP) >= my_jobs(J_EP))) ! two points to stop: if there are again new jobs
                                                                                ! or if all is finished
-          many_tries = many_tries + 1
+          many_tries = many_tries + 1 ! just for debugging
 
           v = select_victim(my_rank, n_procs)
 
