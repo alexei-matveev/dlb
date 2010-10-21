@@ -33,7 +33,7 @@ module test2
     ! *** end of interface ***
 
     integer :: test_calc2
-    integer :: i,j, l , l1, l2, l3, l4, l5, l6, l7, l8, l9, l0
+    integer :: j, l , l1, l2, l3, l4, l5, l6, l7, l8, l9
     real :: k
 
     k = 0
