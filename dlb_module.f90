@@ -141,7 +141,7 @@ contains
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, sizeofint
-    integer(kind=MPI_ADDRESS_KIND)       :: size_alloc, alloc_stat
+    integer(kind=MPI_ADDRESS_KIND)       :: size_alloc, alloc_stat, size_all
     !------------ Executable code --------------------------------
 !   print *, "dlb_init: entered"
     ! some aliases, highly in use during the whole module
@@ -172,9 +172,10 @@ contains
     ! pointers as they are
     call c_f_pointer(c_job_pointer, job_storage, [jobs_len])
 
+    size_all = jobs_len * sizeofint ! for having it in the correct kind
     ! win (an integer) is set up, so that the RMA-processes can call on it
     ! they will then get acces to the local stored job_storage of the corresponding proc
-    call MPI_WIN_CREATE(job_storage, jobs_len * sizeofint, sizeofint, MPI_INFO_NULL, &
+    call MPI_WIN_CREATE(job_storage, size_all, sizeofint, MPI_INFO_NULL, &
                         comm_world, win, ierr)
 !   print *, "win=", win
     call assert_n(ierr==MPI_SUCCESS, 4)
@@ -572,6 +573,7 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, sap, w
     integer(i4_kind), target             :: jobs_infom(jobs_len)
+    integer(kind=MPI_ADDRESS_KIND)      :: displacement
     !------------ Executable code --------------------------------
     my_jobs(J_EP)  = 0
     my_jobs(J_STP) = 0
@@ -589,7 +591,8 @@ contains
     call MPI_GET(jobs_infom, jobs_len, MPI_INTEGER4, source, 0, jobs_len, MPI_INTEGER4, win, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
-    call MPI_PUT(ON,1,MPI_INTEGER4, source, my_rank + SJOB_LEN, 1, MPI_INTEGER4, win, ierr)
+    displacement = my_rank + SJOB_LEN !for getting it in the correct kind
+    call MPI_PUT(ON,1,MPI_INTEGER4, source, displacement, 1, MPI_INTEGER4, win, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
     call MPI_WIN_UNLOCK(source, win, ierr)
