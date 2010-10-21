@@ -160,6 +160,24 @@ module dlb
       implicit none
       integer(C_INT), intent(in) :: condition, mutex
     end subroutine th_cond_wait
+
+    subroutine th_rwlock_rdlock(rwlock) bind(C)
+      use iso_c_binding
+      implicit none
+      integer(C_INT), intent(in) :: rwlock
+    end subroutine th_rwlock_rdlock
+
+    subroutine th_rwlock_wrlock(rwlock) bind(C)
+      use iso_c_binding
+      implicit none
+      integer(C_INT), intent(in) :: rwlock
+    end subroutine th_rwlock_wrlock
+
+    subroutine th_rwlock_unlock(rwlock) bind(C)
+      use iso_c_binding
+      implicit none
+      integer(C_INT), intent(in) :: rwlock
+    end subroutine th_rwlock_unlock
   end interface
 
   !------------ Declaration of types ------------------------------
@@ -182,7 +200,6 @@ module dlb
   integer(kind=i4_kind), parameter :: LOCK_JS   = 0
   integer(kind=i4_kind), parameter :: LOCK_NJ   = 1
   integer(kind=i4_kind), parameter :: LOCK_MR   = 2
-  integer(kind=i4_kind), parameter :: LOCK_TERM = 3
 
   ! IDs for condition variables, use base-0 indices:
   integer(kind=i4_kind), parameter :: COND_JS_UPDATE  = 0
@@ -216,8 +233,17 @@ module dlb
                                                    ! with master_server
   logical                           :: i_am_waiting ! Thead 0 (main thread) is waiting for CONTROL
 
-  ! some variables are chared between the three threads, there are also locks and conditions to obtain
+  ! some variables are shared between the three threads, there are also locks and conditions to obtain
   ! following a list, which of the three threads (MAIN, CONTROL, MAILBOX) does read or write on them
+  !
+  ! "BIG KERNEL LOCK", rwlock for global data (rdlock/wrlock/unlock):
+  !
+  ! * terminated: this is the flag, telling everybody, that it's done
+  !             read: ALL
+  !             write: CONTROL, MAILBOX
+  !
+  ! Those below are the mutexes that are used in combination with signals:
+  !
   ! LOCK_JS:
   ! * job_storage: read: ALL
   !             write: ALL
@@ -236,10 +262,6 @@ module dlb
   ! * my_resp: read: CONTROL, MAILBOX
   !          write: CONTROL, MAILBOX
   !          for termination algorithm, CONTROL and MAILBOX may have knowledge about finished jobs
-  ! LOCK_TERM:
-  ! * terminated: read: ALL
-  !             write: CONTROL, MAILBOX
-  !             this is the flag, telling everybody, that it's done
   ! LOCK_NJ:
   ! * new_jobs:   read: CONTROL          locked by LOCK_NJ
   !             write: CONTROL, MAILBOX
@@ -370,10 +392,13 @@ contains
   end subroutine dlb_give_more
 
   logical function termination()
-    !Purpose: make lock around terminated, but have it as one function
-    call th_mutex_lock(LOCK_TERM)
-      termination = terminated
-    call th_mutex_unlock(lOCK_TERM)
+    ! Purpose: make lock around terminated, but have it as one function
+    implicit none
+    ! *** end of interface ***
+
+    call rdlock()
+    termination = terminated
+    call unlock()
   end function termination
 
   subroutine thread_mailbox() bind(C)
@@ -393,11 +418,14 @@ contains
     integer(kind=i4_kind)                :: ierr
     integer(kind=i4_kind),allocatable    :: requ_m(:) !requests storages for MAILBOX
     !------------ Executable code --------------------------------
+
     do while (.not. termination())
       call check_messages(requ_m)
       call test_requests(requ_m)
     enddo
+
     print *,my_rank, "MAILBOX: got ", count_messages, "messages with", count_requests, "requests and", count_offers, "offers"
+
     ! now finish all messges still available, no matter if they have been received
     if (allocated(requ_m)) then
       do i = 1, size(requ_m,1)
@@ -410,20 +438,25 @@ contains
       enddo
       deallocate(requ_m)
     endif
+
     ! MAILBOX should be the first thread to get the termination
     ! if CONTROL is stuck somewhere waiting, this here will
     ! wake it up, so that it can find out about the termination
     ! CONTROL should then wake up MAIN if neccessary
+
     call th_mutex_lock( LOCK_NJ)
     print *, my_rank, "prepare termination, check for CONTROL"
     call th_cond_signal(COND_NJ_UPDATE)
-    call th_cond_signal(COND_NJ_UPDATE)
+    call th_cond_signal(COND_NJ_UPDATE) ! FIXME: really twice?
     call th_mutex_unlock( LOCK_NJ)
+
     call th_mutex_lock( LOCK_JS)
     call th_cond_signal(COND_JS_UPDATE)
     call th_mutex_unlock( LOCK_JS)
+
     print *, my_rank, "exit thread MAILBOX"
     call timepar("exitmailbox")
+
     call th_exit() ! will be joined on MAIN thread
   end subroutine thread_mailbox
 
@@ -559,6 +592,7 @@ contains
           call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, v, MSGTAG, comm_world, requ_wr, ierr)
           !ASSERT(ierr==MPI_SUCCESS)
           call assert_n(ierr==MPI_SUCCESS, 4)
+
           call test_requests(requ_c)
           !call timepar("waitrep")
           call th_cond_wait(COND_NJ_UPDATE, LOCK_NJ) !while waiting is unlocked for MAILBOX
@@ -567,12 +601,14 @@ contains
             new_jobs(J_STP) = 0
             new_jobs(J_EP) = 0
           print *, my_rank, "CONTROL got back", my_jobs
+
           ! at this point message should have been arrived (there is an answer back!)
           ! but it may also be that the answer message is from termination master
           ! thus cancel to get sure, that there is no dead lock in the MPI_WAIT
           call MPI_CANCEL(requ_wr, ierr)
           !ASSERT(ierr==MPI_SUCCESS)
           call assert_n(ierr==MPI_SUCCESS, 4)
+
           call MPI_WAIT(requ_wr, stat, ierr)
           !ASSERT(ierr==MPI_SUCCESS)
           call assert_n(ierr==MPI_SUCCESS, 4)
@@ -603,6 +639,7 @@ contains
         call MPI_CANCEL(requ_c(i), ierr)
         !ASSERT(ierr==MPI_SUCCESS)
         call assert_n(ierr==MPI_SUCCESS, 4)
+
         call MPI_WAIT(requ_c(i),stat, ierr)
         !ASSERT(ierr==MPI_SUCCESS)
         call assert_n(ierr==MPI_SUCCESS, 4)
@@ -612,8 +649,11 @@ contains
     call th_mutex_lock(LOCK_JS)
     call th_cond_signal(COND_JS2_UPDATE) ! free MAIN if waiting
     call th_mutex_unlock(LOCK_JS)
-   call th_mutex_lock(LOCK_NJ)
-   call th_mutex_unlock(LOCK_NJ)
+
+    ! FIXME: what is the point of lock/unlock without body?
+    call th_mutex_lock(LOCK_NJ)
+    call th_mutex_unlock(LOCK_NJ)
+
     print *, my_rank, "CONTROL: tried", many_searches, "times to get new jobs, by trying to steal", many_tries
     print *, my_rank, "CONTROL: done", my_resp_self, "of my own, gave away", my_resp_start - my_resp_self, "and stole", your_resp
     print *, my_rank, "exit thread CONTROL"
@@ -666,9 +706,10 @@ contains
        call assert_n(message(2)==0, 4)
        !ASSERT(stat(MPI_SOURCE)==termination_master)
        call assert_n(stat(MPI_SOURCE)==termination_master, 4)
-       call th_mutex_lock(LOCK_TERM)
+
+       call wrlock()
        terminated = .true.
-       call th_mutex_unlock(LOCK_TERM)
+       call unlock()
     elseif (message(1) == WORK_DONAT) then ! got work from other proc
        call th_mutex_lock( LOCK_NJ)
          count_offers = count_offers + 1
@@ -737,9 +778,11 @@ contains
     ! there will be only a send to the other procs, telling them to terminate
     ! thus the termination_master sets its termination here
     if (finished) then
-      call th_mutex_lock(LOCK_TERM)
+
+      call wrlock()
       terminated = .true.
-      call th_mutex_unlock(LOCK_TERM)
+      call unlock()
+
       if  (n_procs > 1 .and. (.not. master_server)) then
         allocate(request(n_procs -1), stats(n_procs -1, MPI_STATUS_SIZE),&
                        stat = alloc_stat)
@@ -1033,5 +1076,26 @@ contains
     if (n_procs > 1) call th_create_mail(MAILBOX)
     call timepar("endsetup")
   end subroutine dlb_setup
+
+  subroutine rdlock()
+    implicit none
+    ! *** end of interface ***
+
+    call th_rwlock_rdlock(0)
+  end subroutine rdlock
+
+  subroutine wrlock()
+    implicit none
+    ! *** end of interface ***
+
+    call th_rwlock_wrlock(0)
+  end subroutine wrlock
+
+  subroutine unlock()
+    implicit none
+    ! *** end of interface ***
+
+    call th_rwlock_unlock(0)
+  end subroutine unlock
 
 end module dlb
