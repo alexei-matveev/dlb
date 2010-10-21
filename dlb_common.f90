@@ -151,7 +151,7 @@ contains
      ! *** end of interface ***
 
      integer(kind=i8_kind),parameter  :: a =134775813, b = 1 ! see Virtual Pascal/Borland Delphi
-     integer(kind=i8_kind),parameter  :: m = 2**32
+     integer(kind=i8_kind),parameter  :: m = 2_i8_kind**32
      integer(kind=i8_kind), save :: seed = -1
      ! ASSERT(.false.)
      ! Does not work yet, due to too much overflow (negative procs)
