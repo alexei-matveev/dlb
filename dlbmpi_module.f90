@@ -342,13 +342,24 @@ contains
     integer(i4_kind), target             :: jobs(SJOB_LEN)
     !------------ Executable code --------------------------------
     ! First try to get a job from local storage
-    call local_tgetm(n, jobs, first = .true.)
+    call th_mutex_lock(LOCK_JS)
+    call local_tgetm(n, jobs)
+    call th_mutex_unlock(LOCK_JS)
     call time_stamp("finished first local search",3)
     ! if local storage only gives empty job: cycle under checking for termination
     ! only try new job from local_storage after J_STP told that there are any
+    call th_mutex_lock(LOCK_JS)
     do while (jobs(J_STP) >= jobs(J_EP) .and. .not. termination())
-       call local_tgetm(n, jobs, first = .false.)
+       ! found no job in first try, now wait for change before doing anything
+       ! CONTROL will make a wake up
+       call th_cond_signal(COND_JS_UPDATE)
+       call time_stamp("MAIN wakes CONTROL urgently",3)
+       i_am_waiting = .true.
+       call th_cond_wait(COND_JS2_UPDATE, LOCK_JS)
+       i_am_waiting = .false.
+       call local_tgetm(n, jobs)
     enddo
+    call th_mutex_unlock(LOCK_JS)
     call time_stamp("finished loop over local search",3)
     ! here we should have a valid job slice with at least one valid job
     ! or a terminated algorithm
@@ -535,7 +546,7 @@ contains
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: i, v, ierr, stat(MPI_STATUS_SIZE), req
+    integer(kind=i4_kind)                :: i, v, ierr, stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind)                :: message(1 + SJOB_LEN), requ_wr
     integer(kind=i4_kind)                :: my_jobs(SJOB_LEN)
     integer(kind=i4_kind),allocatable    :: requ_c(:) !requests storages for CONTROL
@@ -855,14 +866,14 @@ contains
     call add_request(req, requ)
   end subroutine send_resp_done
 
-  subroutine local_tgetm(m, my_jobs, first)
+  subroutine local_tgetm(m, my_jobs)
     !  Purpose: takes m jobs from the left from object job_storage
     !           in the first try there is no need to wait for
     !           something going on in the jobs
     !
     ! Context: MAIN thread.
     !
-    ! Locks: LOCK_JS
+    ! Locks: complete function is locked by LOCK_JS from outside
     !
     ! Conditions: COND_JS_UPDATE
     !              waits on COND_JS2_UPDATE
@@ -871,22 +882,11 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: m
-    logical, intent(in)                  :: first
     integer(kind=i4_kind), intent(out  ) :: my_jobs(SJOB_LEN)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: w
     !------------ Executable code --------------------------------
-    call th_mutex_lock(LOCK_JS)
-    if (.not. first) then
-      ! found no job in first try, now wait for change before doing anything
-      ! CONTROL will make a wake up
-      call th_cond_signal(COND_JS_UPDATE)
-      call time_stamp("MAIN wakes CONTROL urgently",3)
-      i_am_waiting = .true.
-      call th_cond_wait(COND_JS2_UPDATE, LOCK_JS)
-      i_am_waiting = .false.
-    endif
     w = reserve_workm(m, job_storage) ! how many jobs to get
     my_jobs = job_storage(:SJOB_LEN) ! first SJOB_LEN hold the job
     my_jobs(J_EP)  = my_jobs(J_STP) + w
@@ -896,7 +896,6 @@ contains
       call th_cond_signal(COND_JS_UPDATE)
     endif
     !endif
-    call th_mutex_unlock(LOCK_JS)
   end subroutine local_tgetm
 
   subroutine report_or_store(my_jobs, requ)
