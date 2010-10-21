@@ -674,21 +674,28 @@ contains
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE), req
     integer(kind=i4_kind)                :: message(1 + SJOB_LEN)
     !------------ Executable code --------------------------------
+
     ! check and wait for any message with messagetag dlb
     call MPI_RECV(message, 1+SJOB_LEN, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, my_rank)
+
     print *, my_rank, "got message", message, "from", stat(MPI_SOURCE)
     call timeloc("gotmessage",stat(MPI_SOURCE))
     count_messages = count_messages + 1
-    if (message(1) == DONE_JOB) then ! someone finished stolen job slice
+
+    select case(message(1))
+
+    case (DONE_JOB) ! someone finished stolen job slice
        !ASSERT(message>0)
        call assert_n(message(2)>0, 4)
+
        call th_mutex_lock(LOCK_MR)
        my_resp = my_resp - message(2)
        if (is_my_resp_done(MAILBOX, req)) call add_request(req, requ_m)
        call th_mutex_unlock(LOCK_MR)
-    elseif (message(1) == RESP_DONE) then ! finished responsibility
+
+    case (RESP_DONE) ! finished responsibility
        if (my_rank == termination_master) then
          call check_termination(message(2), MAILBOX)
        else ! this should not happen
@@ -696,7 +703,8 @@ contains
          !ASSERT(.false.)
          call assert_n(.false.,19)
        endif
-    elseif (message(1) == NO_WORK_LEFT) then ! termination message from termination master
+
+    case (NO_WORK_LEFT) ! termination message from termination master
        !ASSERT(message(2)==0)
        call assert_n(message(2)==0, 4)
        !ASSERT(stat(MPI_SOURCE)==termination_master)
@@ -705,22 +713,27 @@ contains
        call wrlock()
        terminated = .true.
        call unlock()
-    elseif (message(1) == WORK_DONAT) then ! got work from other proc
+
+    case (WORK_DONAT) ! got work from other proc
        call th_mutex_lock( LOCK_NJ)
          count_offers = count_offers + 1
          new_jobs = message(2:)
          call th_cond_signal(COND_NJ_UPDATE)
        call th_mutex_unlock( LOCK_NJ)  
-    elseif (message(1) == WORK_REQUEST) then ! other proc wants something from my jobs
+
+    case (WORK_REQUEST) ! other proc wants something from my jobs
        count_requests = count_requests + 1
        !call timeloc("jobdiv1")
        if (divide_jobs(stat(MPI_SOURCE), req)) call add_request(req, requ_m)
        !call timeloc("jobdiv2")
-    else
+
+    case default
       ! This message makes no sense in this context, thus give warning
       ! and continue (maybe the actual calculation has used it)
       print *, "WARNING:", my_rank," got message with unexpected content:", message
-    endif
+      ! FIXME: abort here must be more appropriate!
+
+    end select
   end subroutine check_messages
 
   subroutine add_request(req, requ)
