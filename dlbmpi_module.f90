@@ -116,7 +116,7 @@ integer, parameter :: comm_world = MPI_COMM_WORLD
   ! first three variables for the use with the other form
   logical, parameter  :: master_server = .false.
   integer(kind=i4_kind), parameter :: chunk_m = 2
-  integer(kind=i4_kind)             :: chunksize !how many jobs per slice
+  integer(kind=i4_kind), parameter :: chunksize = 10 !how many jobs per slice
   !------------ Declaration of constants and variables ----
   integer(kind=i4_kind), parameter  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 !for distingishuing the messages
   integer(kind=i4_kind), parameter  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
@@ -289,7 +289,6 @@ contains
       call assert_n(alloc_stat==0, 1)
     endif
     call th_inits()
-    chunksize = 10  ! needed if master_server = .true.
   end subroutine dlb_init
   !*************************************************************
   subroutine dlb_finalize()
