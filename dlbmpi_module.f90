@@ -212,13 +212,13 @@ module dlb
   integer(kind=i4_kind)             :: new_jobs(SJOB_LEN) ! stores new job, just arrived from other proc
   integer(kind=i4_kind)             :: start_job(SJOB_LEN) ! job_storage is changed a lot, backup for
                                      ! finding out, if someone has stolen something, or how many jobs one
-                                     ! has done
+                                     ! has done, after initalization only used by CONTROL
   integer(kind=i4_kind)             :: my_resp ! number of jobs, this processor is responsible for (given
                                               ! in setup
   integer(kind=i4_kind)             :: store_m !keep m for the other threads
   logical                           :: terminated ! for termination algorithm
   logical, allocatable              :: all_done(:) ! only allocated on termination_master, stores which proc's
-                                                   ! jobs are finished.
+                                                   ! jobs are finished. If with masterserver: which proc has terminated
   logical                           :: i_am_waiting ! Thead 0 (main thread) is waiting for CONTROL
 
   ! some variables are shared between the three threads, there are also locks and conditions to obtain
@@ -269,33 +269,14 @@ module dlb
   ! COND_NJ_UPDATE: CONTROL waits for answer to a job request, got answer by MAILBOX
   !
   ! For debugging and counting trace
-  integer(kind=i4_kind)             :: count_messages, count_requests, count_offers ! how many messages arrived
-  integer(kind=i4_kind)             :: my_resp_start, my_resp_self, your_resp !how many jobs doen where
-  integer(kind=i4_kind)             :: many_tries, many_searches !how many times asked for jobs
+  ! used only on one thread
+  integer(kind=i4_kind)             :: count_messages, count_requests, count_offers ! how many messages arrived, MAILBOX
+  integer(kind=i4_kind)             :: my_resp_start, my_resp_self, your_resp !how many jobs doen where, CONTROL
+  integer(kind=i4_kind)             :: many_tries, many_searches !how many times asked for jobs, CONTROL
 
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
 contains
-
-! ONLY FOR DEBBUGING (WITHOUT PARAGAUSS)
-  subroutine timeloc(place,num )
-    implicit none
-    character(len=*), intent(in) :: place
-    integer, optional :: num
-    if (present(num)) then
-      print *,"GGG", my_rank, "local", place,num,  MPI_Wtime()
-    else
-      print *,"GGG", my_rank, "local", place,  MPI_Wtime()
-    endif
-  end subroutine timeloc
-
-  subroutine timepar(place )
-    implicit none
-    character(len=*), intent(in) :: place
-
-    print *,"GGG", my_rank, "parallel", place,  MPI_Wtime()
-  end subroutine timepar
-! END ONLY FOR DEBUGGING
 
   subroutine dlb_init()
     !  Purpose: initalization of needed stuff
@@ -364,19 +345,24 @@ contains
     integer(i4_kind), target             :: jobs(SJOB_LEN)
     !------------ Executable code --------------------------------
     ! First try to get a job from local storage
-    call local_tgetm(n, jobs, .true.)
-    !call timeloc("finished")
-    !print *, my_rank, "Finished local search"
+    call local_tgetm(n, jobs, first = .true.)
+    call time_stamp("finished first local search",3)
     ! if local storage only gives empty job: cycle under checking for termination
     ! only try new job from local_storage after J_STP told that there are any
     do while (jobs(J_STP) >= jobs(J_EP) .and. .not. termination())
-       call local_tgetm(n, jobs, .false.)
+       call local_tgetm(n, jobs, first = .false.)
     enddo
+    call time_stamp("finished loop over local search",3)
     ! here we should have a valid job slice with at least one valid job
     ! or a terminated algorithm
-    print *, my_rank,"GOT JOB: its", jobs
     ! only the start and endpoint of job slice is needed external
-    if (jobs(J_STP) >= jobs(J_EP)) call th_join_all()
+    if (jobs(J_STP) >= jobs(J_EP)) then
+       call th_join_all()
+       ! now only one thread left, thus all variables belong him:
+       print *, my_rank, "CONTROL: tried", many_searches, "times to get new jobs, by trying to steal", many_tries
+       print *, my_rank, "CONTROL: done", my_resp_self, "of my own, gave away", my_resp_start - my_resp_self, "and stole", your_resp
+       print *,my_rank, "MAILBOX: got ", count_messages, "messages with", count_requests, "requests and", count_offers, "offers"
+    endif
       ! if true means MAIN did not intent to come back (check termination is
       ! too dangerous, because MAIN may still have work for one go and thus
       ! would try to join the thread in the next cycle again
@@ -424,8 +410,6 @@ contains
       call test_requests(requ_m)
     enddo
 
-    print *,my_rank, "MAILBOX: got ", count_messages, "messages with", count_requests, "requests and", count_offers, "offers"
-
     ! now finish all messges still available, no matter if they have been received
     if (allocated(requ_m)) then
       do i = 1, size(requ_m,1)
@@ -452,8 +436,7 @@ contains
     call th_cond_signal(COND_JS_UPDATE)
     call th_mutex_unlock( LOCK_JS)
 
-    print *, my_rank, "exit thread MAILBOX"
-    call timepar("exitmailbox")
+    call time_stamp("exitmailbox", 5)
 
     call th_exit() ! will be joined on MAIN thread
   end subroutine thread_mailbox
@@ -554,21 +537,16 @@ contains
     ! first lock
     call th_mutex_lock(LOCK_JS)
     do while (.not. termination()) ! while active
-      !print *, my_rank, "CONTROL before wait job_storage=", job_storage
       if (.not. i_am_waiting) then
-        print *, my_rank, "CONTROL:MAIN does not wait", i_am_waiting
-        call timepar("Cwait")
+        call time_stamp("CONTROL waits jobs to end",5)
         call th_cond_wait(COND_JS_UPDATE, LOCK_JS)  ! unlockes LOCK_JS while waiting for change in it
         endif
-        !call timepar("Cwoke")
-        !print *, my_rank, "CONTROL finshed waiting for cond"
+        call time_stamp("CONTROL woke up", 5)
       !endif
-      print *, my_rank, "CONTROL job_storage=", job_storage
 
       ! verify that CONTROL woke up correctly
       if (job_storage(J_STP) >= job_storage(J_EP)) then !point where CONTROL actually has something to do
-        call timepar("controlworking")
-        !print *, my_rank, "CONTROL find new jobs"
+        call time_stamp("COTNROL starts working", 4)
         many_searches = many_searches + 1 ! just for debugging
 
         if (report_or_store(job_storage(:SJOB_LEN), req)) then
@@ -585,20 +563,18 @@ contains
 
           v = select_victim(my_rank, n_procs)
 
-          print *, my_rank, "CONTROL send message to", v
-          call timeloc("sendmessage",v)
+          call time_stamp("CONTROL sends message",5)
           call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, v, MSGTAG, comm_world, requ_wr, ierr)
           !ASSERT(ierr==MPI_SUCCESS)
           call assert_n(ierr==MPI_SUCCESS, 4)
 
           call test_requests(requ_c)
-          !call timepar("waitrep")
+          call time_stamp("COTNROL waits for reply", 5)
           call th_cond_wait(COND_NJ_UPDATE, LOCK_NJ) !while waiting is unlocked for MAILBOX
-          !call timepar("gotrep")
+          call time_stamp("COTNROL got reply", 5)
             my_jobs = new_jobs
             new_jobs(J_STP) = 0
             new_jobs(J_EP) = 0
-          print *, my_rank, "CONTROL got back", my_jobs
 
           ! at this point message should have been arrived (there is an answer back!)
           ! but it may also be that the answer message is from termination master
@@ -621,13 +597,10 @@ contains
       if (i_am_waiting) then
         ! tell MAIN that there is something in the storage
         ! as it will wait at cond_js2_update if run out if jobs (and not terminated)
-        print *, my_rank, "CONTROL: wake up MAIN, there are new jobs"
+        call time_stamp("CONTROL wake MAIN",5)
         i_am_waiting = .false.
         call th_cond_signal(COND_JS2_UPDATE)
-       !call th_mutex_unlock(LOCK_JS)
-       !call th_mutex_lock(LOCK_JS)
       endif
-      print *, my_rank,"CONTROL: finished getting new jobs"
     enddo !while active
     call th_mutex_unlock(LOCK_JS)
 
@@ -649,10 +622,7 @@ contains
     call th_cond_signal(COND_JS2_UPDATE) ! free MAIN if waiting
     call th_mutex_unlock(LOCK_JS)
 
-    print *, my_rank, "CONTROL: tried", many_searches, "times to get new jobs, by trying to steal", many_tries
-    print *, my_rank, "CONTROL: done", my_resp_self, "of my own, gave away", my_resp_start - my_resp_self, "and stole", your_resp
-    print *, my_rank, "exit thread CONTROL"
-    call timepar("exitcontrol")
+    call time_stamp("CONTROL exit",4)
     call th_exit() ! will be joined on MAIN
   end subroutine thread_control
 
@@ -689,8 +659,8 @@ contains
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, my_rank)
 
-    print *, my_rank, "got message", message, "from", stat(MPI_SOURCE)
-    call timeloc("gotmessage",stat(MPI_SOURCE))
+    !print *, my_rank, "got message", message, "from", stat(MPI_SOURCE)
+    call time_stamp("got message", 4)
     count_messages = count_messages + 1
 
     select case(message(1))
@@ -800,7 +770,6 @@ contains
     !------------ Executable code --------------------------------
     ! all_done stores the procs, which have already my_resp = 0
     all_done(proc+1) = .true.
-    print *, my_rank, "CHECK termination", all_done
 
     ! check if there are still some procs not finished
     if (.not. all(all_done)) RETURN
@@ -822,19 +791,17 @@ contains
       receiver = i
       ! skip the termination master (itsself)`
       if (i >= termination_master) receiver = i+1
-      call timeloc("term", receiver)
+      call time_stamp("send termination", 5)
       call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, receiver, MSGTAG,comm_world ,request(i+1), ierr)
       !ASSERT(ierr==MPI_SUCCESS)
       call assert_n(ierr==MPI_SUCCESS, 4)
-      print *, "Send termination to", receiver
       enddo
       call MPI_WAITALL(size(request), request, stats, ierr)
       !ASSERT(ierr==MPI_SUCCESS)
       call assert_n(ierr==MPI_SUCCESS, 4)
       if (thread == CONTROL) then ! in this (seldom) case shut also down my own mailbox (should be
         ! waiting for any message
-        print *, "Send termination to myself", termination_master
-        call timeloc("term", termination_master)
+        call time_stamp("terminating myself", 5)
         call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, termination_master, MSGTAG,comm_world ,req_self, ierr)
         !ASSERT(ierr==MPI_SUCCESS)
         call assert_n(ierr==MPI_SUCCESS, 4)
@@ -844,8 +811,6 @@ contains
       endif
       if (thread == CONTROL) then ! in this (seldom) case shut also down my own mailbox (should be
              ! waiting for any message
-       !print *, "Send termination to myself", termination_master
-       !call timeloc("term", termination_master)
         call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, termination_master, MSGTAG,comm_world ,req_self, ierr)
         !ASSERT(ierr==MPI_SUCCESS)
         call assert_n(ierr==MPI_SUCCESS, 4)
@@ -880,7 +845,6 @@ contains
     integer(kind=i4_kind)                :: ierr
     integer(kind=i4_kind)                :: message(1+SJOB_LEN)
     !------------ Executable code --------------------------------
-    print *,my_rank, "Left of my responsibility:", my_resp
     is_my_resp_done = .false.
     if (my_resp == 0) then
       ! FIXME: why this if/else branch?
@@ -918,7 +882,7 @@ contains
       ! found no job in first try, now wait for change before doing anything
       ! CONTROL will make a wake up
       call th_cond_signal(COND_JS_UPDATE)
-      !call timepar("wakeC")
+      call time_stamp("MAIN wakes CONTROL urgently",3)
       i_am_waiting = .true.
       call th_cond_wait(COND_JS2_UPDATE, LOCK_JS)
       i_am_waiting = .false.
@@ -927,18 +891,13 @@ contains
     my_jobs = job_storage(:SJOB_LEN) ! first SJOB_LEN hold the job
     my_jobs(J_EP)  = my_jobs(J_STP) + w
     job_storage(J_STP) = my_jobs(J_EP)
-!   print *, "my_jobs=", my_jobs
-!   print *, "job_storage=", job_storage
-!   print *, "local_tgetm: end locked", my_rank
     store_m = m
     if (job_storage(J_STP) >= job_storage(J_EP)) then
-      !call timepar("wakeC2")
-      print *, my_rank, "MAIN wakes CONTROL"
+      call time_stamp("MAIN wakes CONTROL",3)
       call th_cond_signal(COND_JS_UPDATE)
     endif
     !endif
     call th_mutex_unlock(LOCK_JS)
-    !print *, my_rank, "MAIN unlocked mutex"
   end subroutine local_tgetm
 
   logical function report_or_store(my_jobs, req)
@@ -964,7 +923,7 @@ contains
     integer(kind=i4_kind)                :: ierr
     integer(kind=i4_kind)                :: num_jobs_done, message(1 + SJOB_LEN)
     !------------ Executable code --------------------------------
-    print *, my_rank, "FINISHED a job, now report or store", my_jobs
+    call time_stamp("finished a job",4)
     report_or_store = .false.
     ! my_jobs hold recent last point, as proc started from beginning and
     ! steal from the back, this means that from the initial starting point on
@@ -975,7 +934,6 @@ contains
     if (start_job(NRANK) == my_rank) then
       my_resp_self = my_resp_self + num_jobs_done
       call th_mutex_lock(LOCK_MR)
-      !print *, my_rank, "my_resp=", my_resp, "-", num_jobs_done
       my_resp = my_resp - num_jobs_done
       report_or_store = is_my_resp_done(CONTROL, req) ! check if all my jobs are done
       call th_mutex_unlock(LOCK_MR)
@@ -984,11 +942,10 @@ contains
       ! As all isends have to be closed sometimes, storage of
       ! the request handlers is needed
       report_or_store = .true.
-      print *, my_rank, "send to", start_job(NRANK),"finished", num_jobs_done, "of his jobs"
       message(1) = DONE_JOB
       message(2) = num_jobs_done
       message(3:) = 0
-      call timeloc("done_job",start_job(NRANK))
+      call time_stamp("send message to source", 6)
       call MPI_ISEND(message,1 + SJOB_LEN, MPI_INTEGER4, start_job(NRANK),&
                                   MSGTAG,comm_world, req, ierr)
       !ASSERT(ierr==MPI_SUCCESS)
@@ -1033,14 +990,12 @@ contains
       job_storage(J_EP) = g_jobs(J_STP)
     endif
     message(2:) = g_jobs
-    call timeloc("divjob",partner)
-    print *, my_rank,"divide jobs: keep", job_storage, "give to", partner, g_jobs
+    call time_stamp("chare jobs with other",5)
     call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, partner, MSGTAG, comm_world, requ, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
     if (job_storage(J_STP) >= job_storage(J_EP)) then
-      print *, my_rank, "MAILBOX wakes CONTROL"
-      !call timepar("wakeCm")
+      call time_stamp("MAILBOX wake CONTROL", 4)
       call th_cond_signal(COND_JS_UPDATE)
     endif
     !endif
@@ -1084,7 +1039,7 @@ contains
     ! from now on, there are several threads, so chared objects have to
     ! be locked/unlocked in order to use them!!
     call th_create_all()
-    call timepar("endsetup")
+    call time_stamp("finished setup", 3)
   end subroutine dlb_setup
 
   subroutine rdlock()
