@@ -7,16 +7,15 @@ void thread_function_(int * id);
 void thread_control_();
 void thread_mailbox_();
 
-// why are these functions declared as void*?
-void *th_inits_();
-void *th_create_mail_(int * name2);
-void *th_create_control_(int * name1);
+void th_inits_();
+void th_create_mail_(int *name2);
+void th_create_control_(int *name1);
 
-void *th_exit_();
-void *th_mutex_lock_(int *mutex);
-void *th_mutex_unlock_(int * mutex);
-void *th_cond_wait_( int *condition, int *mutex);
-void *th_cond_signal_(int * condition);
+void th_exit_();
+void th_mutex_lock_(int *mutex);
+void th_mutex_unlock_(int *mutex);
+void th_cond_wait_(int *condition, int *mutex);
+void th_cond_signal_(int *condition);
 
 pthread_t threads[4];
 pthread_mutex_t mutexes[4];
@@ -26,7 +25,7 @@ pthread_attr_t ThreadAttribute;
 pthread_mutexattr_t attr;
 pthread_condattr_t cattr;
 
-void *th_inits_()
+void th_inits_()
   {
   int rc;
   rc = pthread_attr_init(&ThreadAttribute);
@@ -84,7 +83,7 @@ void *th_inits_()
   }
 }
 
-void *th_create_control_(int * name1)
+void th_create_control_(int * name1)
   {
 int rc;
   rc = pthread_create(&threads[*name1], &ThreadAttribute,(void *(*)(void *)) thread_control_, NULL);
@@ -94,7 +93,7 @@ int rc;
       }
   }
 
-void *th_create_mail_( int * name2)
+void th_create_mail_( int * name2)
   {
 int rc;
   rc = pthread_create(&threads[*name2], &ThreadAttribute,(void *(*)(void *)) thread_mailbox_, NULL);
@@ -104,38 +103,28 @@ int rc;
       }
   }
 
-void *th_create2_(void *function)
-  {
-  int rc;
-  rc = pthread_create(&threads[1], NULL,(void *(*)(void *)) function,NULL);
-  if (rc) {
-      printf("ERROR; return code from pthread_create() is %d\n", rc);
-      //exit(-1);
-      }
-  }
-
-void * th_exit_()
+void th_exit_()
 {
 pthread_exit(NULL);
 }
 
-void * th_mutex_lock_(int *mutex)
+void th_mutex_lock_(int *mutex)
  {
  pthread_mutex_lock(&mutexes[*mutex]);
 }
 
-void * th_mutex_unlock_(int * mutex)
+void th_mutex_unlock_(int * mutex)
  {
  pthread_mutex_unlock(&mutexes[*mutex]);
 }
 
-void * th_cond_wait_( int *condition, int *mutex)
+void th_cond_wait_( int *condition, int *mutex)
  {
  //printf("COND %d WAITS %d\n", *condition, *mutex);
  pthread_cond_wait(&conds[*condition], &mutexes[*mutex]);
  }
 
-void * th_cond_signal_(int * condition)
+void th_cond_signal_(int * condition)
  {
  //printf("COND %d RELEASED\n", *condition);
  pthread_cond_signal (&conds[*condition]);
