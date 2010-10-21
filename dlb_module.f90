@@ -116,7 +116,7 @@ integer, parameter :: comm_world = MPI_COMM_WORLD
   integer(kind=i4_kind), parameter  :: J_STP = 1 ! Number in job, where stp (start point) is stored
   integer(kind=i4_kind), parameter  :: J_EP = 2 ! Number in job, where ep (end point) is stored
   integer(kind=i4_kind)             :: jobs_len  ! Length of complete jobs storage
-  integer(kind=i4_kind)            :: my_rank, n_procs ! some synonyms
+  integer(kind=i4_kind)            :: my_rank=-1, n_procs=-1 ! some synonyms
   integer(kind=i4_kind)             ::  termination_master ! the one who gathers the finished my_resp's
                                          ! and who tells all, when it is complety finished
   integer(kind=i4_kind)            :: win ! for the RMA object
@@ -154,7 +154,10 @@ contains
     double precision :: time
 
     time = MPI_Wtime()
-    if( time_offset < 0.0 ) time_offset = time
+    if ( time_offset < 0.0 ) then
+      time_offset = time
+      print *, "TIMESTAMP:", my_rank, time, "(BASE TIME)"
+    endif
     time = time - time_offset
 
     print *, "TIMESTAMP:", my_rank, time, msg
