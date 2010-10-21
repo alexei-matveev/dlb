@@ -445,9 +445,7 @@ contains
     ! CONTROL should then wake up MAIN if neccessary
 
     call th_mutex_lock( LOCK_NJ)
-    print *, my_rank, "prepare termination, check for CONTROL"
     call th_cond_signal(COND_NJ_UPDATE)
-    call th_cond_signal(COND_NJ_UPDATE) ! FIXME: really twice?
     call th_mutex_unlock( LOCK_NJ)
 
     call th_mutex_lock( LOCK_JS)
@@ -651,13 +649,10 @@ contains
       enddo
       deallocate(requ_c)
     endif
+
     call th_mutex_lock(LOCK_JS)
     call th_cond_signal(COND_JS2_UPDATE) ! free MAIN if waiting
     call th_mutex_unlock(LOCK_JS)
-
-    ! FIXME: what is the point of lock/unlock without body?
-    call th_mutex_lock(LOCK_NJ)
-    call th_mutex_unlock(LOCK_NJ)
 
     print *, my_rank, "CONTROL: tried", many_searches, "times to get new jobs, by trying to steal", many_tries
     print *, my_rank, "CONTROL: done", my_resp_self, "of my own, gave away", my_resp_start - my_resp_self, "and stole", your_resp
@@ -749,8 +744,8 @@ contains
     case default
       ! This message makes no sense in this context, thus give warning
       ! and continue (maybe the actual calculation has used it)
-      print *, "WARNING:", my_rank," got message with unexpected content:", message
-      ! FIXME: abort here must be more appropriate!
+      print *, "ERROR:", my_rank," got message with unexpected content:", message
+      stop "got unexpected message"
 
     end select
   end subroutine check_messages
@@ -792,7 +787,7 @@ contains
     !  Purpose: only on termination_master, checks if all procs
     !           have reported termination
     !
-    ! Context: mailbox thread, ???
+    ! Context: mailbox thread, control. (termination master only)
     !
     ! Locks: wrlock on "terminated" flag.
     !
@@ -805,47 +800,54 @@ contains
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, i, alloc_stat, req_self, stat(MPI_STATUS_SIZE)
-    logical                              :: finished
     integer(kind=i4_kind), allocatable   :: request(:), stats(:,:)
     integer(kind=i4_kind)                :: receiver, message(1+SJOB_LEN)
     !------------ Executable code --------------------------------
     ! all_done stores the procs, which have already my_resp = 0
     all_done(proc+1) = .true.
-    ! check if there are still some procs not finished
     print *, my_rank, "CHECK termination", all_done
-    finished = .true.
-    do i = 1, n_procs
-      if (.not. all_done(i)) finished = .false.
-    enddo
+
+    ! check if there are still some procs not finished
+    if (.not. all(all_done)) RETURN
 
     ! there will be only a send to the other procs, telling them to terminate
     ! thus the termination_master sets its termination here
-    if (finished) then
+    call wrlock()
+    terminated = .true.
+    call unlock()
 
-      call wrlock()
-      terminated = .true.
-      call unlock()
-
-      if ( n_procs > 1 ) then
-        allocate(request(n_procs -1), stats(n_procs -1, MPI_STATUS_SIZE),&
-                       stat = alloc_stat)
-        !ASSERT(alloc_stat==0)
-        call assert_n(alloc_stat==0,9)
-        message(1) = NO_WORK_LEFT
-        message(2:) = 0
-        do i = 0, n_procs-2
-          receiver = i
-          ! skip the termination master (itsself)`
-          if (i >= termination_master) receiver = i+1
-          call timeloc("term", receiver)
-          call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, receiver, MSGTAG,comm_world ,request(i+1), ierr)
-          !ASSERT(ierr==MPI_SUCCESS)
-          call assert_n(ierr==MPI_SUCCESS, 4)
-          print *, "Send termination to", receiver
-        enddo
-        call MPI_WAITALL(size(request), request, stats, ierr)
+    if ( n_procs > 1 ) then
+      allocate(request(n_procs -1), stats(n_procs -1, MPI_STATUS_SIZE),&
+      stat = alloc_stat)
+      !ASSERT(alloc_stat==0)
+      call assert_n(alloc_stat==0,9)
+      message(1) = NO_WORK_LEFT
+      message(2:) = 0
+      do i = 0, n_procs-2
+      receiver = i
+      ! skip the termination master (itsself)`
+      if (i >= termination_master) receiver = i+1
+      call timeloc("term", receiver)
+      call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, receiver, MSGTAG,comm_world ,request(i+1), ierr)
+      !ASSERT(ierr==MPI_SUCCESS)
+      call assert_n(ierr==MPI_SUCCESS, 4)
+      print *, "Send termination to", receiver
+      enddo
+      call MPI_WAITALL(size(request), request, stats, ierr)
+      !ASSERT(ierr==MPI_SUCCESS)
+      call assert_n(ierr==MPI_SUCCESS, 4)
+      if (thread == CONTROL) then ! in this (seldom) case shut also down my own mailbox (should be
+        ! waiting for any message
+        print *, "Send termination to myself", termination_master
+        call timeloc("term", termination_master)
+        call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, termination_master, MSGTAG,comm_world ,req_self, ierr)
         !ASSERT(ierr==MPI_SUCCESS)
         call assert_n(ierr==MPI_SUCCESS, 4)
+        call MPI_WAIT(req_self, stat, ierr)
+        !ASSERT(ierr==MPI_SUCCESS)
+        call assert_n(ierr==MPI_SUCCESS, 4)
+v v v v v v v
+*************
       endif
       if (thread == CONTROL) then ! in this (seldom) case shut also down my own mailbox (should be
              ! waiting for any message
@@ -857,6 +859,7 @@ contains
         call MPI_WAIT(req_self, stat, ierr)
         !ASSERT(ierr==MPI_SUCCESS)
         call assert_n(ierr==MPI_SUCCESS, 4)
+^ ^ ^ ^ ^ ^ ^
       endif
     endif
   end subroutine check_termination
@@ -954,7 +957,7 @@ contains
     !            second case, send to victim, how many of his jobs
     !            were finished
     !
-    ! Context: control thread, ???
+    ! Context: control thread.
     !
     ! Locks: LOCK_MR,
     !        wrlock through is_my_resp_done()
@@ -1008,7 +1011,6 @@ contains
     ! Context: mailbox thread.
     !
     ! Locks: LOCK_JS.
-    !       - through check_termination(): wrlock.
     !
     ! Signals: COND_JS_UPDATE.
     !
