@@ -322,7 +322,6 @@ contains
     integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB)
 !   !** End of interface *****************************************
 !   !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, v
     integer(i4_kind), target             :: jobs(SJOB_LEN)
 !   !------------ Executable code --------------------------------
     ! First try to get a job from local storage
@@ -361,11 +360,8 @@ contains
     implicit none
 !   !** End of interface *****************************************
 !   !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: j,i,req, stat(MPI_STATUS_SIZE), len_req, len_new
-    integer(kind=i4_kind)                :: alloc_stat, ierr
-    integer(kind=i4_kind),allocatable :: requ_int(:)
-    logical     :: flag
-    logical, allocatable :: finished(:)
+    integer(kind=i4_kind)                :: i, stat(MPI_STATUS_SIZE)
+    integer(kind=i4_kind)                :: ierr
 !   !------------ Executable code --------------------------------
     do while (.not. termination())
       call check_messages()
@@ -477,9 +473,9 @@ contains
     !------------ Declaration of formal parameters ---------------
 !   !** End of interface *****************************************
 !   !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: i, v, ierr, stat(MPI_STATUS_SIZE), alloc_stat, req
+    integer(kind=i4_kind)                :: i, v, ierr, stat(MPI_STATUS_SIZE), req
     integer(kind=i4_kind)                :: message(1 + SJOB_LEN), requ_wr
-    integer(kind=i4_kind)                :: my_jobs(SJOB_LEN), kind_send, world, len1
+    integer(kind=i4_kind)                :: my_jobs(SJOB_LEN)
     logical                              :: first
 !   !------------ Executable code --------------------------------
     many_tries = 0
@@ -613,9 +609,8 @@ contains
     !------------ Declaration of formal parameters ---------------
 !   !** End of interface *****************************************
 !   !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE), alloc_stat, req
+    integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE), req
     integer(kind=i4_kind)                :: message(1 + SJOB_LEN)
-    logical                              :: if_new_req
 !   !------------ Executable code --------------------------------
     ! check and wait for any message with messagetag dlb
     call MPI_RECV(message, 1+SJOB_LEN, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
@@ -769,7 +764,6 @@ contains
     integer(kind=i4_kind), intent(in)   :: thread
 !   !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr
-    logical                              :: flag
     integer(kind=i4_kind)                :: message(1+SJOB_LEN)
 !   !------------ Executable code --------------------------------
     print *,my_rank, "Left of my responsibility:", my_resp
@@ -867,7 +861,7 @@ contains
     integer(kind=i4_kind), intent(out  ) :: my_jobs(SJOB_LEN)
 !   !** End of interface *****************************************
 !   !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, sap, w
+    integer(kind=i4_kind)                :: w
 !   !------------ Executable code --------------------------------
     call th_mutex_lock(LOCK_JS)
     if (.not. first) then
@@ -918,10 +912,8 @@ contains
     integer(kind=i4_kind), intent(out ) :: req
 !   !** End of interface *****************************************
 !   !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, alloc_stat
-    logical                              :: flag
+    integer(kind=i4_kind)                :: ierr
     integer(kind=i4_kind)                :: num_jobs_done, message(1 + SJOB_LEN)
-    integer(kind=i4_kind),allocatable    :: intermed(:)
 !   !------------ Executable code --------------------------------
     print *, my_rank, "FINISHED a job, now report or store", my_jobs
     report_or_store = .false.
@@ -1065,7 +1057,6 @@ contains
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
 !   !** End of interface *****************************************
 !   !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: jobs(SJOB_LEN), ierr
     !------------ Executable code --------------------------------
     ! these variables are for the termination algorithm
     terminated = .false.
