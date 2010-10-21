@@ -140,7 +140,7 @@ contains
     !           It is also recommended to call this subroutine only once
     !           as it needs parallelization of all processes
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: dlb_common_my_rank
+    use dlb_common, only: dlb_common_my_rank, dlb_common_init
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
@@ -149,6 +149,7 @@ contains
     integer(kind=i4_kind)                :: alloc_stat
     !------------ Executable code --------------------------------
     ! some aliases, highly in use during the whole module
+    call dlb_common_init()
     call MPI_COMM_RANK( comm_world, my_rank, ierr )
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 1)
@@ -197,6 +198,7 @@ contains
     !  when it is not further needed, should be called, after ALL
     !  dlb runs have complete
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: dlb_common_finalize
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
@@ -218,6 +220,7 @@ contains
     deallocate(all_done, stat=alloc_stat)
     !ASSERT(alloc_stat==0)
     call assert_n(alloc_stat==0, 1)
+    call dlb_common_finalize()
   end subroutine dlb_finalize
 
   subroutine dlb_give_more(n, my_job)

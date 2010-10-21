@@ -279,11 +279,12 @@ contains
     !  Purpose: initalization of needed stuff
     !           is in one thread context
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: dlb_common_my_rank
+    use dlb_common, only: dlb_common_my_rank, dlb_common_init
     implicit none
     !** End of interface *****************************************
     integer(kind=i4_kind)       ::  alloc_stat, ierr
     !------------ Declaration of local variables -----------------
+    call dlb_common_init()
     call MPI_COMM_RANK( comm_world, my_rank, ierr )
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 1)
@@ -309,6 +310,7 @@ contains
     ! Context: main thread after joining other two.
     !
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: dlb_common_finalize
     implicit none
     integer(kind=i4_kind)    :: alloc_stat
     !** End of interface *****************************************
@@ -318,6 +320,7 @@ contains
       !ASSERT(alloc_stat==0)
       call assert_n(alloc_stat==0, 1)
     endif
+    call dlb_common_finalize()
   end subroutine dlb_finalize
 
   subroutine dlb_give_more(n, my_job)

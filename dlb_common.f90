@@ -45,6 +45,7 @@ module dlb_common
   public :: time_stamp_prefix
   public :: time_stamp
   public :: assert_n
+  public :: dlb_common_init, dlb_common_finalize
 
   ! integer with 4 bytes, range 9 decimal digits
   integer, parameter, public :: i4_kind = selected_int_kind(9)
@@ -55,7 +56,7 @@ module dlb_common
   ! real with 8 bytes, precision 15 decimal digits
   integer, parameter, public :: r8_kind = selected_real_kind(15)
 
-  integer, parameter, public :: comm_world = MPI_COMM_WORLD
+  integer,  public :: comm_world
 
   !================================================================
   ! End of public interface of module
@@ -111,6 +112,21 @@ contains
     endif
   end subroutine assert_n
 ! END ONLY FOR DEBUGGING
+
+  subroutine dlb_common_init()
+    integer :: ierr
+    call MPI_COMM_DUP(MPI_COMM_WORLD, comm_world, ierr)
+    !ASSERT(ierr==0)
+    call assert_n(ierr==0,4)
+  end subroutine
+
+  subroutine dlb_common_finalize()
+    integer :: ierr
+    call MPI_COMM_FREE( comm_world, ierr)
+    !ASSERT(ierr==0)
+    call assert_n(ierr==0,4)
+  end subroutine
+
 
   function select_victim(rank, np) result(victim)
      ! Purpose: decide of who to try next to get any jobs
