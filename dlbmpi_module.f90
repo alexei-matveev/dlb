@@ -201,6 +201,9 @@ module dlb
 
   integer(kind=i4_kind), parameter  ::  MSGTAG = 166 ! message tag for all MPI communication
 
+  logical, parameter :: masterserver = .false. ! changes to different variant (master slave concept for comparision)
+
+
   integer(kind=i4_kind)            :: my_rank, n_procs ! some synonyms, They will be initialized once and afterwards
                                         ! be read only
 
@@ -215,7 +218,6 @@ module dlb
                                      ! has done, after initalization only used by CONTROL
   integer(kind=i4_kind)             :: my_resp ! number of jobs, this processor is responsible for (given
                                               ! in setup
-  integer(kind=i4_kind)             :: store_m !keep m for the other threads
   logical                           :: terminated ! for termination algorithm
   logical, allocatable              :: all_done(:) ! only allocated on termination_master, stores which proc's
                                                    ! jobs are finished. If with masterserver: which proc has terminated
@@ -241,10 +243,6 @@ module dlb
   !               write: CONTROL, MAIN
   !               MAIN tells CONTROL, that it is waiting for jobs, thus CONTROL
   !               should better search some and not wait in turn for MAIN to wake it
-  ! * store_m:  read: MAILBOX, CONTROL
-  !           write: MAIN
-  !           MAIN stores here how many jobs were requested the last time, helps MAILBOX
-  !           to know how many jobs to give, ONLY NEEDED WITH MASTER_SERVER
   !
   ! LOCK_MR:
   ! * my_resp: read: CONTROL, MAILBOX
@@ -549,8 +547,12 @@ contains
         call time_stamp("COTNROL starts working", 4)
         many_searches = many_searches + 1 ! just for debugging
 
-        if (report_or_store(job_storage(:SJOB_LEN), req)) then
-          call add_request(req, requ_c)
+        ! not if masterserver is wanted, then there is no need for the termination algorithm, master knows
+        ! where are all jobs by its own
+        if (.not. masterserver) then
+           if (report_or_store(job_storage(:SJOB_LEN), req)) then
+             call add_request(req, requ_c)
+           endif
         endif
 
         my_jobs = job_storage(:SJOB_LEN)
@@ -561,7 +563,12 @@ contains
                                                                                ! or if all is finished
           many_tries = many_tries + 1 ! just for debugging
 
-          v = select_victim(my_rank, n_procs)
+          if (masterserver) then !!! masterserver variant, here send all job request to master
+            v = termination_master
+          else ! if not masterserver, there needs to be done a bit more to find out who is the
+               ! victim
+            v = select_victim(my_rank, n_procs)
+          endif
 
           call time_stamp("CONTROL sends message",5)
           call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, v, MSGTAG, comm_world, requ_wr, ierr)
@@ -680,7 +687,7 @@ contains
       ! arrives only on termination master:
       call assert_n(my_rank == termination_master, 19)
 
-      call check_termination(message(2), MAILBOX)
+      call check_termination(message(2))
 
     case (NO_WORK_LEFT) ! termination message from termination master
       !ASSERT(message(2)==0)
@@ -748,7 +755,7 @@ contains
     requ(len_req +1) = req
   end subroutine add_request
 
-  subroutine check_termination(proc, thread)
+  subroutine check_termination(proc)
     !  Purpose: only on termination_master, checks if all procs
     !           have reported termination
     !
@@ -761,7 +768,7 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in)    :: proc, thread
+    integer(kind=i4_kind), intent(in)    :: proc
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, i, alloc_stat, req_self, stat(MPI_STATUS_SIZE)
@@ -780,45 +787,29 @@ contains
     terminated = .true.
     call unlock()
 
-    if ( n_procs > 1 ) then
-      allocate(request(n_procs -1), stats(n_procs -1, MPI_STATUS_SIZE),&
-      stat = alloc_stat)
-      !ASSERT(alloc_stat==0)
-      call assert_n(alloc_stat==0,9)
-      message(1) = NO_WORK_LEFT
-      message(2:) = 0
-      do i = 0, n_procs-2
-      receiver = i
-      ! skip the termination master (itsself)`
-      if (i >= termination_master) receiver = i+1
-      call time_stamp("send termination", 5)
-      call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, receiver, MSGTAG,comm_world ,request(i+1), ierr)
-      !ASSERT(ierr==MPI_SUCCESS)
-      call assert_n(ierr==MPI_SUCCESS, 4)
-      enddo
-      call MPI_WAITALL(size(request), request, stats, ierr)
-      !ASSERT(ierr==MPI_SUCCESS)
-      call assert_n(ierr==MPI_SUCCESS, 4)
-      if (thread == CONTROL) then ! in this (seldom) case shut also down my own mailbox (should be
-        ! waiting for any message
-        call time_stamp("terminating myself", 5)
-        call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, termination_master, MSGTAG,comm_world ,req_self, ierr)
-        !ASSERT(ierr==MPI_SUCCESS)
-        call assert_n(ierr==MPI_SUCCESS, 4)
-        call MPI_WAIT(req_self, stat, ierr)
-        !ASSERT(ierr==MPI_SUCCESS)
-        call assert_n(ierr==MPI_SUCCESS, 4)
-      endif
-      if (thread == CONTROL) then ! in this (seldom) case shut also down my own mailbox (should be
-             ! waiting for any message
-        call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, termination_master, MSGTAG,comm_world ,req_self, ierr)
-        !ASSERT(ierr==MPI_SUCCESS)
-        call assert_n(ierr==MPI_SUCCESS, 4)
-        call MPI_WAIT(req_self, stat, ierr)
-        !ASSERT(ierr==MPI_SUCCESS)
-        call assert_n(ierr==MPI_SUCCESS, 4)
-      endif
-    endif
+    ! masterserver handles termination seperatly, this here is only for its own termination
+    ! I'm not sure what MPI does with requests of the size 0, thus quit if there is only one
+    ! processor
+    if (masterserver .or. n_procs == 1) RETURN
+
+    allocate(request(n_procs -1), stats(n_procs -1, MPI_STATUS_SIZE),&
+    stat = alloc_stat)
+    !ASSERT(alloc_stat==0)
+    call assert_n(alloc_stat==0,9)
+    message(1) = NO_WORK_LEFT
+    message(2:) = 0
+    do i = 0, n_procs-2
+    receiver = i
+    ! skip the termination master (itsself)`
+    if (i >= termination_master) receiver = i+1
+    call time_stamp("send termination", 5)
+    call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, receiver, MSGTAG,comm_world ,request(i+1), ierr)
+    !ASSERT(ierr==MPI_SUCCESS)
+    call assert_n(ierr==MPI_SUCCESS, 4)
+    enddo
+    call MPI_WAITALL(size(request), request, stats, ierr)
+    !ASSERT(ierr==MPI_SUCCESS)
+    call assert_n(ierr==MPI_SUCCESS, 4)
   end subroutine check_termination
 
   logical function is_my_resp_done(thread, requ)
@@ -847,18 +838,13 @@ contains
     !------------ Executable code --------------------------------
     is_my_resp_done = .false.
     if (my_resp == 0) then
-      ! FIXME: why this if/else branch?
-      if (my_rank == termination_master) then
-        call check_termination(my_rank,thread)
-      else
-        message(1) = RESP_DONE
-        message(2) = my_rank
-        message(3:) = 0
-        call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, termination_master, MSGTAG,comm_world, requ, ierr)
-        !ASSERT(ierr==MPI_SUCCESS)
-        call assert_n(ierr==MPI_SUCCESS, 4)
-        is_my_resp_done = .true.
-      endif
+      message(1) = RESP_DONE
+      message(2) = my_rank
+      message(3:) = 0
+      call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, termination_master, MSGTAG,comm_world, requ, ierr)
+      !ASSERT(ierr==MPI_SUCCESS)
+      call assert_n(ierr==MPI_SUCCESS, 4)
+      is_my_resp_done = .true.
     endif
   end function is_my_resp_done
 
@@ -891,7 +877,6 @@ contains
     my_jobs = job_storage(:SJOB_LEN) ! first SJOB_LEN hold the job
     my_jobs(J_EP)  = my_jobs(J_STP) + w
     job_storage(J_STP) = my_jobs(J_EP)
-    store_m = m
     if (job_storage(J_STP) >= job_storage(J_EP)) then
       call time_stamp("MAIN wakes CONTROL",3)
       call th_cond_signal(COND_JS_UPDATE)
@@ -964,7 +949,7 @@ contains
     ! Signals: COND_JS_UPDATE.
     !
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: reserve_workh
+    use dlb_common, only: divide_work, divide_work_master
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: partner
@@ -977,11 +962,34 @@ contains
     divide_jobs = .true.
     call th_mutex_lock(LOCK_JS)
 
-    w = reserve_workh(job_storage)
+    if (masterserver) then
+      !!! variant with masterserver: here only a part of the jobs available may be
+      !!! given away
+      w = divide_work_master(job_storage, n_procs)
+    else
+      !!! chare the jobs equally distributed
+      w = divide_work(job_storage)
+    endif
 
     g_jobs = job_storage
     message(1) = WORK_DONAT
     if (w == 0) then ! nothing to give, set empty
+
+      !!! variant with master, if master cannot give work back, there is no more
+      ! work for the proc, thus tell him to terminate
+      if (masterserver) then
+         message(1) = NO_WORK_LEFT
+         call check_termination(partner)
+         ! don't send too many messages to myself, anyhow, termination master
+         ! has to wait, till all procs got termination send back
+         if (partner == termination_master) then
+           divide_jobs = .false.
+           call th_mutex_unlock(LOCK_JS)
+           return
+         endif
+      endif
+      !!! end variant with master
+
       g_jobs(J_EP)  = 0
       g_jobs(J_STP) = 0
       g_jobs(NRANK) = -1
@@ -1023,7 +1031,6 @@ contains
     count_messages = 0
     count_offers = 0
     count_requests = 0
-    store_m = 1 !only for the case, when a proc is starting without any jobs
     if (allocated(all_done)) all_done  = .false.
     ! set starting values for the jobs, needed also in this way for
     ! termination, as they will be stored also in the job_storage

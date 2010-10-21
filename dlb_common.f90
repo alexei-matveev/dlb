@@ -38,7 +38,8 @@ module dlb_common
   public :: select_victim!(rank, np) -> integer victim
 
   public :: reserve_workm!(m, jobs) -> integer n
-  public :: reserve_workh!(m, jobs) -> integer n
+  public :: divide_work!(jobs) -> integer n
+  public :: divide_work_master!(m, jobs) -> integer n
   public :: steal_work_for_rma!(m, jobs) -> integer n
 
   public :: time_stamp_prefix
@@ -175,7 +176,7 @@ contains
     n = max(n, 0)
   end function reserve_workm
 
-  pure function reserve_workh(jobs) result(n)
+  pure function divide_work(jobs) result(n)
     ! Purpose: give back number of jobs to take, half what is there
     implicit none
     integer(i4_kind), intent(in) :: jobs(2)
@@ -185,7 +186,20 @@ contains
     ! give half of all jobs:
     n =  (jobs(2) - jobs(1)) / 2
     n = max(n, 0)
-  end function reserve_workh
+  end function divide_work
+
+  pure function divide_work_master(jobs, np) result(n)
+    ! Purpose: give back number of jobs to take, half what is there
+    implicit none
+    integer(i4_kind), intent(in) :: jobs(2)
+    integer(i4_kind), intent(in) :: np
+    integer(i4_kind)             :: n ! result
+    !** End of interface *****************************************
+
+    ! exponential decrease, but not less than m (a job bunch at a time)
+    n =  (jobs(2) - jobs(1)) / np
+    if (n > (jobs(2) - jobs(1))) n = 0
+  end function divide_work_master
 
   pure function steal_work_for_rma(m, jobs) result(n)
     ! Purpose: give back number of jobs to take, half what is there
