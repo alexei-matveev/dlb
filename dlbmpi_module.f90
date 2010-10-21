@@ -1065,8 +1065,8 @@ contains
     job_storage(:SJOB_LEN) = start_job
     ! from now on, there are several threads, so chared objects have to
     ! be locked/unlocked in order to use them!!
-    call th_create_mail(MAILBOX)
-    if (n_procs > 1) call th_create_control(CONTROL)
+    call th_create_control(CONTROL)
+    if (n_procs > 1) call th_create_mail(MAILBOX)
     call timepar("endsetup")
   end subroutine dlb_setup
   !*************************************************************
