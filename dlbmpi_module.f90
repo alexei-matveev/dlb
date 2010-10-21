@@ -60,6 +60,12 @@ module dlb
   !                                                 all the procs he has send a termination to, if he has all and his
   !                                                 own CONTROL has send him a job request he terminates also
   !
+  !           thread are included via wrapper around c pthread routines, The wrappers all start with th and are
+  !           located in the thread_wrapper.c file. There are routines for starting and ending threads:
+  !            th_create_control, th_create_mail, th_exit, h_join; some for mutexe (blocking of global variables):
+  !            th_mutex_lock, th_mutex_unlock; some for conditions (wake and sleep of threads):th_create_mail,
+  !            th_cond_signal; and one for setting all the attributes to the threads, mutexes and conditions: th_inits
+  !
   !  Module called by: ...
   !
   !
@@ -397,6 +403,13 @@ contains
     ! or a terminated algorithm
     print *, my_rank,"GOT JOB: its", jobs
     ! only the start and endpoint of job slice is needed external
+    if (jobs(J_STP) >= jobs(J_EP)) then
+      ! this means MAIN did not intent to come back (check termination is
+      ! too dangerous, because MAIN may still have work for one go and thus
+      ! would try to join the thread in the next cycle again
+      call th_join(CONTROL)
+      if (n_procs > 1) call th_join(MAILBOX)
+    endif
     my_job = jobs(:L_JOB)
   end subroutine dlb_give_more
   !*************************************************************
@@ -444,8 +457,8 @@ contains
       deallocate(requ_m)
     endif
     ! MAILBOX should be the first thread to get the termination
-    ! here he checks if CONTROL is waiting somewhere and if yes
-    ! wakes it up, so that it can find out about the termination
+    ! if CONTROL is stuck somewhere waiting, this here will
+    ! wake it up, so that it can find out about the termination
     ! CONTROL should then wake up MAIN if neccessary
     call th_mutex_lock( LOCK_NJ)
     print *, my_rank, "prepare termination, check for CONTROL"
@@ -457,7 +470,7 @@ contains
     call th_mutex_unlock( LOCK_JS)
     print *, my_rank, "exit thread MAILBOX"
     call timepar("exitmailbox")
-    call th_exit()
+    call th_exit() ! will be joined on MAIN thread
   end subroutine thread_mailbox
   !*************************************************************
   subroutine test_requests(requ)
@@ -638,9 +651,8 @@ contains
       enddo
       deallocate(requ_c)
     endif
-    ! make sure nobody (MAILBOX) thinks that CONTROL is waiting somewhere
     call th_mutex_lock(LOCK_JS)
-    call th_cond_signal(COND_JS2_UPDATE) ! and free MAIN if waiting
+    call th_cond_signal(COND_JS2_UPDATE) ! free MAIN if waiting
     call th_mutex_unlock(LOCK_JS)
    call th_mutex_lock(LOCK_NJ)
    call th_mutex_unlock(LOCK_NJ)
@@ -648,7 +660,7 @@ contains
     print *, my_rank, "CONTROL: done", my_resp_self, "of my own, gave away", my_resp_start - my_resp_self, "and stole", your_resp
     print *, my_rank, "exit thread CONTROL"
     call timepar("exitcontrol")
-    call th_exit()
+    call th_exit() ! will be joined on MAIN
   end subroutine thread_control
 
   !*************************************************************

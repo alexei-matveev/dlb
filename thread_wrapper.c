@@ -11,11 +11,20 @@ void th_inits();
 void th_create_mail(int *tid);
 void th_create_control(int *tid);
 
+v v v v v v v
+void *th_exit_();
+void *th_mutex_lock_(int *mutex);
+void *th_mutex_unlock_(int * mutex);
+void *th_cond_wait_( int *condition, int *mutex);
+void *th_cond_signal_(int * condition);
+void * th_join_(int * name);
+*************
 void th_exit();
 void th_mutex_lock(int *mutex);
 void th_mutex_unlock(int *mutex);
 void th_cond_wait(int *condition, int *mutex);
 void th_cond_signal(int *condition);
+^ ^ ^ ^ ^ ^ ^
 
 #define NMUTEXES 4
 #define NCONDS 3
@@ -37,7 +46,7 @@ void th_inits()
     printf("ERROR: return code from pthread_attr_init() is %d\n", rc);
     exit(-1);
   }
-  rc = pthread_attr_setdetachstate(&ThreadAttribute, PTHREAD_CREATE_DETACHED);
+  rc = pthread_attr_setdetachstate(&ThreadAttribute, PTHREAD_CREATE_JOINABLE);
   if (rc) {
     printf("Error: pthread_attr_setdetachstate failed with %d\n", rc);
     exit(-1);
@@ -112,7 +121,22 @@ void th_exit()
   pthread_exit(NULL);
 }
 
+v v v v v v v
+void * th_join_(int * name)
+{
+  int rc;
+  void *status;
+  rc = pthread_join(threads[*name], &status);
+  if (rc) {
+      printf("ERROR; return code from pthread_join(%d) is %d\n", *name, rc);
+      //exit(-1);
+      }
+}
+
+void * th_mutex_lock_(int *mutex)
+*************
 void th_mutex_lock(int *mutex)
+^ ^ ^ ^ ^ ^ ^
 {
   pthread_mutex_lock(&mutexes[*mutex]);
 }
