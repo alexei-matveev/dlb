@@ -88,6 +88,8 @@ module dlb_module
   !------------ public functions and subroutines ------------------
   public dlb_init, dlb_finalize, dlb_setup, dlb_give_more
 
+  public :: time_stamp
+
   !================================================================
   ! End of public interface of module
   !================================================================
@@ -131,6 +133,8 @@ integer, parameter :: comm_world = MPI_COMM_WORLD
   integer(kind=i4_kind)             :: requ1 ! this request will be used in any case
   logical, allocatable              :: all_done(:) ! only valid on termination_master, stores which proc's
                                                    ! jobs are finished: ATTENTION: NOT which proc is finished
+
+  double precision :: time_offset = -1.0
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
 contains
@@ -141,18 +145,20 @@ contains
 
     call show1(job_storage)
   end subroutine show
-  subroutine timeloc(place )
-    implicit none
-    character(len=*), intent(in) :: place
 
-    print *,"GGG", my_rank, "local", place,  MPI_Wtime()
-  end subroutine timeloc
-  subroutine timepar(place )
+  subroutine time_stamp(msg)
     implicit none
-    character(len=*), intent(in) :: place
+    character(len=*), intent(in) :: msg
+    ! *** end of interface ***
 
-    print *,"GGG", my_rank, "parallel", place,  MPI_Wtime()
-  end subroutine timepar
+    double precision :: time
+
+    time = MPI_Wtime()
+    if( time_offset < 0.0 ) time_offset = time
+    time = time - time_offset
+
+    print *, "TIMESTAMP:", my_rank, time, msg
+  end subroutine time_stamp
 
   subroutine show1(storage)
     implicit none
@@ -298,9 +304,9 @@ contains
     ! try to read from there (then local_tgetm = false)
     do while (.not. local_tgetm(n, jobs))
        print *, "Waiting", my_rank, "for time to acces my own memory"
-       call timeloc("waiting")
+       call time_stamp("waiting")
     enddo
-    call timeloc("finished")
+    call time_stamp("finished")
     print *, my_rank, "Finished local search"
     ! if local storage only gives empty job:
     do while ((jobs(J_STP) >= jobs(J_EP)) .and. .not. check_messages())
@@ -311,9 +317,9 @@ contains
       ! try to get job from v, if v's memory occupied by another or contains
       ! nothing to steal, job is still empty
       term = rmw_tgetm(n, v, jobs)
-       call timepar("waiting")
+       call time_stamp("waiting")
     enddo
-    call timepar("finished")
+    call time_stamp("finished")
     print *, my_rank,"GOT JOB: its", jobs
     ! only the start and endpoint of job slice is needed external
     my_job = jobs(:L_JOB)
@@ -584,10 +590,10 @@ contains
     if (sap > 0) then
       print *, "There is already something going on in this storage"
       print *, "Because there is at least one proc active:", sap
-      call timeloc("blocked")
+      call time_stamp("blocked")
       local_tgetm = .false.
     else ! nobody is on the memory right now
-      call timeloc("free")
+      call time_stamp("free")
       local_tgetm = .true.
       ! check for thieves (to know when to wait for back reports)
       if (.not. job_storage(J_EP)== start_job(J_EP)) had_thief = .true.
@@ -609,7 +615,7 @@ contains
 !   print *, "job_storage=", job_storage
 !   print *, "local_tgetm: end locked", my_rank
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
-    call timeloc("release")
+    call time_stamp("release")
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
 !   print *, "local_tgetm: exit", my_rank
@@ -723,14 +729,14 @@ contains
     jobs_infom(my_rank+1+SJOB_LEN) = 0
     print *,my_rank,"Available jobs",source,"are", jobs_infom(:SJOB_LEN)
     print *,my_rank, "Currently working on proc", source,"are", jobs_infom(SJOB_LEN+1:)
-    call timepar("inform")
+    call time_stamp("inform")
     ! check if there are any procs, saying that they want to acces the memory
     sap = sum(jobs_infom(SJOB_LEN+1:))
 
     if (sap > 0) then ! this one is not the first, thus leave the memory to the others
       print *, "There is already something going on in this storage", my_rank
       print *, "Because there is at least one proc active:", sap, my_rank 
-      call timepar("blocked")
+      call time_stamp("blocked")
       rmw_tgetm = .false.
       ! Just set back the want of access (there is anyhow no method to store another order, than 
       ! first and rest)
@@ -750,7 +756,7 @@ contains
       ! how much of the work should be stolen
       w = reserve_workh(m,jobs_infom)
       print *, "Nobody out here, take for me", my_rank, w
-      call timepar("free")
+      call time_stamp("free")
       my_jobs = jobs_infom(:SJOB_LEN)
       if (w == 0) then ! nothing to steal, set default
         my_jobs(J_EP)  = 0
@@ -776,7 +782,7 @@ contains
       call assert_n(ierr==MPI_SUCCESS, 4)
       call MPI_WIN_UNLOCK(source, win, ierr)
     print *, my_rank, "RMW, second with acces lock exit"
-      call timepar("released")
+      call time_stamp("released")
       !ASSERT(ierr==MPI_SUCCESS)
       call assert_n(ierr==MPI_SUCCESS, 4)
       ! The give_grid function needs only up to m' jobs at once, thus
