@@ -113,7 +113,7 @@ integer, parameter :: comm_world = MPI_COMM_WORLD
 ! END ONLY FOR DEBUGGING
 
   ! first three variables for the use with the other form
-  logical  :: master_server
+  logical, parameter  :: master_server = .false.
   integer(kind=i4_kind), parameter :: chunk_m = 2
   integer(kind=i4_kind)             :: chunksize !how many jobs per slice
   !------------ Declaration of constants and variables ----
@@ -1024,7 +1024,7 @@ contains
     reserve_workh = max(reserve_workh, 0)
   end function reserve_workh
   !*************************************************************
-  subroutine dlb_setup(job, way)
+  subroutine dlb_setup(job)
     !  Purpose: initialization of a dlb run, each proc should call
     !           it with inital jobs. The inital jobs should be a
     !           static distribution of all available jobs, each job
@@ -1036,12 +1036,10 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
-    logical, intent(in) :: way
 !   !** End of interface *****************************************
 !   !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: jobs(SJOB_LEN), ierr
     !------------ Executable code --------------------------------
-    master_server = way
     ! these variables are for the termination algorithm
     terminated = .false.
    i_am_waiting = .false.

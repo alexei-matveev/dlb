@@ -67,7 +67,7 @@ times(rank, 1) = MPI_WTIME()
 
 call dlb_init()
 
-call dlb_setup(my_jobs) !,.false.)
+call dlb_setup(my_jobs)
 do while (more_work(n, sec))
    ! measure working time:
    time = MPI_WTIME()
