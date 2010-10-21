@@ -95,6 +95,7 @@ module dlbmpi_module
   !------------ public functions and subroutines ------------------
   public dlb_init, dlb_finalize, dlb_setup, dlb_give_more !for using the module
   public thread_control1, thread_mailbox1 ! needed for the c-wrapper on the pthreads
+  public :: time_stamp
   !================================================================
   ! End of public interface of module
   !================================================================
@@ -195,6 +196,7 @@ integer, parameter :: comm_world = MPI_COMM_WORLD
   integer(kind=i4_kind)             :: count_messages, count_requests, count_offers ! how many messages arrived
   integer(kind=i4_kind)             :: my_resp_start, my_resp_self, your_resp !how many jobs doen where
   integer(kind=i4_kind)             :: many_tries, many_searches !how many times asked for jobs
+  double precision :: time_offset = -1.0
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
 contains
@@ -221,6 +223,31 @@ contains
 
     print *,"GGG", my_rank, "parallel", place,  MPI_Wtime()
   end subroutine timepar
+
+  function time_stamp_prefix(time) result(prefix)
+    implicit none
+    double precision, intent(in) :: time
+    character(len=28) :: prefix
+    ! *** end of interface ***
+    write(prefix, '(A,"#", I3, G20.10)')"GGG"  , my_rank, time - time_offset
+  end function time_stamp_prefix
+
+  subroutine time_stamp(msg)
+    implicit none
+    character(len=*), intent(in) :: msg
+    ! *** end of interface ***
+
+    double precision :: time
+
+    time = MPI_Wtime()
+    if ( time_offset < 0.0 ) then
+      time_offset = 0.0
+      print *, time_stamp_prefix(time), "(BASE TIME)"
+      time_offset = time
+    endif
+
+    print *, time_stamp_prefix(time), msg
+  end subroutine time_stamp
 
   subroutine show1(storage)
     implicit none
