@@ -85,7 +85,7 @@ main.o: test.o dlbmpi_module.o dlb_module.o dlb_static.o thread_wrapper.o
 	$(CC) $(CFLAGS) -c $(<)
 
 %.o: %.f90
-	$(FC) $(FFLAGS) $(LIBS) $(MPIINCLUDE) -c $(<)
+	$(FC) $(FFLAGS) $(MPIINCLUDE) -c $(<)
 
 #
 # $(@) stays for the target (respective executable)
