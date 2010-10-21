@@ -654,9 +654,14 @@ contains
   !*************************************************************
 v v v v v v v
 
+  subroutine check_messages(requ_m)
+*************
+v v v v v v v
+
   subroutine check_messages()
 *************
   subroutine check_messages(requ_m)
+^ ^ ^ ^ ^ ^ ^
 ^ ^ ^ ^ ^ ^ ^
     !  Purpose: checks if any message has arrived, checks for messages:
     !          Someone finished stolen job slice
