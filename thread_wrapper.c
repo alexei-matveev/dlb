@@ -28,7 +28,7 @@ void th_rwlock_wrlock(int *rwlock);
 void th_rwlock_unlock(int *rwlock);
 
 #define NTHREADS 2
-#define NMUTEXES 4
+#define NMUTEXES 3
 #define NCONDS 3
 #define NRWLOCKS 1
 
