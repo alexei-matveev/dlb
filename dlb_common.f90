@@ -27,12 +27,11 @@ module dlb_common
   ! Description: ...
   !
   !----------------------------------------------------------------
-  use mpi, only: MPI_COMM_WORLD, MPI_WTIME
+  use mpi
   implicit none
   save            ! save all variables defined in this module
   private         ! by default, all names are private
   !== Interrupt end of public interface of module =================
-
   !------------ public functions and subroutines ------------------
 
   public :: select_victim!(rank, np) -> integer victim
@@ -45,7 +44,10 @@ module dlb_common
   public :: time_stamp_prefix
   public :: time_stamp
   public :: assert_n
-  public :: dlb_common_init, dlb_common_finalize
+  public :: dlb_common_init, dlb_common_finalize, dlb_common_setup
+  public :: add_request, test_requests, end_requests
+  public :: send_resp_done, report_job_done, send_termination, has_last_done
+  public :: set_start_job, set_empty_job
 
   ! integer with 4 bytes, range 9 decimal digits
   integer, parameter, public :: i4_kind = selected_int_kind(9)
@@ -57,6 +59,18 @@ module dlb_common
   integer, parameter, public :: r8_kind = selected_real_kind(15)
 
   integer,  public :: comm_world
+  integer(kind=i4_kind), parameter, public  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 !for distingishuing the messages
+  integer(kind=i4_kind), parameter, public  :: SJOB_LEN = 3 ! Length of a single job in interface
+  integer(kind=i4_kind), parameter, public  :: L_JOB = 2  ! Length of job to give back from interface
+  integer(kind=i4_kind), parameter, public  :: NRANK = 3 ! Number in job, where rank of origin proc is stored
+  integer(kind=i4_kind), parameter, public  :: J_STP = 1 ! Number in job, where stp (start point) is stored
+  integer(kind=i4_kind), parameter, public  :: J_EP = 2 ! Number in job, where ep (end point) is stored
+  integer(kind=i4_kind), parameter, public  ::  MSGTAG = 166 ! message tag for all MPI communication
+  integer(kind=i4_kind), public       :: my_rank, n_procs ! some synonyms, They will be initialized once and afterwards
+                                        ! be read only
+  integer(kind=i4_kind), public             ::  termination_master ! the one who gathers the finished my_resp's
+                                         ! and who tells all, when it is complety finished
+                                         ! in case of the variant with master as server of jobs, its also the master
 
   !================================================================
   ! End of public interface of module
@@ -66,10 +80,11 @@ module dlb_common
 
   !------------ Declaration of constants and variables ----
 
-  integer(i4_kind), public :: dlb_common_my_rank = -1 ! for debug prints only
   integer(i4_kind), parameter :: output_border = 2
 
   double precision :: time_offset = -1.0
+  logical, allocatable              :: all_done(:) ! only allocated on termination_master, stores which proc's
+                                                   ! jobs are finished. If with masterserver: which proc has terminated
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
 contains
@@ -81,7 +96,7 @@ contains
     character(len=28) :: prefix
     ! *** end of interface ***
 
-    write(prefix, '("#", I3, G20.10)') dlb_common_my_rank, time - time_offset
+    write(prefix, '("#", I3, G20.10)') my_rank, time - time_offset
   end function time_stamp_prefix
 
   subroutine time_stamp(msg, output_level)
@@ -114,19 +129,71 @@ contains
 ! END ONLY FOR DEBUGGING
 
   subroutine dlb_common_init()
-    integer :: ierr
+    ! Intialization of common stuff, needed by all routines
+    integer :: ierr, alloc_stat
     call MPI_COMM_DUP(MPI_COMM_WORLD, comm_world, ierr)
     !ASSERT(ierr==0)
     call assert_n(ierr==0,4)
+    call MPI_COMM_RANK( comm_world, my_rank, ierr )
+    !ASSERT(ierr==MPI_SUCCESS)
+    call assert_n(ierr==MPI_SUCCESS, 1)
+    call MPI_COMM_SIZE(comm_world, n_procs, ierr)
+    !ASSERT(ierr==MPI_SUCCESS)
+    call assert_n(ierr==MPI_SUCCESS, 2)
+    termination_master = n_procs - 1
+    if (my_rank == termination_master) then
+      allocate(all_done(n_procs), stat = alloc_stat)
+      !ASSERT(alloc_stat==0)
+      call assert_n(alloc_stat==0, 1)
+    endif
   end subroutine
 
   subroutine dlb_common_finalize()
-    integer :: ierr
+    ! shut down the common stuff, as needed
+    integer :: ierr, alloc_stat
     call MPI_COMM_FREE( comm_world, ierr)
     !ASSERT(ierr==0)
     call assert_n(ierr==0,4)
+    if (allocated(all_done)) then
+      deallocate(all_done, stat=alloc_stat)
+      !ASSERT(alloc_stat==0)
+      call assert_n(alloc_stat==0, 1)
+    endif
   end subroutine
 
+  subroutine dlb_common_setup()
+    ! Termination master start of a new dlb run
+    implicit none
+    if (allocated(all_done)) all_done  = .false.
+  end subroutine dlb_common_setup
+
+  ! To make it easier to add for example new job informations
+  ! The direct setting of a comlete job is always done here
+  ! There are two functions needed: setting of the inital job
+  ! for the own rank and setting an empty, easy as that to
+  ! recognise job
+  ! it is supposed, that all the informations needed so far, will be
+  ! still there, but that new informations will be handled on too
+  ! (without this two functions, the informations will just copied
+  ! and special ones will be changed)
+
+  function set_start_job(job)
+    !Purpose: gives a complete starting job description
+    !         after gotten just the job range
+    integer(kind=i4_kind), intent(in) :: job(L_JOB)
+    integer(kind=i4_kind) :: set_start_job(SJOB_LEN)
+    set_start_job(:L_JOB) = job
+    set_start_job(NRANK) = my_rank
+  end function set_start_job
+
+  function set_empty_job()
+    !Purpose: gives a complete starting job description
+    !         after gotten just the job range
+    integer(kind=i4_kind) :: set_empty_job(SJOB_LEN)
+    set_empty_job(J_EP) = 0
+    set_empty_job(J_STP) = 0
+    set_empty_job(NRANK) = -1
+  end function set_empty_job
 
   function select_victim(rank, np) result(victim)
      ! Purpose: decide of who to try next to get any jobs
@@ -182,7 +249,6 @@ contains
      integer(i8_kind), parameter :: m = 2_i8_kind**32
      integer(i8_kind), save :: seed = -1
 
-     ! Does not work yet, due to too much overflow (negative procs), FIXME: still true?
      if (seed == -1) then
         seed = rank
      endif
@@ -214,6 +280,7 @@ contains
 
   pure function divide_work(jobs) result(n)
     ! Purpose: give back number of jobs to take, half what is there
+    !          take less than half if could not equally divided
     implicit none
     integer(i4_kind), intent(in) :: jobs(2)
     integer(i4_kind)             :: n ! result
@@ -225,7 +292,9 @@ contains
   end function divide_work
 
   pure function divide_work_master(jobs, np) result(n)
-    ! Purpose: give back number of jobs to take, half what is there
+    ! Purpose: give back number of jobs to take,
+    !          as all jobs to share are located at master give back
+    !          portion of division by the number of jobs
     implicit none
     integer(i4_kind), intent(in) :: jobs(2)
     integer(i4_kind), intent(in) :: np
@@ -239,6 +308,8 @@ contains
 
   pure function steal_work_for_rma(m, jobs) result(n)
     ! Purpose: give back number of jobs to take, half what is there
+    !          but gives more if could not divided equally
+    !          this should ensure the progress of the whole program
     implicit none
     integer(i4_kind), intent(in) :: m
     integer(i4_kind), intent(in) :: jobs(2)
@@ -251,5 +322,249 @@ contains
     ! but give more, if job numbers not odd
     n =  (jobs(2) - jobs(1)) - n
   end function steal_work_for_rma
+
+  subroutine add_request(req, requ)
+    ! Purpose: stores unfinished requests
+    !          there is a storage requ, here keep all that is
+    !          inside but add also req
+    !
+    ! Context: control thread, mailbox thread.
+    !          2 threads: secretary thread
+    !
+    ! Locks: none.
+    !
+    implicit none
+    integer, intent(in) :: req
+    integer, allocatable :: requ(:)
+    ! *** end of interface ***
+
+    integer, allocatable :: req_int(:)
+    integer :: alloc_stat, len_req
+
+    len_req = 0
+    if (allocated(requ)) then
+      len_req = size(requ,1)
+      allocate(req_int(len_req), stat = alloc_stat)
+      !ASSERT(alloc_stat==0)
+      call assert_n(alloc_stat==0, 4)
+      req_int = requ
+      deallocate(requ, stat = alloc_stat)
+      !ASSERT(alloc_stat==0)
+      call assert_n(alloc_stat==0, 4)
+    endif
+    allocate(requ(len_req +1), stat = alloc_stat)
+    !ASSERT(alloc_stat==0)
+    call assert_n(alloc_stat==0, 4)
+    if (len_req > 0) requ(:len_req) = req_int
+    requ(len_req +1) = req
+  end subroutine add_request
+
+  subroutine test_requests(requ)
+    ! Purpose: tests if any of the messages stored in requ have been
+    !          received, than remove the corresponding request
+    !          requ is local request of the corresponding thread
+    !
+    ! Context for 3Threads: mailbox thread, control thread.
+    !             2 Threads: secretary thread
+    !
+    !------------ Modules used ------------------- ---------------
+    implicit none
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
+    integer, allocatable :: requ(:)
+    integer(kind=i4_kind)                :: j,i,req, stat(MPI_STATUS_SIZE), len_req, len_new
+    integer(kind=i4_kind)                :: alloc_stat, ierr
+    integer(kind=i4_kind),allocatable :: requ_int(:)
+    logical     :: flag
+    logical, allocatable :: finished(:)
+    !------------ Executable code --------------------------------
+    if (.not. allocated(requ)) RETURN
+
+    len_req = size(requ)
+    allocate(finished(len_req), requ_int(len_req), stat = alloc_stat)
+    !ASSERT(alloc_stat==0)
+    call assert_n(alloc_stat==0, 4)
+    finished = .false.
+    len_new = len_req
+    do i = 1, len_req
+      req = requ(i)
+      call MPI_TEST(req, flag, stat, ierr)
+      !ASSERT(ierr==MPI_SUCCESS)
+      call assert_n(ierr==MPI_SUCCESS, 4)
+      if (flag) then
+        finished(i) = .true.
+        len_new = len_new - 1
+      endif
+    enddo
+    requ_int(:) = requ(:)
+    deallocate(requ, stat = alloc_stat)
+    !ASSERT(alloc_stat==0)
+    call assert_n(alloc_stat==0, 4)
+    if (len_new > 0) then
+      allocate(requ(len_new), stat = alloc_stat)
+      !ASSERT(alloc_stat==0)
+      call assert_n(alloc_stat==0, 4)
+      j = 0
+      do i = 1, len_req
+        if (.not. finished(i)) then
+          j = j + 1
+          requ(j) = requ_int(i)
+        endif
+      enddo
+    endif
+    deallocate(requ_int, finished, stat = alloc_stat)
+    !ASSERT(alloc_stat==0)
+    call assert_n(alloc_stat==0, 4)
+  end subroutine test_requests
+
+  subroutine end_requests(requ)
+    ! Purpose: end all of the stored requests in requ
+    !          no matter if the corresponding message has arived
+    !
+    ! Context for 3Threads: mailbox thread, control thread.
+    !             2 Threads: secretary thread
+    !------------ Modules used ------------------- ---------------
+    implicit none
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
+    integer, allocatable :: requ(:)
+    integer(kind=i4_kind)                :: i, ierr
+    integer(kind=i4_kind)                :: stat(MPI_STATUS_SIZE)
+    !------------ Executable code --------------------------------
+    if (allocated(requ)) then
+      do i = 1, size(requ,1)
+        call MPI_CANCEL(requ(i), ierr)
+        !ASSERT(ierr==MPI_SUCCESS)
+        call assert_n(ierr==MPI_SUCCESS, 4)
+        call MPI_WAIT(requ(i),stat, ierr)
+        !ASSERT(ierr==MPI_SUCCESS)
+        call assert_n(ierr==MPI_SUCCESS, 4)
+      enddo
+      deallocate(requ)
+    endif
+  end subroutine end_requests
+
+! algorithm for termination (is in principle the same for all dynamical variants)
+  subroutine send_resp_done(requ)
+    !  Purpose: my_resp holds the number of jobs, assigned at the start
+    !           to this proc, so this proc is responsible that they will
+    !           be finished, if my_resp == 0, I should tell termination_master
+    !           that, termination master will collect all the finished resp's
+    !           untill it gots all of them back
+    !
+    ! Context 3Thread: mailbox  and control thread.
+    !             2 Threads: secretary thread
+    !
+    ! Locks: none.
+    !
+    ! Signals: none.
+    !
+    !------------ Modules used ------------------- ---------------
+    implicit none
+    !------------ Declaration of formal parameters ---------------
+    !** End of interface *****************************************
+    integer(kind=i4_kind), allocatable   :: requ(:)
+    !------------ Declaration of local variables -----------------
+    integer(kind=i4_kind)                :: ierr, req
+    integer(kind=i4_kind)                :: message(1+SJOB_LEN)
+    !------------ Executable code --------------------------------
+
+    message(1) = RESP_DONE
+    message(2) = my_rank
+    message(3:) = 0
+    call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, termination_master, MSGTAG,comm_world, req, ierr)
+    !ASSERT(ierr==MPI_SUCCESS)
+    call assert_n(ierr==MPI_SUCCESS, 4)
+    call add_request(req, requ)
+  end subroutine send_resp_done
+
+  subroutine report_job_done(num_jobs_done, source, requ)
+    !  Purpose: If a job is finished, this cleans up afterwards
+    !           Needed for termination algorithm, there are two
+    !           cases, it was a job of the own responsibilty or
+    !           one from another, first case just change my number
+    !            second case, send to victim, how many of his jobs
+    !            were finished
+    !
+    ! Context: control thread.
+    !             2 Threads: secretary thread
+    !
+    ! Locks: wrlock,
+    !        wrlock through decrease_resp()
+    !
+    !------------ Modules used ------------------- ---------------
+    implicit none
+    !------------ Declaration of formal parameters ---------------
+    integer(kind=i4_kind), intent(in  ) :: num_jobs_done, source
+    integer(kind=i4_kind), allocatable  :: requ(:)
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
+    integer(kind=i4_kind)                :: ierr, req
+    integer(kind=i4_kind)                :: message(1 + SJOB_LEN)
+    !------------ Executable code --------------------------------
+    ! As all isends have to be closed sometimes, storage of
+    ! the request handlers is needed
+    message(1) = DONE_JOB
+    message(2) = num_jobs_done
+    message(3:) = 0
+    call time_stamp("send message to source", 2)
+    call MPI_ISEND(message,1 + SJOB_LEN, MPI_INTEGER4, source,&
+                                MSGTAG,comm_world, req, ierr)
+    !ASSERT(ierr==MPI_SUCCESS)
+    call assert_n(ierr==MPI_SUCCESS, 4)
+    call add_request(req, requ)
+  end subroutine report_job_done
+
+  logical function has_last_done(proc)
+    !  Purpose: only on termination_master, checks if reported one
+    !           is the last proc to report finished
+    !
+    !  Context:   3 Threads: mailbox thread
+    !             2 Threads: secretary thread
+    !------------ Modules used ------------------- ---------------
+    implicit none
+    !------------ Declaration of formal parameters ---------------
+    integer(kind=i4_kind), intent(in)    :: proc
+    all_done(proc+1) = .true.
+    has_last_done = all(all_done)
+  end function has_last_done
+
+  subroutine send_termination()
+    !  Purpose: only on termination_master, send to all that termination
+    !           has been reached
+    !
+    ! Context 3Thread: mailbox thread. (termination master only)
+    !             2 Threads: secretary thread
+    !
+    !
+    !------------ Modules used ------------------- ---------------
+    implicit none
+    !------------ Declaration of formal parameters ---------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
+    integer(kind=i4_kind)                :: ierr, i, alloc_stat
+    integer(kind=i4_kind), allocatable   :: request(:), stats(:,:)
+    integer(kind=i4_kind)                :: receiver, message(1+SJOB_LEN)
+    !------------ Executable code --------------------------------
+
+    allocate(request(n_procs -1), stats(n_procs -1, MPI_STATUS_SIZE),&
+    stat = alloc_stat)
+    !ASSERT(alloc_stat==0)
+    call assert_n(alloc_stat==0,9)
+    message(1) = NO_WORK_LEFT
+    message(2:) = 0
+    do i = 0, n_procs-2
+    receiver = i
+    ! skip the termination master (itsself)`
+    if (i >= termination_master) receiver = i+1
+    call time_stamp("send termination", 5)
+    call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, receiver, MSGTAG, comm_world ,request(i+1), ierr)
+    !ASSERT(ierr==MPI_SUCCESS)
+    call assert_n(ierr==MPI_SUCCESS, 4)
+    enddo
+    call MPI_WAITALL(size(request), request, stats, ierr)
+    !ASSERT(ierr==MPI_SUCCESS)
+    call assert_n(ierr==MPI_SUCCESS, 4)
+  end subroutine send_termination
 
 end module dlb_common

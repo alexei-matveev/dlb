@@ -81,6 +81,10 @@ module dlb
   use iso_c_binding
   use dlb_common, only: i4_kind, r8_kind, comm_world
   use dlb_common, only: assert_n, time_stamp, time_stamp_prefix ! for debug only
+  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, SJOB_LEN, L_JOB, NRANK, J_STP, J_EP, MSGTAG
+  use dlb_common, only: add_request, test_requests, end_requests, send_resp_done, report_job_done
+  use dlb_common, only: dlb_common_setup, has_last_done, send_termination
+  use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   implicit none
   save            ! save all variables defined in this module
   private         ! by default, all names are private
@@ -96,18 +100,8 @@ module dlb
   !------------ Declaration of types ------------------------------
 
   !------------ Declaration of constants and variables ----
-  integer(kind=i4_kind), parameter  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 !for distingishuing the messages
   integer(kind=i4_kind), parameter  :: ON = 1, OFF = 0 ! For read-modify-write
-  integer(kind=i4_kind), parameter  :: SJOB_LEN = 3 ! Length of a single job in interface
-  integer(kind=i4_kind), parameter  :: L_JOB = 2  ! Length of job to give back from interface
-  integer(kind=i4_kind), parameter  :: NRANK = 3 ! Number in job, where rank of origin proc is stored
-  integer(kind=i4_kind), parameter  :: J_STP = 1 ! Number in job, where stp (start point) is stored
-  integer(kind=i4_kind), parameter  :: J_EP = 2 ! Number in job, where ep (end point) is stored
-  integer(kind=i4_kind), parameter  :: MSGTAG = 185 ! messagetag used for MPI function calls
   integer(kind=i4_kind)             :: jobs_len  ! Length of complete jobs storage
-  integer(kind=i4_kind)            :: my_rank=-1, n_procs=-1 ! some synonyms
-  integer(kind=i4_kind)             ::  termination_master ! the one who gathers the finished my_resp's
-                                         ! and who tells all, when it is complety finished
   integer(kind=i4_kind)            :: win ! for the RMA object
   type(c_ptr)  :: c_job_pointer     ! needed for MPI RMA handling (for c pseudo pointer)
   integer(kind=i4_kind), pointer    :: job_storage(:) ! store all the jobs, belonging to this processor
@@ -120,9 +114,6 @@ module dlb
   logical                           :: terminated!, finishedjob ! for termination algorithm
   integer(kind=i4_kind),allocatable :: requ2(:) ! requests of send are stored till relaese
   integer(kind=i4_kind)             :: requ1 ! this request will be used in any case
-  logical, allocatable              :: all_done(:) ! only valid on termination_master, stores which proc's
-                                                   ! jobs are finished: ATTENTION: NOT which proc is finished
-
   integer(kind=i4_kind)             :: my_resp_start, my_resp_self, your_resp !how many jobs doen where
   integer(kind=i4_kind)             :: many_tries, many_searches !how many times asked for jobs
   integer(kind=i4_kind)             :: many_locked, many_zeros
@@ -140,7 +131,7 @@ contains
     !           It is also recommended to call this subroutine only once
     !           as it needs parallelization of all processes
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: dlb_common_my_rank, dlb_common_init
+    use dlb_common, only: dlb_common_init
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
@@ -150,21 +141,6 @@ contains
     !------------ Executable code --------------------------------
     ! some aliases, highly in use during the whole module
     call dlb_common_init()
-    call MPI_COMM_RANK( comm_world, my_rank, ierr )
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 1)
-    call MPI_COMM_SIZE(comm_world, n_procs, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 2)
-
-    ! for prefixing debug messages with proc rank set this var:
-    dlb_common_my_rank = my_rank
-
-    allocate(all_done(n_procs), stat = alloc_stat)
-    !ASSERT(alloc_stat==0)
-    call assert_n(alloc_stat==0, 1)
-
-    termination_master = n_procs - 1
     ! find out, how much there is to store and allocate (with MPI) the memory
     call MPI_TYPE_EXTENT(MPI_INTEGER4, sizeofint, ierr)
     jobs_len = SJOB_LEN + n_procs
@@ -217,9 +193,6 @@ contains
     CALL MPI_WIN_FREE(win, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 5)
-    deallocate(all_done, stat=alloc_stat)
-    !ASSERT(alloc_stat==0)
-    call assert_n(alloc_stat==0, 1)
     call dlb_common_finalize()
   end subroutine dlb_finalize
 
@@ -306,15 +279,15 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE), alloc_stat
     logical                              :: flag
-    integer(kind=i4_kind)                :: message(2)
+    integer(kind=i4_kind)                :: message(1 + SJOB_LEN)
     integer(kind=i4_kind), allocatable  :: statusse(:,:)
     !------------ Executable code --------------------------------
     ! check for any message
     call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
-    if (flag) then !got a message
-      call MPI_RECV(message, 2, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG,comm_world, stat,ierr)
+    do while (flag) !got a message
+      call MPI_RECV(message, 1+SJOB_LEN, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG,comm_world, stat,ierr)
       !print *, time_stamp_prefix(MPI_Wtime()), "got message from", stat(MPI_SOURCE), "with", message
       !ASSERT(ierr==MPI_SUCCESS)
       call assert_n(ierr==MPI_SUCCESS, 4)
@@ -322,7 +295,14 @@ contains
          !ASSERT(message>0)
          call assert_n(message(2)>0, 4)
          my_resp = my_resp - message(2)
-         call is_my_resp_done()
+         if (my_resp == 0) then
+           if (my_rank == termination_master) then
+             call check_termination(my_rank)
+           else
+             call send_resp_done(requ2)
+           endif
+           call time_stamp("send my_resp done", 2)
+         endif
       elseif (message(1) == RESP_DONE) then ! finished responsibility
          if (my_rank == termination_master) then
            call check_termination(message(2))
@@ -341,17 +321,7 @@ contains
          call assert_n(stat(MPI_SOURCE)==termination_master, 4)
          terminated = .true.
          ! NOW all my messages HAVE to be complete, so close (without delay)
-         call MPI_WAIT(requ1, stat, ierr)
-         !ASSERT(ierr==MPI_SUCCESS)
-         call assert_n(ierr==MPI_SUCCESS, 4)
-         if (allocated(requ2)) then
-           allocate(statusse(size(requ2),MPI_STATUS_SIZE), stat = alloc_stat)
-           !ASSERT(alloc_stat==0)
-           call assert_n(alloc_stat==0, 4)
-           call MPI_WAITALL(size(requ2),requ2, statusse, ierr)
-           !ASSERT(ierr==MPI_SUCCESS)
-           call assert_n(ierr==MPI_SUCCESS, 4)
-         endif
+         call end_requests(requ2)
       else
         ! This message makes no sense in this context, thus give warning
         ! and continue (maybe the actual calculation has used it)
@@ -361,7 +331,10 @@ contains
         call abort()
       endif
 
-    endif
+    call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
+    !ASSERT(ierr==MPI_SUCCESS)
+    call assert_n(ierr==MPI_SUCCESS, 4)
+    enddo
     check_messages = terminated
 
     if (terminated) then
@@ -383,66 +356,15 @@ contains
     integer(kind=i4_kind), allocatable   :: request(:), stats(:,:)
     integer(kind=i4_kind)                :: receiver, message(2)
     !------------ Executable code --------------------------------
-    ! all_done stores the procs, which have already my_resp = 0
-    all_done(proc+1) = .true.
-    ! check if there are still some procs not finished
-    finished = .true.
-    do i = 1, n_procs
-      if (.not. all_done(i)) finished = .false.
-    enddo
+    if (.not. has_last_done(proc)) RETURN
 
     ! there will be only a send to the other procs, telling them to terminate
     ! thus the termination_master sets its termination here
-    if (finished) terminated = .true.
-    if (finished .and. n_procs > 1) then
-      allocate(request(n_procs-1), stats(n_procs-1,MPI_STATUS_SIZE),&
-                     stat = alloc_stat)
-      !ASSERT(alloc_stat==0)
-      call assert_n(alloc_stat==0,9)
-      message(1) = NO_WORK_LEFT
-      message(2) = 0
-      do i = 0, n_procs-2
-        receiver = i
-        ! skip the termination master (itsself)`
-        if (i >= termination_master) receiver = i+1
-        call MPI_ISEND(message, 2, MPI_INTEGER4, receiver, MSGTAG,comm_world ,request(i+1), ierr)
-        !ASSERT(ierr==MPI_SUCCESS)
-        call assert_n(ierr==MPI_SUCCESS, 4)
-        print *, time_stamp_prefix(MPI_Wtime()), "send termination to", receiver
-      enddo
-      call MPI_WAITALL(size(request), request, stats, ierr)
-      !ASSERT(ierr==MPI_SUCCESS)
-      call assert_n(ierr==MPI_SUCCESS, 4)
+    terminated = .true.
+    if (n_procs > 1) then
+      call send_termination()
     endif
   end subroutine check_termination
-
-  subroutine is_my_resp_done()
-    !  Purpose: my_resp holds the number of jobs, assigned at the start
-    !           to this proc, so this proc is responsible that they will
-    !           be finished, if my_resp == 0, I should tell termination_master
-    !           that, termination master will collect all the finished resp's
-    !           untill it gots all of them back
-    !------------ Modules used ------------------- ---------------
-    implicit none
-    !------------ Declaration of formal parameters ---------------
-    !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr
-    integer(kind=i4_kind)                :: message(2)
-    !------------ Executable code --------------------------------
-    if (my_resp == 0) then
-      if (my_rank == termination_master) then
-        call check_termination(my_rank)
-      else
-        message(1) = RESP_DONE
-        message(2) = my_rank
-        call MPI_ISEND(message, 2, MPI_INTEGER4, termination_master, MSGTAG,comm_world, requ1, ierr)
-        call time_stamp("send my_resp done", 2)
-        !ASSERT(ierr==MPI_SUCCESS)
-        call assert_n(ierr==MPI_SUCCESS, 4)
-      endif
-    endif
-  end subroutine is_my_resp_done
 
   logical function local_tgetm(m, my_jobs)
     !  Purpose: returns true if could acces the global memory with
@@ -532,35 +454,16 @@ contains
     if (start_job(NRANK) == my_rank) then
       my_resp = my_resp - num_jobs_done
       my_resp_self = my_resp_self + num_jobs_done
-      call is_my_resp_done() ! check if all my jobs are done
+      if (my_resp == 0) then
+        if (my_rank == termination_master) then
+          call check_termination(my_rank)
+        else
+          call send_resp_done(requ2)
+        endif
+      endif
     else
       your_resp = your_resp + num_jobs_done
-      ! As all isends have to be closed sometimes, storage of
-      ! the request handlers is needed
-      if (allocated(requ2)) then
-        allocate(intermed(size(requ2,1)),stat = alloc_stat)
-        !ASSERT(alloc_stat==0)
-        call assert_n(alloc_stat==0, 4)
-        intermed = requ2
-        deallocate(requ2, stat = alloc_stat)
-        !ASSERT(alloc_stat==0)
-        call assert_n(alloc_stat==0, 4)
-      endif
-      if (allocated(intermed)) then
-        allocate(requ2(size(intermed,1)+1), stat = alloc_stat)
-      else
-        allocate(requ2(1), stat = alloc_stat)
-      endif
-      !ASSERT(alloc_stat==0)
-      call assert_n(alloc_stat==0, 4)
-      if (size(requ2,1) > 1) requ2(2:) = intermed
-      message(1) = DONE_JOB
-      message(2) = num_jobs_done
-      call MPI_ISEND(message,2, MPI_INTEGER4, start_job(NRANK),&
-                                   MSGTAG, comm_world, requ2(1), ierr)
-      !print *, time_stamp_prefix(MPI_Wtime()), "send have", num_jobs_done, "jobs done from", start_job(NRANK)
-      !ASSERT(ierr==MPI_SUCCESS)
-      call assert_n(ierr==MPI_SUCCESS, 4)
+      call report_job_done(num_jobs_done, start_job(NRANK), requ2)
     endif
   end subroutine report_or_store
 
@@ -589,9 +492,7 @@ contains
     integer(i4_kind), target             :: jobs_infom(jobs_len)
     integer(kind=MPI_ADDRESS_KIND)      :: displacement
     !------------ Executable code --------------------------------
-    my_jobs(J_EP)  = 0
-    my_jobs(J_STP) = 0
-    my_jobs(NRANK) = -1
+    my_jobs = set_empty_job()
 
     ! First GET-PUT round, MPI only ensures taht after MPI_UNLOCK the
     ! MPI-RMA accesses are finished, thus modify has to be done out of this lock
@@ -627,9 +528,7 @@ contains
       call time_stamp("free",4)
       my_jobs = jobs_infom(:SJOB_LEN)
       if (w == 0) then ! nothing to steal, set default
-        my_jobs(J_EP)  = 0
-        my_jobs(J_STP) = 0
-        my_jobs(NRANK) = -1
+        my_jobs = set_empty_job()
         many_zeros = many_zeros + 1
       else ! take the last w jobs of the job-storage
         my_jobs(J_STP)  = my_jobs(J_EP) - w
@@ -724,7 +623,7 @@ contains
     ! these variables are for the termination algorithm
     had_thief = .false.
     terminated = .false.
-    all_done  = .false.
+    call dlb_common_setup()
     many_tries = 0
     many_searches = 0
     many_locked = 0
@@ -735,8 +634,7 @@ contains
     ! termination, as they will be stored also in the job_storage
     ! start_job should only be changed if all current jobs are finished
     ! and there is a try to steal new ones
-    start_job(:L_JOB) = job
-    start_job(NRANK) = my_rank
+    start_job = set_start_job(job)
     ! needed for termination
     my_resp = start_job(J_EP) - start_job(J_STP)
     my_resp_start = my_resp
