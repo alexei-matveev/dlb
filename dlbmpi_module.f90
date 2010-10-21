@@ -276,6 +276,7 @@ contains
 
   subroutine dlb_init()
     !  Purpose: initalization of needed stuff
+    !           is in one thread context
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: dlb_common_my_rank
     implicit none
@@ -304,7 +305,7 @@ contains
   subroutine dlb_finalize()
     !  Purpose: cleaning up everything, after last call
     !
-    ! Context: main thread after joining other two
+    ! Context: main thread after joining other two.
     !
     !------------ Modules used ------------------- ---------------
     implicit none
@@ -329,7 +330,7 @@ contains
     !  or termination, the return value of my_jobs should only contain
     !  my_jobs(J_STP) == my_jobs(J_EP) if all procs are terminated
     !
-    ! Context: main thread
+    ! Context: main thread.
     !
     !------------ Modules used ------------------- ---------------
     implicit none
@@ -368,7 +369,7 @@ contains
   logical function termination()
     ! Purpose: make lock around terminated, but have it as one function
     !
-    ! Context: main, control, and mailbox threads
+    ! Context: main, control, and mailbox threads.
     !
     ! Locks: rdlock
     !
@@ -408,7 +409,7 @@ contains
     !                all others already finished
     !               the clean up of the finished messges is also contained
     !
-    ! Context: entry to mailbox thread
+    ! Context: entry to mailbox thread.
     !
     !------------ Modules used ------------------- ---------------
     implicit none
@@ -458,8 +459,9 @@ contains
   subroutine test_requests(requ)
     ! Purpose: tests if any of the messages stored in requ have been
     !          received, than remove the corresponding request
+    !          requ is local request of the corresponding thread
     !
-    ! Context: mailbox thread, control thread, ???
+    ! Context: mailbox thread, control thread.
     !
     !------------ Modules used ------------------- ---------------
     implicit none
@@ -527,7 +529,7 @@ contains
     !          but also after termination message (MAILBOX will wake it up)
     !          after termination first check if MAIN is waiting, wake it, than exit
     !
-    ! Context: entry to control thread
+    ! Context: entry to control thread.
     !
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: select_victim
@@ -661,7 +663,7 @@ contains
     !
     ! Context: mailbox thread.
     !
-    ! Locks: LOCK_NJ, LOCK_MR, wrlock, ???
+    ! Locks: LOCK_NJ,  wrlock * 2
     !        - through divide_jobs(): LOCK_JS, wrlock.
     !
     ! Signals: COND_NJ_UPDATE
@@ -834,10 +836,9 @@ contains
     !           that, termination master will collect all the finished resp's
     !           untill it gots all of them back
     !
-    ! Context: mailbox thread, ???
+    ! Context: mailbox  and control thread.
     !
-    ! Locks:
-    !       - through check_termination(): wrlock.
+    ! Locks: none.
     !
     ! Signals: none.
     !
@@ -867,6 +868,13 @@ contains
     !  Purpose: takes m jobs from the left from object job_storage
     !           in the first try there is no need to wait for
     !           something going on in the jobs
+    !
+    ! Context: MAIN thread.
+    !
+    ! Locks: LOCK_JS
+    !
+    ! Conditions: COND_JS_UPDATE
+    !              waits on COND_JS2_UPDATE
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: reserve_workm
     implicit none
@@ -910,8 +918,8 @@ contains
     !
     ! Context: control thread.
     !
-    ! Locks: LOCK_MR,
-    !        wrlock through is_my_resp_done()
+    ! Locks: wrlock,
+    !        wrlock through decrease_resp()
     !
     !------------ Modules used ------------------- ---------------
     implicit none
@@ -1032,6 +1040,8 @@ contains
     !           jobs should be given as a job range (STP, EP), where
     !           all jobs should be the numbers from START to END, with
     !           START <= STP <= EP <= END
+    !
+    ! Starts other Threads, runs on MAIN
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
