@@ -335,7 +335,6 @@ contains
 
 ! END ONLY FOR DEBUGGING
 
-  !*************************************************************
   subroutine dlb_init()
     !  Purpose: initalization of needed stuff
     !------------ Modules used ------------------- ---------------
@@ -357,7 +356,7 @@ contains
     endif
     call th_inits()
   end subroutine dlb_init
-  !*************************************************************
+
   subroutine dlb_finalize()
     !  Purpose: cleaning up everything, after last call
     !------------ Modules used ------------------- ---------------
@@ -370,7 +369,7 @@ contains
       call assert_n(alloc_stat==0, 1)
     endif
   end subroutine dlb_finalize
-  !*************************************************************
+
   subroutine dlb_give_more(n, my_job)
     !  Purpose: Returns next bunch of up to n jobs, if jobs(J_EP)<=
     !  jobs(J_STP) there are no more jobs there, else returns the jobs
@@ -386,10 +385,10 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
     integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB)
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(i4_kind), target             :: jobs(SJOB_LEN)
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     ! First try to get a job from local storage
     call local_tgetm(n, jobs, .true.)
     !call timeloc("finished")
@@ -412,15 +411,13 @@ contains
     endif
     my_job = jobs(:L_JOB)
   end subroutine dlb_give_more
-  !*************************************************************
+
   logical function termination()
     !Purpose: make lock around terminated, but have it as one function
     call th_mutex_lock(LOCK_TERM)
       termination = terminated
     call th_mutex_unlock(lOCK_TERM)
   end function termination
-
-  !*************************************************************
 
   subroutine thread_mailbox() bind(C)
     ! Puropse: This routine should contain all that should be done by
@@ -433,12 +430,12 @@ contains
     !               the clean up of the finished messges is also contained
     !------------ Modules used ------------------- ---------------
     implicit none
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: i, stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind)                :: ierr
     integer(kind=i4_kind),allocatable    :: requ_m(:) !requests storages for MAILBOX
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     do while (.not. termination())
       call check_messages(requ_m)
       call test_requests(requ_m)
@@ -472,21 +469,21 @@ contains
     call timepar("exitmailbox")
     call th_exit() ! will be joined on MAIN thread
   end subroutine thread_mailbox
-  !*************************************************************
+
   subroutine test_requests(requ)
     ! Purpose: tests if any of the messages stored in requ have been
     !          received, than remove the corresponding request
     !------------ Modules used ------------------- ---------------
     implicit none
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer, allocatable :: requ(:)
     integer(kind=i4_kind)                :: j,i,req, stat(MPI_STATUS_SIZE), len_req, len_new
     integer(kind=i4_kind)                :: alloc_stat, ierr
     integer(kind=i4_kind),allocatable :: requ_int(:)
     logical     :: flag
     logical, allocatable :: finished(:)
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     if (allocated(requ)) then
       len_req = size(requ,1)
       allocate(finished(len_req), requ_int(len_req), stat = alloc_stat)
@@ -526,8 +523,6 @@ contains
     endif
   end subroutine test_requests
 
-  !*************************************************************
-
   subroutine thread_control() bind(C)
     !  Purpose: main routine for thread CONTROL
     !          what it does: it waits for any change in the job_storage
@@ -546,14 +541,14 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: i, v, ierr, stat(MPI_STATUS_SIZE), req
     integer(kind=i4_kind)                :: message(1 + SJOB_LEN), requ_wr
     integer(kind=i4_kind)                :: my_jobs(SJOB_LEN)
     integer(kind=i4_kind),allocatable    :: requ_c(:) !requests storages for CONTROL
     logical                              :: first
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     many_tries = 0
     many_searches = 0
     my_resp_self = 0
@@ -663,8 +658,6 @@ contains
     call th_exit() ! will be joined on MAIN
   end subroutine thread_control
 
-  !*************************************************************
-
   subroutine check_messages(requ_m)
     !  Purpose: checks if any message has arrived, checks for messages:
     !          Someone finished stolen job slice
@@ -678,11 +671,11 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer, allocatable :: requ_m(:)
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE), req
     integer(kind=i4_kind)                :: message(1 + SJOB_LEN)
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     ! check and wait for any message with messagetag dlb
     call MPI_RECV(message, 1+SJOB_LEN, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
@@ -730,7 +723,7 @@ contains
       print *, "WARNING:", my_rank," got message with unexpected content:", message
     endif
   end subroutine check_messages
-  !************************************************************
+
   subroutine add_request(req, requ)
     !Purpose: stores unfinished requests
     integer, intent(in) :: req
@@ -754,7 +747,7 @@ contains
     if (len_req > 0) requ(:len_req) = req_int
     requ(len_req +1) = req
   end subroutine add_request
-  !************************************************************
+
   subroutine check_termination(proc, thread)
     !  Purpose: only on termination_master, checks if all procs
     !           have reported termination
@@ -762,13 +755,13 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in)    :: proc, thread
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, i, alloc_stat, req_self, stat(MPI_STATUS_SIZE)
     logical                              :: finished
     integer(kind=i4_kind), allocatable   :: request(:), stats(:,:)
     integer(kind=i4_kind)                :: receiver, message(1+SJOB_LEN)
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     ! all_done stores the procs, which have already my_resp = 0
     all_done(proc+1) = .true.
     ! check if there are still some procs not finished
@@ -818,7 +811,7 @@ contains
       endif
     endif
   end subroutine check_termination
-  !************************************************************
+
   logical function is_my_resp_done(thread, requ)
     !  Purpose: my_resp holds the number of jobs, assigned at the start
     !           to this proc, so this proc is responsible that they will
@@ -828,13 +821,13 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-!   !** End of interface *****************************************
+    !** End of interface *****************************************
     integer(kind=i4_kind), intent(out)   :: requ
     integer(kind=i4_kind), intent(in)   :: thread
-!   !------------ Declaration of local variables -----------------
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr
     integer(kind=i4_kind)                :: message(1+SJOB_LEN)
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     print *,my_rank, "Left of my responsibility:", my_resp
     is_my_resp_done = .false.
     if (my_resp == 0) then
@@ -851,7 +844,7 @@ contains
       endif
     endif
   end function is_my_resp_done
-  !************************************************************
+
   integer(kind=i4_kind) function select_victim()
      ! Purpose: decide of who to try next to get any jobs
      if (master_server) then
@@ -861,7 +854,7 @@ contains
        !select_victim = select_victim_r()
      endif
   end function select_victim
-  !*************************************************************
+
   integer(kind=i4_kind) function select_victim_r()
      ! Purpose: decide of who to try next to get any jobs
      ! Each in a row
@@ -874,7 +867,7 @@ contains
      endif
      !print *, "RRRRRRRRRRRRRR selcet victim round", select_victim_r, my_rank
   end function select_victim_r
-  !*************************************************************
+
   integer(kind=i4_kind) function select_victim_random2()
      ! Purpose: decide of who to try next to get any jobs
      ! Uses primitive pseudorandom code X_n+1 = (aX_n + b)mod m
@@ -917,7 +910,7 @@ contains
      !print *,my_rank, "random=", random
      !print *, "RRRRRRRRRRR random victim", select_victim_random2, my_rank
   end function select_victim_random2
-  !*************************************************************
+
   subroutine local_tgetm(m, my_jobs, first)
     !  Purpose: takes m jobs from the left from object job_storage
     !           in the first try there is no need to wait for
@@ -928,10 +921,10 @@ contains
     integer(kind=i4_kind), intent(in   ) :: m
     logical, intent(in)                  :: first
     integer(kind=i4_kind), intent(out  ) :: my_jobs(SJOB_LEN)
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: w
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     call th_mutex_lock(LOCK_JS)
     if (.not. first) then
       ! found no job in first try, now wait for change before doing anything
@@ -959,7 +952,7 @@ contains
     call th_mutex_unlock(LOCK_JS)
     !print *, my_rank, "MAIN unlocked mutex"
   end subroutine local_tgetm
-  !*************************************************************
+
   logical function report_or_store(my_jobs, req)
     !  Purpose: If a job is finished, this cleans up afterwards
     !           Needed for termination algorithm, there are two
@@ -968,16 +961,15 @@ contains
     !            second case, send to victim, how many of his jobs
     !            were finished
     !------------ Modules used ------------------- ---------------
-!   use
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in  ) :: my_jobs(SJOB_LEN)
     integer(kind=i4_kind), intent(out ) :: req
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr
     integer(kind=i4_kind)                :: num_jobs_done, message(1 + SJOB_LEN)
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     print *, my_rank, "FINISHED a job, now report or store", my_jobs
     report_or_store = .false.
     ! my_jobs hold recent last point, as proc started from beginning and
@@ -1009,8 +1001,8 @@ contains
       call assert_n(ierr==MPI_SUCCESS, 4)
     endif
   end function report_or_store
-  !*************************************************************
-   logical function divide_jobs(partner, requ)
+
+  logical function divide_jobs(partner, requ)
     !  Purpose: chare jobs from job_storage with partner, tell
     !           partner what he got
     !------------ Modules used ------------------- ---------------
@@ -1018,11 +1010,11 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: partner
     integer(kind=i4_kind), intent(out  ) :: requ
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, w
     integer(kind=i4_kind)                :: g_jobs(SJOB_LEN), message(1 + SJOB_LEN)
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     divide_jobs = .true.
     call th_mutex_lock(LOCK_JS)
     w = reserve_workh(store_m,job_storage)
@@ -1059,25 +1051,25 @@ contains
     !endif
     call th_mutex_unlock(LOCK_JS)
   end function divide_jobs
-  !*************************************************************
+
   integer(kind=i4_kind) function reserve_workm(m, jobs)
     ! PURPOSE: give back number of jobs to take, should be up to m, but
     ! less if there are not so many available
     integer(kind=i4_kind), intent(in   ) :: m
     integer(kind=i4_kind), intent(in   ) :: jobs(:)
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     !------------ Executable code --------------------------------
     reserve_workm = min(jobs(J_EP) - jobs(J_STP), m)
     reserve_workm = max(reserve_workm, 0)
   end function reserve_workm
-  !*************************************************************
+
   integer(kind=i4_kind) function reserve_workh(m,jobs)
     ! Purpose: give back number of jobs to take, half what is there
-!   !** End of interface *****************************************
+    !** End of interface *****************************************
     integer(kind=i4_kind), intent(in   ) :: m
     integer(kind=i4_kind), intent(in   ) :: jobs(:)
-!   !------------ Declaration of local variables -----------------
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: many_jobs
     !------------ Executable code --------------------------------
     many_jobs = (jobs(J_EP) - jobs(J_STP))
@@ -1103,7 +1095,7 @@ contains
     endif
     reserve_workh = max(reserve_workh, 0)
   end function reserve_workh
-  !*************************************************************
+
   subroutine dlb_setup(job)
     !  Purpose: initialization of a dlb run, each proc should call
     !           it with inital jobs. The inital jobs should be a
@@ -1116,8 +1108,8 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     !------------ Executable code --------------------------------
     ! these variables are for the termination algorithm
     terminated = .false.
@@ -1144,8 +1136,5 @@ contains
     if (n_procs > 1) call th_create_mail(MAILBOX)
     call timepar("endsetup")
   end subroutine dlb_setup
-  !*************************************************************
-  !--------------- End of module ----------------------------------
 
-! make routines for CONTROL and MAILBOX extern, for usage in c-wrapper
 end module dlb
