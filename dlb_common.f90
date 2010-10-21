@@ -39,6 +39,7 @@ module dlb_common
 
   public :: reserve_workm!(m, jobs) -> integer n
   public :: reserve_workh!(m, jobs) -> integer n
+  public :: steal_work_for_rma!(m, jobs) -> integer n
 
   public :: time_stamp_prefix
   public :: time_stamp
@@ -190,5 +191,20 @@ contains
     n =  (jobs(2) - jobs(1)) / 2
     n = max(n, 0)
   end function reserve_workh
+
+  pure function steal_work_for_rma(m, jobs) result(n)
+    ! Purpose: give back number of jobs to take, half what is there
+    implicit none
+    integer(i4_kind), intent(in) :: m ! FIXME: appears to be unused?
+    integer(i4_kind), intent(in) :: jobs(2)
+    integer(i4_kind)             :: n ! result
+    !** End of interface *****************************************
+    ! give half of all jobs:
+    n =  (jobs(2) - jobs(1)) /( 2 * m) * m
+    n = max(n, 0)
+    ! but give more, if job numbers not odd
+    n =  (jobs(2) - jobs(1)) - n
+
+  end function steal_work_for_rma
 
 end module dlb_common

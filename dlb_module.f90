@@ -464,22 +464,27 @@ contains
     ! (else they are all 0), so if the sum is more than 0, at least one
     ! proc tries to get the memory, the one, who got sap = 0 has the right
     ! to work
+    my_jobs = job_storage(:SJOB_LEN) ! first SJOB_LEN hold the job (furter the sap
     sap = sum(job_storage(SJOB_LEN+1:))
     if (sap > 0) then
       print *, time_stamp_prefix(MPI_Wtime()), "there is already something going on in this storage"
       print *, time_stamp_prefix(MPI_Wtime()), "because there is at least one proc active:", sap
       call time_stamp("blocked by lock contension")
-      local_tgetm = .false.
+      ! find out if it makes sense to wait:
+      if (my_jobs(J_STP) >= my_jobs(J_EP)) then
+         local_tgetm = .true.
+         call time_stamp("blocked, but empty")
+         call report_or_store(my_jobs)
+      else
+         local_tgetm = .false.
+         my_jobs(J_EP) = my_jobs(J_STP) ! non actuell informations, make them invalid
+      endif
     else ! nobody is on the memory right now
       call time_stamp("free")
       local_tgetm = .true.
       ! check for thieves (to know when to wait for back reports)
       if (.not. job_storage(J_EP)== start_job(J_EP)) had_thief = .true.
       w = reserve_workm(m, job_storage) ! how many jobs to get
-!     print *, "w=", w
-      my_jobs = job_storage(:SJOB_LEN) ! first SJOB_LEN hold the job (furter the sap
-      ! information)
-!     print *, "my_jobs=", my_jobs
       if (w == 0) then ! no more jobs
         call report_or_store(my_jobs)
       else ! take my part of the jobs (divide jobs of storage)
@@ -573,7 +578,7 @@ contains
     !           it may change and rewrite it, else only the integer belonging to
     !           the proc may be reset to 0
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: reserve_workh, reserve_workm
+    use dlb_common, only: steal_work_for_rma, reserve_workm
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: m, source
@@ -637,8 +642,7 @@ contains
     else ! is the first one, therefor do what you want with it
       rmw_tgetm = .true.
       ! how much of the work should be stolen
-      w = reserve_workh(m,jobs_infom)
-      print *, time_stamp_prefix(MPI_Wtime()), "nobody out here, take for me", w
+      w = steal_work_for_rma(m,jobs_infom)
       call time_stamp("free")
       my_jobs = jobs_infom(:SJOB_LEN)
       if (w == 0) then ! nothing to steal, set default
