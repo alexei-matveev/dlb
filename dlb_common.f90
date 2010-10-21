@@ -94,7 +94,7 @@ contains
     time = MPI_Wtime()
     if ( time_offset < 0.0 ) then
       time_offset = 0.0
-     print *, time_stamp_prefix(time), "(BASE TIME)"
+      print *, time_stamp_prefix(time), "(BASE TIME)"
       time_offset = time
     endif
 
@@ -126,6 +126,11 @@ contains
   function select_victim_r(rank, np) result(victim)
      ! Purpose: decide of who to try next to get any jobs
      ! Each in a row
+     !
+     ! Context: control thread, ???.
+     !
+     ! Not thread safe! Beware of "save :: count" without rwlock!
+     !
      implicit none
      integer(i4_kind), intent(in) :: rank, np
      integer(i4_kind)             :: victim
@@ -141,25 +146,36 @@ contains
      endif
   end function select_victim_r
 
-
   function select_victim_random(rank, np) result(victim)
      ! Purpose: decide of who to try next to get any jobs
-     ! Uses primitive pseudorandom code X_n+1 = (aX_n + b)mod m
+     ! Uses pseudorandom sequence:
+     !
+     ! X    = (a * X + b) mod m
+     !  n+1         n
+     !
+     ! Context: control thread, ???.
+     !
+     ! Not thread safe! Beware of "save :: seed" without rwlock!
+     !
      implicit none
      integer(i4_kind), intent(in) :: rank, np
      integer(i4_kind)             :: victim
      ! *** end of interface ***
 
-     integer(kind=i8_kind),parameter  :: a =134775813, b = 1 ! see Virtual Pascal/Borland Delphi
-     integer(kind=i8_kind),parameter  :: m = 2_i8_kind**32
-     integer(kind=i8_kind), save :: seed = -1
-     ! ASSERT(.false.)
-     ! Does not work yet, due to too much overflow (negative procs)
+     integer(i8_kind), parameter :: a = 134775813, b = 1 ! see Virtual Pascal/Borland Delphi
+     integer(i8_kind), parameter :: m = 2_i8_kind**32
+     integer(i8_kind), save :: seed = -1
+
+     ! Does not work yet, due to too much overflow (negative procs), FIXME: still true?
      if (seed == -1) then
         seed = rank
      endif
-     seed = mod( (a*seed+b),m)
-     victim = mod(seed, np-1)
+
+     ! PRNG step:
+     seed = mod(a * seed + b, m)
+
+     ! np - 1 outcomes in the range [0, np-1] excluding victim == rank:
+     victim = mod(seed, np - 1)
      if (victim >= rank) victim = victim + 1
   end function select_victim_random
 
@@ -208,12 +224,12 @@ contains
     integer(i4_kind), intent(in) :: jobs(2)
     integer(i4_kind)             :: n ! result
     !** End of interface *****************************************
+
     ! give half of all jobs:
-    n =  (jobs(2) - jobs(1)) /( 2 * m) * m
+    n =  (jobs(2) - jobs(1)) / (2 * m) * m
     n = max(n, 0)
     ! but give more, if job numbers not odd
     n =  (jobs(2) - jobs(1)) - n
-
   end function steal_work_for_rma
 
 end module dlb_common
