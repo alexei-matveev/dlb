@@ -846,8 +846,6 @@ contains
         call MPI_WAIT(req_self, stat, ierr)
         !ASSERT(ierr==MPI_SUCCESS)
         call assert_n(ierr==MPI_SUCCESS, 4)
-v v v v v v v
-*************
       endif
       if (thread == CONTROL) then ! in this (seldom) case shut also down my own mailbox (should be
              ! waiting for any message
@@ -859,7 +857,6 @@ v v v v v v v
         call MPI_WAIT(req_self, stat, ierr)
         !ASSERT(ierr==MPI_SUCCESS)
         call assert_n(ierr==MPI_SUCCESS, 4)
-^ ^ ^ ^ ^ ^ ^
       endif
     endif
   end subroutine check_termination
