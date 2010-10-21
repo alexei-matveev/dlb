@@ -61,7 +61,7 @@ else
 endif
 print *, rank, ":My jobs:", my_jobs
 
-call time_stamp("START")
+call time_stamp("START",0)
 
 ! starting time:
 times(rank, 1) = MPI_WTIME()
@@ -73,13 +73,13 @@ do while (more_work(n, sec))
    ! measure working time:
    time = MPI_WTIME()
 
-   call time_stamp("START USEFUL WORK")
+   call time_stamp("START USEFUL WORK",0)
 
    do i = 1, size(sec)
      res = test_calc(sec(i))
    enddo
 
-   call time_stamp("STOP USEFUL WORK")
+   call time_stamp("STOP USEFUL WORK",0)
 
    ! increment working time by this slice:
    times(rank, 2) = times(rank, 2) + (MPI_WTIME() - time)
@@ -87,7 +87,7 @@ enddo
 
 call dlb_finalize()
 
-call time_stamp("END")
+call time_stamp("END",0)
 
 ! elapsed time:
 times(rank, 1) = MPI_WTIME() - times(rank, 1)

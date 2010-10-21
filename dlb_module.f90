@@ -144,7 +144,6 @@ contains
     integer(kind=i4_kind)                :: ierr, sizeofint
     integer(kind=MPI_ADDRESS_KIND)       :: size_alloc, alloc_stat, size_all
     !------------ Executable code --------------------------------
-!   print *, "dlb_init: entered"
     ! some aliases, highly in use during the whole module
     call MPI_COMM_RANK( comm_world, my_rank, ierr )
     !ASSERT(ierr==MPI_SUCCESS)
@@ -165,7 +164,6 @@ contains
     call MPI_TYPE_EXTENT(MPI_INTEGER4, sizeofint, ierr)
     jobs_len = SJOB_LEN + n_procs
     size_alloc = jobs_len * sizeofint
-!   print *, "sizeofint=", sizeofint
     call MPI_ALLOC_MEM(size_alloc, MPI_INFO_NULL, c_job_pointer, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 3)
@@ -178,7 +176,6 @@ contains
     ! they will then get acces to the local stored job_storage of the corresponding proc
     call MPI_WIN_CREATE(job_storage, size_all, sizeofint, MPI_INFO_NULL, &
                         comm_world, win, ierr)
-!   print *, "win=", win
     call assert_n(ierr==MPI_SUCCESS, 4)
     !ASSERT(ierr==MPI_SUCCESS)
     ! needed to make certain, that in the next steps, all the procs have all the informations
@@ -189,7 +186,6 @@ contains
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
     job_storage = 0
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
-!   print *, "dlb_init: exit"
   end subroutine dlb_init
 
   subroutine dlb_finalize()
@@ -250,33 +246,29 @@ contains
     if (term) then
       my_job = start_job(:L_JOB)
       my_job(J_STP) = my_job(J_EP)
-      call time_stamp("dlb_give_more: exit on TERMINATION flag")
+      call time_stamp("dlb_give_more: exit on TERMINATION flag", 1)
       return
     endif
 
     ! First try to get job from local storage (loop because some one lese may
     ! try to read from there (then local_tgetm = false)
     do while (.not. local_tgetm(n, jobs))
-       call time_stamp("waiting for time to acces my own memory")
+       call time_stamp("waiting for time to acces my own memory",2)
     enddo
-    call time_stamp("finished local search")
+    call time_stamp("finished local search",3)
 
     ! if local storage only gives empty job:
     do while ((jobs(J_STP) >= jobs(J_EP)) .and. .not. check_messages())
       ! check like above but also for termination message from termination master
-
       v = select_victim(my_rank, n_procs)
-      print *, time_stamp_prefix(MPI_Wtime()), "victim", v
       ! try to get job from v, if v's memory occupied by another or contains
       ! nothing to steal, job is still empty
 
-      call time_stamp("about to call rmw_tgetm()")
+      call time_stamp("about to call rmw_tgetm()",4)
       term = rmw_tgetm(n, v, jobs)
-      call time_stamp("returned from rmw_tgetm()")
+      call time_stamp("returned from rmw_tgetm()",4)
     enddo
-    call time_stamp("finished stealing")
-
-    print *, time_stamp_prefix(MPI_Wtime()), "got jobs:", jobs
+    call time_stamp("finished stealing",3)
     ! only the start and endpoint of job slice is needed external
     my_job = jobs(:L_JOB)
     ! this would not work: no ensurance that the others already know that
@@ -284,7 +276,7 @@ contains
     ! processors
     !if (terminated) call dlb_setup(setup_jobs)
 
-    call time_stamp("dlb_give_more: exit")
+    call time_stamp("dlb_give_more: exit",3)
   end subroutine dlb_give_more
 
   logical function check_messages()
@@ -308,7 +300,7 @@ contains
     call assert_n(ierr==MPI_SUCCESS, 4)
     if (flag) then !got a message
       call MPI_RECV(message, 2, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG,comm_world, stat,ierr)
-      print *, time_stamp_prefix(MPI_Wtime()), "got message from", stat(MPI_SOURCE), "with", message
+      !print *, time_stamp_prefix(MPI_Wtime()), "got message from", stat(MPI_SOURCE), "with", message
       !ASSERT(ierr==MPI_SUCCESS)
       call assert_n(ierr==MPI_SUCCESS, 4)
       if (message(1) == DONE_JOB) then ! someone finished stolen job slice
@@ -358,7 +350,7 @@ contains
     check_messages = terminated
 
     if (terminated) then
-      call time_stamp("TERMINATING!")
+      call time_stamp("TERMINATING!", 1)
     endif
   end function check_messages
   
@@ -423,7 +415,6 @@ contains
     integer(kind=i4_kind)                :: ierr
     integer(kind=i4_kind)                :: message(2)
     !------------ Executable code --------------------------------
-    print *, time_stamp_prefix(MPI_Wtime()), "left of my responsibility:", my_resp
     if (my_resp == 0) then
       if (my_rank == termination_master) then
         call check_termination(my_rank)
@@ -431,7 +422,7 @@ contains
         message(1) = RESP_DONE
         message(2) = my_rank
         call MPI_ISEND(message, 2, MPI_INTEGER4, termination_master, MSGTAG,comm_world, requ1, ierr)
-        print *, time_stamp_prefix(MPI_Wtime()), "send my_resp done"
+        call time_stamp("send my_resp done", 2)
         !ASSERT(ierr==MPI_SUCCESS)
         call assert_n(ierr==MPI_SUCCESS, 4)
       endif
@@ -467,20 +458,18 @@ contains
     my_jobs = job_storage(:SJOB_LEN) ! first SJOB_LEN hold the job (furter the sap
     sap = sum(job_storage(SJOB_LEN+1:))
     if (sap > 0) then
-      print *, time_stamp_prefix(MPI_Wtime()), "there is already something going on in this storage"
-      print *, time_stamp_prefix(MPI_Wtime()), "because there is at least one proc active:", sap
-      call time_stamp("blocked by lock contension")
+      call time_stamp("blocked by lock contension",2)
       ! find out if it makes sense to wait:
       if (my_jobs(J_STP) >= my_jobs(J_EP)) then
          local_tgetm = .true.
-         call time_stamp("blocked, but empty")
+         call time_stamp("blocked, but empty",2)
          call report_or_store(my_jobs)
       else
          local_tgetm = .false.
          my_jobs(J_EP) = my_jobs(J_STP) ! non actuell informations, make them invalid
       endif
     else ! nobody is on the memory right now
-      call time_stamp("free")
+      call time_stamp("free",2)
       local_tgetm = .true.
       ! check for thieves (to know when to wait for back reports)
       if (.not. job_storage(J_EP)== start_job(J_EP)) had_thief = .true.
@@ -494,14 +483,10 @@ contains
       endif
       job_storage(SJOB_LEN+1:) = 0
     endif
-!   print *, "my_jobs=", my_jobs
-!   print *, "job_storage=", job_storage
-!   print *, "local_tgetm: end locked", my_rank
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
-    call time_stamp("release")
+    call time_stamp("release",3)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
-!   print *, "local_tgetm: exit", my_rank
   end function local_tgetm
 
   subroutine report_or_store(my_jobs)
@@ -521,7 +506,7 @@ contains
     integer(kind=i4_kind)                :: num_jobs_done, message(2)
     integer(kind=i4_kind),allocatable    :: intermed(:)
     !------------ Executable code --------------------------------
-    print *, time_stamp_prefix(MPI_Wtime()), "finished a job, now report or store", my_jobs
+    !print *, time_stamp_prefix(MPI_Wtime()), "finished a job, now report or store", my_jobs
     ! my_jobs hold recent last point, as proc started from beginning and
     ! steal from the back, this means that from the initial starting point on
     ! (stored in start_job) to this one, all jobs were done
@@ -530,13 +515,11 @@ contains
     !if (num_jobs_done == 0) return ! there is non job, thus why care
 
     if (start_job(NRANK) == my_rank) then
-      print *, time_stamp_prefix(MPI_Wtime()), "my_resp=", my_resp, "-", num_jobs_done
       my_resp = my_resp - num_jobs_done
       call is_my_resp_done() ! check if all my jobs are done
     else
       ! As all isends have to be closed sometimes, storage of
       ! the request handlers is needed
-      print *, time_stamp_prefix(MPI_Wtime()), "send to", start_job(NRANK),"finished", num_jobs_done, "of his jobs"
       if (allocated(requ2)) then
         allocate(intermed(size(requ2,1)),stat = alloc_stat)
         !ASSERT(alloc_stat==0)
@@ -558,7 +541,7 @@ contains
       message(2) = num_jobs_done
       call MPI_ISEND(message,2, MPI_INTEGER4, start_job(NRANK),&
                                    MSGTAG, comm_world, requ2(1), ierr)
-      print *, time_stamp_prefix(MPI_Wtime()), "send have", num_jobs_done, "jobs done from", start_job(NRANK)
+      !print *, time_stamp_prefix(MPI_Wtime()), "send have", num_jobs_done, "jobs done from", start_job(NRANK)
       !ASSERT(ierr==MPI_SUCCESS)
       call assert_n(ierr==MPI_SUCCESS, 4)
     endif
@@ -598,7 +581,6 @@ contains
     ! There are two function calls inside: one to get the data and check if it may be accessed
     ! second one to show to other procs, that this one is interested in modifing the data
 
-    call time_stamp("rmw, first lock start")
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
@@ -612,38 +594,19 @@ contains
     call MPI_WIN_UNLOCK(source, win, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
-    call time_stamp("rmw, first lock exit")
 
     jobs_infom(my_rank+1+SJOB_LEN) = 0
-    print *, time_stamp_prefix(MPI_Wtime()), "available jobs",source,"are", jobs_infom(:SJOB_LEN)
-    print *, time_stamp_prefix(MPI_Wtime()), "currently working on proc", source,"are", jobs_infom(SJOB_LEN+1:)
-    call time_stamp("inform")
     ! check if there are any procs, saying that they want to acces the memory
     sap = sum(jobs_infom(SJOB_LEN+1:))
 
     if (sap > 0) then ! this one is not the first, thus leave the memory to the others
-      print *, time_stamp_prefix(MPI_Wtime()), "there is already something going on in this storage"
-      print *, time_stamp_prefix(MPI_Wtime()), "because there is at least one proc active:", sap, my_rank 
-      call time_stamp("blocked on lock contension")
+      call time_stamp("blocked on lock contension rmw",2)
       rmw_tgetm = .false.
-      ! Just set back the want of access (there is anyhow no method to store another order, than 
-      ! first and rest)
-!   print *, my_rank, "rmw, second no acces lock start"
-!     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
-!     !ASSERT(ierr==MPI_SUCCESS)
-!     call assert_n(ierr==MPI_SUCCESS, 4)
-!     call MPI_PUT(OFF,1,MPI_INTEGER4, source, my_rank + SJOB_LEN, 1, MPI_INTEGER4, win, ierr)
-!     !ASSERT(ierr==MPI_SUCCESS)
-!     call assert_n(ierr==MPI_SUCCESS, 4)
-!     call MPI_WIN_UNLOCK(source, win, ierr)
-!   print *, my_rank, "rmw, second no acces lock exit"
-      !ASSERT(ierr==MPI_SUCCESS)
-!     call assert_n(ierr==MPI_SUCCESS, 4)
     else ! is the first one, therefor do what you want with it
       rmw_tgetm = .true.
       ! how much of the work should be stolen
       w = steal_work_for_rma(m,jobs_infom)
-      call time_stamp("free")
+      call time_stamp("free",4)
       my_jobs = jobs_infom(:SJOB_LEN)
       if (w == 0) then ! nothing to steal, set default
         my_jobs(J_EP)  = 0
@@ -657,13 +620,11 @@ contains
       endif
       ! after setting back, there is a new chance to access the memory for the others
       jobs_infom(SJOB_LEN+1:) = 0
-      print *, time_stamp_prefix(MPI_Wtime()), "jobs to give back", jobs_infom
 
       !
       ! Final lock of this memory, to give back unstolen jobs and to free the 
       ! user setted outer lock for the others
       !
-      call time_stamp("rmw, second access lock start")
 
       call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
       !ASSERT(ierr==MPI_SUCCESS)
@@ -677,7 +638,6 @@ contains
       !ASSERT(ierr==MPI_SUCCESS)
       call assert_n(ierr==MPI_SUCCESS, 4)
 
-      call time_stamp("rmw, second access lock exit")
 
       ! The give_grid function needs only up to m' jobs at once, thus
       ! divide the jobs
@@ -687,7 +647,6 @@ contains
         ! these are for direct use
         my_jobs(J_EP)  = my_jobs(J_STP) + w
         jobs_infom(J_STP) = my_jobs(J_EP)
-        call time_stamp("store my new jobs")
         ! this stores the rest for later in the own job-storage
         call store_new_work(jobs_infom)
       endif
@@ -717,15 +676,13 @@ contains
       ! (They may give back something wrong) if yes cycle, else store
       sap = sum(job_storage(SJOB_LEN+1:))
       if (sap > 0) then
-        print *, "There is already something going on in my storage"
-        print *, "Because there is at least one proc active:", sap
+        call time_stamp("I'm blocked on lock contension",2)
       else
         job_storage = my_jobs
       endif
       call MPI_WIN_UNLOCK(my_rank, win, ierr)
       !ASSERT(ierr==MPI_SUCCESS)
       call assert_n(ierr==MPI_SUCCESS, 4)
-!     print *, "local_tgetm: exit", my_rank
     enddo
   end subroutine store_new_work
 
@@ -749,7 +706,6 @@ contains
     had_thief = .false.
     terminated = .false.
     all_done  = .false.
-    print *, my_rank, "start my_rest=", my_resp
     ! set starting values for the jobs, needed also in this way for
     ! termination, as they will be stored also in the job_storage
     ! start_job should only be changed if all current jobs are finished
@@ -767,9 +723,7 @@ contains
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
-    call MPI_WIN_FENCE(0, win, ierr) ! FIXME: Is this really needed? We should
-                                    ! Have lot's of time, till the first non local
-                                    ! job search
+    call MPI_WIN_FENCE(0, win, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
   end subroutine dlb_setup

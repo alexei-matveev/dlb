@@ -65,6 +65,7 @@ module dlb_common
   !------------ Declaration of constants and variables ----
 
   integer(i4_kind), public :: dlb_common_my_rank = -1 ! for debug prints only
+  integer(i4_kind), parameter :: output_border = 2
 
   double precision :: time_offset = -1.0
   !----------------------------------------------------------------
@@ -81,9 +82,10 @@ contains
     write(prefix, '("#", I3, G20.10)') dlb_common_my_rank, time - time_offset
   end function time_stamp_prefix
 
-  subroutine time_stamp(msg)
+  subroutine time_stamp(msg, output_level)
     implicit none
     character(len=*), intent(in) :: msg
+    integer(i4_kind), intent(in) :: output_level
     ! *** end of interface ***
 
     double precision :: time
@@ -91,11 +93,11 @@ contains
     time = MPI_Wtime()
     if ( time_offset < 0.0 ) then
       time_offset = 0.0
-!     print *, time_stamp_prefix(time), "(BASE TIME)"
+     print *, time_stamp_prefix(time), "(BASE TIME)"
       time_offset = time
     endif
 
-!   print *, time_stamp_prefix(time), msg
+   if(output_level < output_border) print *, time_stamp_prefix(time), msg
   end subroutine time_stamp
 
   subroutine assert_n(exp,num)
