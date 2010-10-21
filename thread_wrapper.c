@@ -9,17 +9,13 @@ void thread_mailbox(); // extern, Fortran sub
 
 void th_inits();
 void th_create_all();
-
-// Then this should join both of them, does not need
-// a thread ID:
-void th_join_(int *tid);
-
 void th_exit();
+void th_join_all();
+
 void th_mutex_lock(int *mutex);
 void th_mutex_unlock(int *mutex);
 void th_cond_wait(int *condition, int *mutex);
 void th_cond_signal(int *condition);
-void th_join_all();
 void th_rwlock_rdlock(int *rwlock);
 void th_rwlock_wrlock(int *rwlock);
 void th_rwlock_unlock(int *rwlock);
@@ -34,24 +30,12 @@ pthread_mutex_t mutexes[NMUTEXES];
 pthread_cond_t conds[NCONDS];
 pthread_rwlock_t rwlocks[NRWLOCKS];
 
-// set up in th_init(once for all), used later in th_create_all
-pthread_attr_t ThreadAttribute;
-
 void th_inits()
 {
   int rc;
   pthread_mutexattr_t mutex_attr;
   pthread_condattr_t cond_attr;
   pthread_rwlockattr_t rwlock_attr;
-  rc = pthread_attr_init(&ThreadAttribute);
-  assert(!rc);
-
-  rc = pthread_attr_setdetachstate(&ThreadAttribute, PTHREAD_CREATE_JOINABLE);
-  assert(!rc);
-
-  rc = pthread_attr_setscope(&ThreadAttribute, PTHREAD_SCOPE_SYSTEM);
-  //rc = pthread_attr_setscope(&ThreadAttribute, PTHREAD_SCOPE_PROCESS);
-  assert(!rc);
 
   // init mutexes:
   rc = pthread_mutexattr_init(&mutex_attr);
@@ -99,9 +83,25 @@ void th_inits()
 void th_create_all()
 {
   int rc;
-  rc = pthread_create(&threads[0], &ThreadAttribute,(void *(*)(void *)) thread_mailbox, NULL);
+  pthread_attr_t ThreadAttribute;
+
+  rc = pthread_attr_init(&ThreadAttribute);
   assert(!rc);
-  rc = pthread_create(&threads[1], &ThreadAttribute,(void *(*)(void *)) thread_control, NULL);
+
+  rc = pthread_attr_setdetachstate(&ThreadAttribute, PTHREAD_CREATE_JOINABLE);
+  assert(!rc);
+
+  rc = pthread_attr_setscope(&ThreadAttribute, PTHREAD_SCOPE_SYSTEM);
+  //rc = pthread_attr_setscope(&ThreadAttribute, PTHREAD_SCOPE_PROCESS);
+  assert(!rc);
+
+  rc = pthread_create(&threads[0], &ThreadAttribute, (void *(*)(void *)) thread_mailbox, NULL);
+  assert(!rc);
+
+  rc = pthread_create(&threads[1], &ThreadAttribute, (void *(*)(void *)) thread_control, NULL);
+  assert(!rc);
+
+  rc = pthread_attr_destroy(&ThreadAttribute);
   assert(!rc);
 }
 
@@ -114,58 +114,70 @@ void th_join_all()
 {
   int rc;
   void *status;
+
   rc = pthread_join(threads[0], &status);
-  if (rc) {
-      printf("ERROR; return code from pthread_join(MAILBOX) is %d\n", rc);
-      //exit(-1);
-      }
+  assert(!rc);
+
   rc = pthread_join(threads[1], &status);
   assert(!rc);
-  if (rc) {
-      printf("ERROR; return code from pthread_join(CONTROL) is %d\n", rc);
-      //exit(-1);
-      }
 }
 
 void th_mutex_lock(int *mutex)
 {
+  int rc;
   assert(*mutex >= 0 && *mutex < NMUTEXES);
-  pthread_mutex_lock(&mutexes[*mutex]);
+  rc = pthread_mutex_lock(&mutexes[*mutex]);
+  assert(!rc);
 }
 
 void th_mutex_unlock(int *mutex)
 {
+  int rc;
   assert(*mutex >= 0 && *mutex < NMUTEXES);
-  pthread_mutex_unlock(&mutexes[*mutex]);
+  rc = pthread_mutex_unlock(&mutexes[*mutex]);
+  assert(!rc);
 }
 
 void th_cond_wait( int *condition, int *mutex)
 {
+  int rc;
   assert(*condition >= 0 && *condition < NCONDS);
   assert(*mutex >= 0 && *mutex < NMUTEXES);
   //printf("COND %d WAITS %d\n", *condition, *mutex);
-  pthread_cond_wait(&conds[*condition], &mutexes[*mutex]);
+  rc = pthread_cond_wait(&conds[*condition], &mutexes[*mutex]);
+  assert(!rc);
 }
 
 void th_cond_signal(int *condition)
 {
+  int rc;
   assert(*condition >= 0 && *condition < NCONDS);
   //printf("COND %d RELEASED\n", *condition);
-  pthread_cond_signal (&conds[*condition]);
+  rc = pthread_cond_signal (&conds[*condition]);
+  assert(!rc);
 }
 
-void th_rwlock_rdlock(int *rwlock) {
+void th_rwlock_rdlock(int *rwlock)
+{
+  int rc;
   assert(*rwlock >= 0 && *rwlock < NRWLOCKS);
-  pthread_rwlock_rdlock(&rwlocks[*rwlock]);
+  rc = pthread_rwlock_rdlock(&rwlocks[*rwlock]);
+  assert(!rc);
 }
 
-void th_rwlock_wrlock(int *rwlock) {
+void th_rwlock_wrlock(int *rwlock)
+{
+  int rc;
   assert(*rwlock >= 0 && *rwlock < NRWLOCKS);
-  pthread_rwlock_wrlock(&rwlocks[*rwlock]);
+  rc = pthread_rwlock_wrlock(&rwlocks[*rwlock]);
+  assert(!rc);
 }
 
-void th_rwlock_unlock(int *rwlock) {
+void th_rwlock_unlock(int *rwlock)
+{
+  int rc;
   assert(*rwlock >= 0 && *rwlock < NRWLOCKS);
-  pthread_rwlock_unlock(&rwlocks[*rwlock]);
+  rc = pthread_rwlock_unlock(&rwlocks[*rwlock]);
+  assert(!rc);
 }
 
