@@ -96,15 +96,6 @@ int rc;
       //exit(-1);
       }
   }
-extern "C" void *th_create_(int * name)
-  {
-  int rc;
-  rc = pthread_create(&threads[*name], NULL,(void *(*)(void *)) thread_function_, name);
-  if (rc) {
-      printf("ERROR; return code from pthread_create() is %d\n", rc);
-      //exit(-1);
-      }
-  }
 
 extern "C" void *th_create2_(void *function)
   {

@@ -17,7 +17,6 @@ extern "C" void *th_inits_();
 extern "C" void *th_create_mail_(int * name2);
 extern "C" void *th_create_control_(int * name1);
 
-extern "C" void *th_create_(int * name);
 extern "C" void * th_exit_();
 extern "C" void * th_mutex_lock_(int *mutex);
 extern "C" void * th_mutex_unlock_(int * mutex);
