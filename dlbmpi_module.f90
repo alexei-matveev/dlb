@@ -856,6 +856,7 @@ contains
     !           in the first try there is no need to wait for
     !           something going on in the jobs
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: reserve_workm
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: m
@@ -946,6 +947,7 @@ contains
     !  Purpose: chare jobs from job_storage with partner, tell
     !           partner what he got
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: reserve_workh
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: partner
@@ -957,7 +959,12 @@ contains
     !------------ Executable code --------------------------------
     divide_jobs = .true.
     call th_mutex_lock(LOCK_JS)
-    w = reserve_workh(store_m,job_storage)
+
+    ! FIXME: the case of master_server = true needs special logic.
+    call assert_n(.not.master_server, 0)
+
+    w = reserve_workh(store_m, job_storage)
+
     g_jobs = job_storage
     message(1) = WORK_DONAT
     if (w == 0) then ! nothing to give, set empty
@@ -991,57 +998,6 @@ contains
     !endif
     call th_mutex_unlock(LOCK_JS)
   end function divide_jobs
-
-  pure function reserve_workm(m, jobs) result(n)
-    ! PURPOSE: give back number of jobs to take, should be up to m, but
-    ! less if there are not so many available
-    implicit none
-    integer(i4_kind), intent(in) :: m
-    integer(i4_kind), intent(in) :: jobs(:)
-    integer(i4_kind)             :: n ! result
-    !** End of interface *****************************************
-
-    n = min(jobs(J_EP) - jobs(J_STP), m)
-    n = max(n, 0)
-  end function reserve_workm
-
-  pure function reserve_workh(m, jobs) result(n)
-    ! Purpose: give back number of jobs to take, half what is there
-    !
-    ! Context: mailbox thread.
-    !
-    implicit none
-    integer(i4_kind), intent(in) :: m
-    integer(i4_kind), intent(in) :: jobs(:)
-    integer(i4_kind)             :: n ! result
-    !** End of interface *****************************************
-
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: many_jobs
-    !------------ Executable code --------------------------------
-    many_jobs = (jobs(J_EP) - jobs(J_STP))
-    ! if the number of job batches (of size m) is not odd, then
-    ! the stealing proc should get more, as it starts working on them
-    ! immediatelly
-
-    ! code piece for master_server = true : if all left jobs are stored
-    ! on one processor, it should give less than half of it back
-    if (master_server) then
-      if(chunk_m == 0) then !just a jobslice the proc will do at once (too frequently?)
-       n = min(many_jobs, m)
-      elseif(chunk_m ==1) then !serveral jobs if possible but still a fixed block
-        n = min(many_jobs, chunksize*m)
-      else ! exponential decrease, but not less than m (a job bunch at a time)
-        n = many_jobs/n_procs
-        if(n < m) n = m
-        if (n > many_jobs) n = 0
-      endif
-    else ! with not master_server all procs may chare, thus this one can give half of it
-      !n =  (many_jobs /(2* m))* m
-      n =  many_jobs / 2
-    endif
-    n = max(n, 0)
-  end function reserve_workh
 
   subroutine dlb_setup(job)
     !  Purpose: initialization of a dlb run, each proc should call

@@ -439,6 +439,7 @@ contains
     !           (fewer if there are not m left), if there is 0 jobs
     !           given back, there is no more in the storage
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: reserve_workm
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: m
@@ -562,6 +563,7 @@ contains
     !           it may change and rewrite it, else only the integer belonging to
     !           the proc may be reset to 0
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: reserve_workh, reserve_workm
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: m, source
@@ -676,18 +678,6 @@ contains
     endif
   end function rmw_tgetm
 
-  integer(kind=i4_kind) function reserve_workm(m, jobs)
-    integer(kind=i4_kind), intent(in   ) :: m
-    integer(kind=i4_kind), intent(in   ) :: jobs(:)
-    ! PURPOSE: give back number of jobs to take, should be up to m, but
-    ! less if there are not so many available
-    !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    !------------ Executable code --------------------------------
-    reserve_workm = min(jobs(J_EP) - jobs(J_STP), m)
-    reserve_workm = max(reserve_workm, 0)
-  end function reserve_workm
-
   subroutine store_new_work(my_jobs)
     !  Purpose: stores the new jobs (minus the ones for direct use)
     !           in the storage, as soon as there a no more other procs
@@ -722,22 +712,6 @@ contains
 !     print *, "local_tgetm: exit", my_rank
     enddo
   end subroutine store_new_work
-
-  integer(kind=i4_kind) function reserve_workh(m,jobs)
-    integer(kind=i4_kind), intent(in   ) :: m
-    integer(kind=i4_kind), intent(in   ) :: jobs(:)
-    ! Purpose: give back number of jobs to take, half what is there
-    !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: many_jobs
-    !------------ Executable code --------------------------------
-    many_jobs = (jobs(J_EP) - jobs(J_STP))
-    ! if the number of job batches (of size m) is not odd, then
-    ! the stealing proc should get more, as it starts working on them
-    ! immediatelly
-    reserve_workh =  (many_jobs /(2* m))* m
-    reserve_workh = max(reserve_workh, 0)
-  end function reserve_workh
 
   subroutine dlb_setup(job)
     !  Purpose: initialization of a dlb run, each proc should call

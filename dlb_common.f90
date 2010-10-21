@@ -37,6 +37,9 @@ module dlb_common
 
   public :: select_victim!(rank, np) -> integer victim
 
+  public :: reserve_workm!(m, jobs) -> integer n
+  public :: reserve_workh!(m, jobs) -> integer n
+
   public :: time_stamp_prefix
   public :: time_stamp
   public :: assert_n
@@ -209,5 +212,37 @@ contains
 !    print *, rank, seedold,a*seedold+b , seed, select_victim_random, i
      if (victim == rank) victim = select_victim_r(rank, np)
   end function select_victim_random
+
+  pure function reserve_workm(m, jobs) result(n)
+    ! PURPOSE: give back number of jobs to take, should be up to m, but
+    ! less if there are not so many available
+    implicit none
+    integer(i4_kind), intent(in) :: m
+    integer(i4_kind), intent(in) :: jobs(2)
+    integer(i4_kind)             :: n ! result
+    !** End of interface *****************************************
+
+    n = min(jobs(2) - jobs(1), m)
+    n = max(n, 0)
+  end function reserve_workm
+
+  pure function reserve_workh(m, jobs) result(n)
+    ! Purpose: give back number of jobs to take, half what is there
+    implicit none
+    integer(i4_kind), intent(in) :: m ! FIXME: appears to be unused?
+    integer(i4_kind), intent(in) :: jobs(2)
+    integer(i4_kind)             :: n ! result
+    !** End of interface *****************************************
+
+    ! FIXME: comment outdated?
+    ! if the number of job batches (of size m) is not odd, then
+    ! the stealing proc should get more, as it starts working on them
+    ! immediatelly
+    ! n =  (many_jobs /(2* m))* m
+
+    ! give half of all jobs:
+    n =  (jobs(2) - jobs(1)) / 2
+    n = max(n, 0)
+  end function reserve_workh
 
 end module dlb_common
