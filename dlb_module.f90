@@ -103,6 +103,7 @@ module dlb
   integer(kind=i4_kind), parameter  :: NRANK = 3 ! Number in job, where rank of origin proc is stored
   integer(kind=i4_kind), parameter  :: J_STP = 1 ! Number in job, where stp (start point) is stored
   integer(kind=i4_kind), parameter  :: J_EP = 2 ! Number in job, where ep (end point) is stored
+  integer(kind=i4_kind), parameter  :: MSGTAG = 185 ! messagetag used for MPI function calls
   integer(kind=i4_kind)             :: jobs_len  ! Length of complete jobs storage
   integer(kind=i4_kind)            :: my_rank=-1, n_procs=-1 ! some synonyms
   integer(kind=i4_kind)             ::  termination_master ! the one who gathers the finished my_resp's
@@ -302,12 +303,12 @@ contains
     integer(kind=i4_kind), allocatable  :: statusse(:,:)
     !------------ Executable code --------------------------------
     ! check for any message
-    call MPI_IPROBE(MPI_ANY_SOURCE, 185, comm_world,flag, stat, ierr)
+    call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
     if (flag) then !got a message
-      print *, time_stamp_prefix(MPI_Wtime()), "got message from", stat(MPI_SOURCE), "with tag", stat(MPI_TAG)
-      call MPI_RECV(message, 2, MPI_INTEGER4, MPI_ANY_SOURCE, 185,comm_world, stat,ierr) 
+      call MPI_RECV(message, 2, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG,comm_world, stat,ierr)
+      print *, time_stamp_prefix(MPI_Wtime()), "got message from", stat(MPI_SOURCE), "with", message
       !ASSERT(ierr==MPI_SUCCESS)
       call assert_n(ierr==MPI_SUCCESS, 4)
       if (message(1) == DONE_JOB) then ! someone finished stolen job slice
@@ -321,7 +322,10 @@ contains
          else ! give only warning, some other part of the code my use this message (but SHOULD NOT)
            ! This message makes no sense in this context, thus give warning
            ! and continue (maybe the actual calculation has used it)
-           print *, time_stamp_prefix(MPI_Wtime()), "WARNING: got unexpected message (I'm no termination master):", message
+           print *, time_stamp_prefix(MPI_Wtime()), "ERROR: got unexpected message (I'm no termination master):", message
+           print *, "Please make sure, that message tag",MSGTAG, "is not used by the rest of the program"
+           print *, "or change parameter MSGTAG in this module to an unused value"
+           call abort()
          endif
       elseif (message(1) == NO_WORK_LEFT) then ! termination message from termination master
          !ASSERT(message(2)==0)
@@ -344,7 +348,10 @@ contains
       else
         ! This message makes no sense in this context, thus give warning
         ! and continue (maybe the actual calculation has used it)
-        print *, time_stamp_prefix(MPI_Wtime()), "WARNING: got message with unexpected content:", message
+        print *, time_stamp_prefix(MPI_Wtime()), "ERROR: got message with unexpected content:", message
+        print *, "Please make sure, that message tag",MSGTAG, "is not used by the rest of the program"
+        print *, "or change parameter MSGTAG in this module to an unused value"
+        call abort()
       endif
 
     endif
@@ -391,7 +398,7 @@ contains
         receiver = i
         ! skip the termination master (itsself)`
         if (i >= termination_master) receiver = i+1
-        call MPI_ISEND(message, 2, MPI_INTEGER4, receiver, 185,comm_world ,request(i+1), ierr)
+        call MPI_ISEND(message, 2, MPI_INTEGER4, receiver, MSGTAG,comm_world ,request(i+1), ierr)
         !ASSERT(ierr==MPI_SUCCESS)
         call assert_n(ierr==MPI_SUCCESS, 4)
         print *, time_stamp_prefix(MPI_Wtime()), "send termination to", receiver
@@ -423,7 +430,8 @@ contains
       else
         message(1) = RESP_DONE
         message(2) = my_rank
-        call MPI_ISEND(message, 2, MPI_INTEGER4, termination_master, 185,comm_world, requ1, ierr) 
+        call MPI_ISEND(message, 2, MPI_INTEGER4, termination_master, MSGTAG,comm_world, requ1, ierr)
+        print *, time_stamp_prefix(MPI_Wtime()), "send my_resp done"
         !ASSERT(ierr==MPI_SUCCESS)
         call assert_n(ierr==MPI_SUCCESS, 4)
       endif
@@ -544,7 +552,8 @@ contains
       message(1) = DONE_JOB
       message(2) = num_jobs_done
       call MPI_ISEND(message,2, MPI_INTEGER4, start_job(NRANK),&
-                                   185,comm_world, requ2(1), ierr)
+                                   MSGTAG, comm_world, requ2(1), ierr)
+      print *, time_stamp_prefix(MPI_Wtime()), "send have", num_jobs_done, "jobs done from", start_job(NRANK)
       !ASSERT(ierr==MPI_SUCCESS)
       call assert_n(ierr==MPI_SUCCESS, 4)
     endif
