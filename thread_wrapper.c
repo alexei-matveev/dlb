@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <assert.h>
+#include <unistd.h>
 
 void thread_control(); // extern, Fortran sub
 void thread_mailbox(); // extern, Fortran sub
@@ -225,7 +226,7 @@ void th_rwlock_unlock(int *rwlock)
   rc = pthread_rwlock_unlock(&rwlocks[*rwlock]);
   assert(!rc);
 }
-c_sleep( int *time)
+void c_sleep( int *time)
 {
 usleep(*time);
 }
