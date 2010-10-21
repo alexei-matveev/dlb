@@ -623,16 +623,16 @@ contains
         call th_mutex_lock(LOCK_JS)
         job_storage(:SJOB_LEN) = my_jobs
         start_job = my_jobs
+      endif
 
-        if (i_am_waiting) then
-          ! tell MAIN that there is something in the storage
-          ! as it will wait at cond_js2_update if run out if jobs (and not terminated)
-          print *, my_rank, "CONTROL: wake up MAIN, there are new jobs"
-          i_am_waiting = .false.
-          call th_cond_signal(COND_JS2_UPDATE)
-         !call th_mutex_unlock(LOCK_JS)
-         !call th_mutex_lock(LOCK_JS)
-        endif
+      if (i_am_waiting) then
+        ! tell MAIN that there is something in the storage
+        ! as it will wait at cond_js2_update if run out if jobs (and not terminated)
+        print *, my_rank, "CONTROL: wake up MAIN, there are new jobs"
+        i_am_waiting = .false.
+        call th_cond_signal(COND_JS2_UPDATE)
+       !call th_mutex_unlock(LOCK_JS)
+       !call th_mutex_lock(LOCK_JS)
       endif
       print *, my_rank,"CONTROL: finished getting new jobs"
     enddo !while active
