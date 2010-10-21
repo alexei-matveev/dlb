@@ -188,7 +188,6 @@ module dlb
   ! IDs of mutexes, use base-0 indices:
   integer(kind=i4_kind), parameter :: LOCK_JS   = 0
   integer(kind=i4_kind), parameter :: LOCK_NJ   = 1
-  integer(kind=i4_kind), parameter :: LOCK_MR   = 2
 
   ! IDs for condition variables, use base-0 indices:
   integer(kind=i4_kind), parameter :: COND_JS_UPDATE  = 0
@@ -231,6 +230,9 @@ module dlb
   ! * terminated: this is the flag, telling everybody, that it's done
   !             read: ALL
   !             write: CONTROL, MAILBOX
+  ! * my_resp: read: CONTROL, MAILBOX
+  !          write: CONTROL, MAILBOX
+  !          for termination algorithm, CONTROL and MAILBOX may have knowledge about finished jobs
   !
   ! Those below are the mutexes that are used in combination with signals:
   !
@@ -244,10 +246,6 @@ module dlb
   !               MAIN tells CONTROL, that it is waiting for jobs, thus CONTROL
   !               should better search some and not wait in turn for MAIN to wake it
   !
-  ! LOCK_MR:
-  ! * my_resp: read: CONTROL, MAILBOX
-  !          write: CONTROL, MAILBOX
-  !          for termination algorithm, CONTROL and MAILBOX may have knowledge about finished jobs
   ! LOCK_NJ:
   ! * new_jobs:   read: CONTROL          locked by LOCK_NJ
   !             write: CONTROL, MAILBOX
@@ -381,6 +379,24 @@ contains
     termination = terminated
     call unlock()
   end function termination
+
+  integer(i4_kind) function decrease_resp(n)
+    ! Purpose: make lock around my_resp, decrease it by done jobs
+    !          and give it back for further inspections
+    !
+    ! Context: control, and mailbox threads.
+    !
+    ! Locks: rdlock
+    !
+    implicit none
+    integer(i4_kind), intent(in)  :: n
+    ! *** end of interface ***
+
+    call rdlock()
+    my_resp = my_resp - n
+    decrease_resp = my_resp
+    call unlock()
+  end function decrease_resp
 
   subroutine thread_mailbox() bind(C)
     ! Puropse: This routine should contain all that should be done by
@@ -659,6 +675,7 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE), req
     integer(kind=i4_kind)                :: message(1 + SJOB_LEN)
+    integer(kind=i4_kind)                :: my_resp_local
     !------------ Executable code --------------------------------
 
     ! check and wait for any message with messagetag dlb
@@ -676,12 +693,10 @@ contains
       !ASSERT(message>0)
       call assert_n(message(2)>0, 4)
 
-      call th_mutex_lock(LOCK_MR)
-      my_resp = my_resp - message(2)
-      if (is_my_resp_done(MAILBOX, req)) then
+      my_resp_local = decrease_resp(message(2))
+      if (is_my_resp_done( req, my_resp_local)) then
         call add_request(req, requ_m)
       endif
-      call th_mutex_unlock(LOCK_MR)
 
     case (RESP_DONE) ! finished responsibility
       ! arrives only on termination master:
@@ -812,7 +827,7 @@ contains
     call assert_n(ierr==MPI_SUCCESS, 4)
   end subroutine check_termination
 
-  logical function is_my_resp_done(thread, requ)
+  logical function is_my_resp_done(requ, respon)
     !  Purpose: my_resp holds the number of jobs, assigned at the start
     !           to this proc, so this proc is responsible that they will
     !           be finished, if my_resp == 0, I should tell termination_master
@@ -831,13 +846,13 @@ contains
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
     integer(kind=i4_kind), intent(out)   :: requ
-    integer(kind=i4_kind), intent(in)   :: thread
+    integer(kind=i4_kind), intent(in)   :: respon
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr
     integer(kind=i4_kind)                :: message(1+SJOB_LEN)
     !------------ Executable code --------------------------------
     is_my_resp_done = .false.
-    if (my_resp == 0) then
+    if (respon == 0) then
       message(1) = RESP_DONE
       message(2) = my_rank
       message(3:) = 0
@@ -906,6 +921,7 @@ contains
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr
+    integer(kind=i4_kind)                :: my_resp_local
     integer(kind=i4_kind)                :: num_jobs_done, message(1 + SJOB_LEN)
     !------------ Executable code --------------------------------
     call time_stamp("finished a job",4)
@@ -918,10 +934,8 @@ contains
     !if (num_jobs_done == 0) return ! there is non job, thus why care
     if (start_job(NRANK) == my_rank) then
       my_resp_self = my_resp_self + num_jobs_done
-      call th_mutex_lock(LOCK_MR)
-      my_resp = my_resp - num_jobs_done
-      report_or_store = is_my_resp_done(CONTROL, req) ! check if all my jobs are done
-      call th_mutex_unlock(LOCK_MR)
+      my_resp_local = decrease_resp(num_jobs_done)
+      report_or_store = is_my_resp_done(req, my_resp_local) ! check if all my jobs are done
     else
       your_resp = your_resp + num_jobs_done
       ! As all isends have to be closed sometimes, storage of
