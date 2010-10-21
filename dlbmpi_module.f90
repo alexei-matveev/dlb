@@ -94,11 +94,68 @@ module dlb
 
   !------------ public functions and subroutines ------------------
   public dlb_init, dlb_finalize, dlb_setup, dlb_give_more !for using the module
-  public thread_control1, thread_mailbox1 ! needed for the c-wrapper on the pthreads
   public :: time_stamp
+  !
+  ! public :: thread_control, thread_mailbox ! needed for the c-wrapper on the pthreads
+  !
+  ! These two are not used anywhere in fortran sources, but are formally a part
+  ! of the public module interface as they are "bind(C)" and called from
+  ! C-sources.
+  !
   !================================================================
   ! End of public interface of module
   !================================================================
+
+
+  interface
+    !
+    ! These interfaces need to be consistent with implementations
+    ! in thread_wrapper.c
+    !
+    subroutine th_inits() bind(C)
+    end subroutine th_inits
+
+    subroutine th_exit() bind(C)
+    end subroutine th_exit
+
+    ! FIXME: why do these need an argument?
+    subroutine th_create_control(tid) bind(C)
+      use iso_c_binding
+      implicit none
+      integer(C_INT), intent(in) :: tid
+    end subroutine th_create_control
+
+    ! FIXME: why do these need an argument?
+    subroutine th_create_mail(tid) bind(C)
+      use iso_c_binding
+      implicit none
+      integer(C_INT), intent(in) :: tid
+    end subroutine th_create_mail
+
+    subroutine th_mutex_lock(lock) bind(C)
+      use iso_c_binding
+      implicit none
+      integer(C_INT), intent(in) :: lock
+    end subroutine th_mutex_lock
+
+    subroutine th_mutex_unlock(lock) bind(C)
+      use iso_c_binding
+      implicit none
+      integer(C_INT), intent(in) :: lock
+    end subroutine th_mutex_unlock
+
+    subroutine th_cond_signal(condition) bind(C)
+      use iso_c_binding
+      implicit none
+      integer(C_INT), intent(in) :: condition
+    end subroutine th_cond_signal
+
+    subroutine th_cond_wait(condition, mutex) bind(C)
+      use iso_c_binding
+      implicit none
+      integer(C_INT), intent(in) :: condition, mutex
+    end subroutine th_cond_wait
+  end interface
 
   !------------ Declaration of types ------------------------------
 ! ONLY FOR DEBBUGING WITHOUT PARAGAUSS
@@ -349,8 +406,10 @@ contains
       termination = terminated
     call th_mutex_unlock(lOCK_TERM)
   end function termination
+
   !*************************************************************
-  subroutine thread_mailbox1()
+
+  subroutine thread_mailbox() bind(C)
     ! Puropse: This routine should contain all that should be done by
     !          the thread MAILBOX
     !          Thus: mainly check for messages and try to finish the
@@ -399,7 +458,7 @@ contains
     print *, my_rank, "exit thread MAILBOX"
     call timepar("exitmailbox")
     call th_exit()
-  end subroutine thread_mailbox1
+  end subroutine thread_mailbox
   !*************************************************************
   subroutine test_requests(requ)
     ! Purpose: tests if any of the messages stored in requ have been
@@ -453,8 +512,10 @@ contains
       call assert_n(alloc_stat==0, 4)
     endif
   end subroutine test_requests
+
   !*************************************************************
-  subroutine thread_control1()
+
+  subroutine thread_control() bind(C)
     !  Purpose: main routine for thread CONTROL
     !          what it does: it waits for any change in the job_storage
     !          and finds out when it has been emptied
@@ -588,9 +649,15 @@ contains
     print *, my_rank, "exit thread CONTROL"
     call timepar("exitcontrol")
     call th_exit()
-  end subroutine thread_control1
+  end subroutine thread_control
+
   !*************************************************************
+v v v v v v v
+
+  subroutine check_messages()
+*************
   subroutine check_messages(requ_m)
+^ ^ ^ ^ ^ ^ ^
     !  Purpose: checks if any message has arrived, checks for messages:
     !          Someone finished stolen job slice
     !          Someone has finished its responsibilty (only termination_master)
@@ -1074,13 +1141,3 @@ contains
 
 ! make routines for CONTROL and MAILBOX extern, for usage in c-wrapper
 end module dlb
-
-subroutine thread_control()
-  use dlb
-  call thread_control1()
-end subroutine thread_control
-
-subroutine thread_mailbox()
-  use dlb
-  call thread_mailbox1()
-end subroutine thread_mailbox
