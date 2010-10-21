@@ -271,7 +271,9 @@ contains
     !ASSERT(alloc_stat==0)
     call assert_n(alloc_stat==0, 1)
   end subroutine dlb_finalize
+
   !*************************************************************
+
   subroutine dlb_give_more(n, my_job)
     !  Purpose: Returns next bunch of up to n jobs, if jobs(J_EP)<=
     !  jobs(J_STP) there are no more jobs there, else returns the jobs
@@ -286,43 +288,47 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
     integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB)
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, v
     logical                              :: term
     integer(i4_kind), target             :: jobs(SJOB_LEN)
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
+
     ! check for (termination) messages, if: have to gather the my_resp = 0
     ! messages (termination Master) or if someone has stolen
     ! and my report back
     term = .false.
     if(had_thief .or. (my_rank==termination_master)) term = check_messages()
     if (term) then
-      print *, my_rank,"RETURNED after gotten message for termination"
       my_job = start_job(:L_JOB)
       my_job(J_STP) = my_job(J_EP)
+      call time_stamp("dlb_give_more: exit on TERMINATION flag")
       return
     endif
+
     ! First try to get job from local storage (loop because some one lese may
     ! try to read from there (then local_tgetm = false)
     do while (.not. local_tgetm(n, jobs))
-       print *, "Waiting", my_rank, "for time to acces my own memory"
-       call time_stamp("waiting")
+       call time_stamp("waiting for time to acces my own memory")
     enddo
-    call time_stamp("finished")
-    print *, my_rank, "Finished local search"
+    call time_stamp("finished local search")
+
     ! if local storage only gives empty job:
     do while ((jobs(J_STP) >= jobs(J_EP)) .and. .not. check_messages())
       ! check like above but also for termination message from termination master
-      print *, my_rank, "Started search others"
+
       v = select_victim()
       print *, my_rank, "Victim", v
       ! try to get job from v, if v's memory occupied by another or contains
       ! nothing to steal, job is still empty
+
+      call time_stamp("about to call rmw_tgetm()")
       term = rmw_tgetm(n, v, jobs)
-       call time_stamp("waiting")
+      call time_stamp("returned from rmw_tgetm()")
     enddo
-    call time_stamp("finished")
+    call time_stamp("finished stealing")
+
     print *, my_rank,"GOT JOB: its", jobs
     ! only the start and endpoint of job slice is needed external
     my_job = jobs(:L_JOB)
@@ -330,9 +336,12 @@ contains
     ! they should be terminated, they could steal jobs setup by already terminated
     ! processors
     !if (terminated) call dlb_setup(setup_jobs)
-    print *, "dlb_give_more: exit", my_rank
+
+    call time_stamp("dlb_give_more: exit")
   end subroutine dlb_give_more
+
   !*************************************************************
+
   logical function check_messages()
     !  Purpose: checks if any message has arrived, checks for messages:
     !          Someone finished stolen job slice
@@ -396,7 +405,10 @@ contains
 
     endif
     check_messages = terminated
-    print *, my_rank,"CHeck if terminated", terminated
+
+    if (terminated) then
+      call time_stamp("TERMINATING!")
+    endif
   end function check_messages
   
   !************************************************************
