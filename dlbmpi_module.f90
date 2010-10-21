@@ -542,7 +542,6 @@ contains
     integer(kind=i4_kind)                :: message(1 + SJOB_LEN), requ_wr
     integer(kind=i4_kind)                :: my_jobs(SJOB_LEN)
     integer(kind=i4_kind),allocatable    :: requ_c(:) !requests storages for CONTROL
-    logical                              :: first
     !------------ Executable code --------------------------------
     many_tries = 0
     many_searches = 0
@@ -551,7 +550,6 @@ contains
     ! message is always the same (WORK_REQUEST)
     message = 0
     message(1) = WORK_REQUEST
-    first = .true.
 
     ! first lock
     call th_mutex_lock(LOCK_JS)
@@ -559,10 +557,7 @@ contains
       !print *, my_rank, "CONTROL before wait job_storage=", job_storage
       if (.not. i_am_waiting) then
         print *, my_rank, "CONTROL:MAIN does not wait", i_am_waiting
-        !call timepar("Cwait")
-      ! if (first) then
-      !   first = .false.
-      ! else
+        call timepar("Cwait")
         call th_cond_wait(COND_JS_UPDATE, LOCK_JS)  ! unlockes LOCK_JS while waiting for change in it
         endif
         !call timepar("Cwoke")
