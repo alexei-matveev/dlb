@@ -977,7 +977,7 @@ contains
     divide_jobs = .true.
     call th_mutex_lock(LOCK_JS)
 
-    w = reserve_workh(store_m, job_storage)
+    w = reserve_workh(job_storage)
 
     g_jobs = job_storage
     message(1) = WORK_DONAT

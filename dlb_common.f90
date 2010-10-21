@@ -175,19 +175,12 @@ contains
     n = max(n, 0)
   end function reserve_workm
 
-  pure function reserve_workh(m, jobs) result(n)
+  pure function reserve_workh(jobs) result(n)
     ! Purpose: give back number of jobs to take, half what is there
     implicit none
-    integer(i4_kind), intent(in) :: m ! FIXME: appears to be unused?
     integer(i4_kind), intent(in) :: jobs(2)
     integer(i4_kind)             :: n ! result
     !** End of interface *****************************************
-
-    ! FIXME: comment outdated?
-    ! if the number of job batches (of size m) is not odd, then
-    ! the stealing proc should get more, as it starts working on them
-    ! immediatelly
-    ! n =  (many_jobs /(2* m))* m
 
     ! give half of all jobs:
     n =  (jobs(2) - jobs(1)) / 2
@@ -197,7 +190,7 @@ contains
   pure function steal_work_for_rma(m, jobs) result(n)
     ! Purpose: give back number of jobs to take, half what is there
     implicit none
-    integer(i4_kind), intent(in) :: m ! FIXME: appears to be unused?
+    integer(i4_kind), intent(in) :: m
     integer(i4_kind), intent(in) :: jobs(2)
     integer(i4_kind)             :: n ! result
     !** End of interface *****************************************
