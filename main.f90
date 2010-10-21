@@ -15,9 +15,12 @@ integer :: i, res
 integer :: my_jobs(2)
 integer, pointer :: sec(:)
 
-integer, parameter :: num_jobs = 10
+integer, parameter :: num_jobs = 20
 integer, parameter :: n = 3
 integer, target    :: my_parts(n)
+
+double precision :: time
+double precision, allocatable :: times(:, :)
 
 call MPI_INIT_THREAD(MPI_THREAD_MULTIPLE, prov, ierr)
 
@@ -39,6 +42,13 @@ call MPI_COMM_SIZE( MPI_COMM_WORLD, n_procs, ierr)
 print *, "Hello World!, I'm", rank, "of", n_procs
 
 !
+! times(:, 1) --- elapsed
+! times(:, 2) --- working (usful work)
+!
+allocate(times(0:n_procs-1, 2))
+times = 0.0
+
+!
 ! Place all jobs on highest rank for testing:
 !
 if (rank+1 == n_procs) then
@@ -52,20 +62,42 @@ print *, rank, ":My jobs:", my_jobs
 
 call time_stamp("START")
 
+! starting time:
+times(rank, 1) = MPI_WTIME()
+
 call dlb_init()
 
 call dlb_setup(my_jobs) !,.false.)
 do while (more_work(n, sec))
+   ! measure working time:
+   time = MPI_WTIME()
+
    call time_stamp("START USEFUL WORK")
+
    do i = 1, size(sec)
      res = test_calc(sec(i))
    enddo
+
    call time_stamp("STOP USEFUL WORK")
+
+   ! increment working time by this slice:
+   times(rank, 2) = times(rank, 2) + (MPI_WTIME() - time)
 enddo
 
 call dlb_finalize()
 
 call time_stamp("END")
+
+! elapsed time:
+times(rank, 1) = MPI_WTIME() - times(rank, 1)
+
+call reduce(times)
+
+if ( rank == 0 ) then
+  print *,'elapsed times = ', times(:, 1)
+  print *,'working times = ', times(:, 2)
+  print *,'efficiency =', sum(times(:, 2)) / maxval(times(:, 1)) / size(times, 1)
+endif
 
 call MPI_FINALIZE(ierr)
 
@@ -116,5 +148,23 @@ contains
       counter = 0
     endif
   end function more_points
+
+  subroutine reduce(array)
+    implicit none
+    double precision, intent(inout) :: array(:, :)
+    ! *** end of interface ***
+
+    integer :: rank, ierr
+
+    call MPI_COMM_RANK( MPI_COMM_WORLD, rank, ierr )
+    if ( ierr /= MPI_SUCCESS ) stop "error in MPI_COMM_RANK"
+
+    if ( rank == 0 ) then
+      call MPI_REDUCE( MPI_IN_PLACE, array, size(array), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+    else
+      call MPI_REDUCE( array, MPI_IN_PLACE, size(array), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+    endif
+    if ( ierr /= MPI_SUCCESS ) stop "error in MPI_REDUCE"
+  end subroutine reduce
 
 end program main
