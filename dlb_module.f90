@@ -166,7 +166,7 @@ contains
     print *, time_stamp_prefix(time), msg
   end subroutine time_stamp
 
-  logical function assert_n(exp,num)
+  subroutine assert_n(exp,num)
     implicit none
     logical, intent(in) :: exp
     integer, intent(in) :: num
@@ -174,8 +174,7 @@ contains
        print *, "ASSERT FAILED", num
        call abort
     endif
-    assert_n = .false.
-  end function assert_n
+  end subroutine assert_n
 
 ! END ONLY FOR DEBUGGING
 
