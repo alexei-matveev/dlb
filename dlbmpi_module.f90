@@ -133,7 +133,8 @@ integer, parameter :: comm_world = MPI_COMM_WORLD
   integer(kind=i4_kind), parameter  ::  MAILBOX = 1, CONTROL = 2 ! for the new seperate threads
   integer(kind=i4_kind), parameter  ::  MSGTAG = 166 ! message tag for all MPI communication
 
-  integer(kind=i4_kind)            :: my_rank, n_procs ! some synonyms
+  integer(kind=i4_kind)            :: my_rank, n_procs ! some synonyms, They will be initialized once and afterwards
+                                        ! be read only
 
   integer(kind=i4_kind)             ::  termination_master ! the one who gathers the finished my_resp's
                                          ! and who tells all, when it is complety finished
@@ -143,54 +144,57 @@ integer, parameter :: comm_world = MPI_COMM_WORLD
   integer(kind=i4_kind)             :: new_jobs(SJOB_LEN) ! stores new job, just arrived from other proc
   integer(kind=i4_kind)             :: start_job(SJOB_LEN) ! job_storage is changed a lot, backup for
                                      ! finding out, if someone has stolen something, or how many jobs one
-                                     ! has done, when job_storage hold no more jobs
+                                     ! has done
   integer(kind=i4_kind)             :: my_resp ! number of jobs, this processor is responsible for (given
                                               ! in setup
   integer(kind=i4_kind)             :: store_m !keep m for the other threads
   logical                           :: terminated ! for termination algorithm
-  integer(kind=i4_kind),allocatable :: requ_m(:), requ_c(:) !requests storages for MAILBOX and CONTROL
   logical, allocatable              :: all_done(:) ! only allocated on termination_master, stores which proc's
                                                    ! jobs are finished: ATTENTION: NOT which proc is finished only if
                                                    ! with master_server
   logical                           :: i_am_waiting ! Thead 0 (main thread) is waiting for CONTROL
 
-  logical                           :: control_waiting ! Thead CONTROL is waiting for change in job_storage !FIXME: it is allowed to
-  logical                           :: job_waiting ! Thead CONTROL is waiting for change in new_jobs        ! signal a condition where
-                                                                                                            ! noone waits?
-
   ! some variables are chared between the three threads, there are also locks and conditions to obtain
   ! following a list, which of the three threads (MAIN, CONTROL, MAILBOX) does read or write on them
-  ! job_storage: read: ALL             locked by LOCK_JS
+  ! LOCK_JS:
+  ! * job_storage: read: ALL
   !             write: ALL
   !             initialization (before start of the other threads) is without lock!
-  ! my_resp: read: CONTROL, MAILBOX    locked by LOCK_MR
-  !          write: CONTROL, MAILBOX
-  ! terminated: read: ALL              locked by LOCK_TERM
-  !             write: CONTROL, MAILBOX
-  ! new_jobs:   read: CONTROL          locked by LOCK_NJ
-  !             write: CONTROL, MAILBOX
-  ! i_am_waiting: read: CONTROL        also locked by LOCK_JS
+  !             holds job range of current unfinished jobs, asssigend to this processor
+  ! * i_am_waiting: read: CONTROL
   !               write: CONTROL, MAIN
-  ! store_m:  read: MAILBOX, CONTROL    also locked by LOCK_JS
+  !               MAIN tells CONTROL, that it is waiting for jobs, thus CONTROL
+  !               should better search some and not wait in turn for MAIN to wake it
+  ! * store_m:  read: MAILBOX, CONTROL
   !           write: MAIN
-!!! control_waiting: read: MAIN, MAILBOX  also locked by LOCK_JS
-!!!                  write: ALL
-!!! job_waiting:   read: MAILBOX        also locked by LOCK_NJ
-!!!                write: CONTROL, MAILBOX
-  ! termination_master, my_rank, n_procs and the paramater: they will be only read, no change to them
-  !                  thus it should be save not to lock them???
+  !           MAIN stores here how many jobs were requested the last time, helps MAILBOX
+  !           to know how many jobs to give, ONLY NEEDED WITH MASTER_SERVER
+  !
+  ! LOCK_MR:
+  ! * my_resp: read: CONTROL, MAILBOX
+  !          write: CONTROL, MAILBOX
+  !          for termination algorithm, CONTROL and MAILBOX may have knowledge about finished jobs
+  ! LOCK_TERM:
+  ! * terminated: read: ALL
+  !             write: CONTROL, MAILBOX
+  !             this is the flag, telling everybody, that it's done
+  ! LOCK_NJ:
+  ! * new_jobs:   read: CONTROL          locked by LOCK_NJ
+  !             write: CONTROL, MAILBOX
+  !             MAILBOX stores here messages, gotten for CONTROL, CONTROL "deletes" them after reading
+  !
+  ! termination_master, my_rank, n_procs and the paramater: they will be only read, after they have been
+  !                initalized in a one thread context
+  ! start_jobs: initialized in one thread context, after separation belonging to CONTROL only
   !
   ! the follwing conditions are used to tell:
   ! COND_JS_UPDATE: CONTROL waits here (if there have been enough jobs in the last entry)
   !                 for the other to took some jobs out of job_storage
-  !!!              CONTROL tells by control_waiting that it waits at this border
   ! COND_JS2_UPDATE: if MAIN finds no more jobs in job_storage, it waits here if CONTROL gets
   !                any, CONTROL should not be waiting at that time but busily searching
   !                for more jobs
   !                MAIN tells by i_am_waiting that it has run out of jobs (and got no termination)
   ! COND_NJ_UPDATE: CONTROL waits for answer to a job request, got answer by MAILBOX
-  !!!               CONTROL tells by job_waiting of it, this is only needed at termination, as
-  !!!               else MAILBOX can assume that CONTROL is waiting if it gets an job offer
   !
   ! For debugging and counting trace
   integer(kind=i4_kind)             :: count_messages, count_requests, count_offers ! how many messages arrived
@@ -361,9 +365,10 @@ contains
 !   !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: i, stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind)                :: ierr
+    integer(kind=i4_kind),allocatable    :: requ_m(:) !requests storages for MAILBOX
 !   !------------ Executable code --------------------------------
     do while (.not. termination())
-      call check_messages()
+      call check_messages(requ_m)
       call test_requests(requ_m)
     enddo
     print *,my_rank, "MAILBOX: got ", count_messages, "messages with", count_requests, "requests and", count_offers, "offers"
@@ -385,13 +390,10 @@ contains
     ! CONTROL should then wake up MAIN if neccessary
     call th_mutex_lock( LOCK_NJ)
     print *, my_rank, "prepare termination, check for CONTROL"
-    !print *, my_rank, "job_waiting=", job_waiting
-    if (job_waiting) call th_cond_signal(COND_NJ_UPDATE)
+    call th_cond_signal(COND_NJ_UPDATE)
     call th_cond_signal(COND_NJ_UPDATE)
     call th_mutex_unlock( LOCK_NJ)
     call th_mutex_lock( LOCK_JS)
-    !print *, my_rank, "control_waiting=", control_waiting
-    !if (control_waiting) call th_cond_signal(COND_JS_UPDATE)
     call th_cond_signal(COND_JS_UPDATE)
     call th_mutex_unlock( LOCK_JS)
     print *, my_rank, "exit thread MAILBOX"
@@ -475,6 +477,7 @@ contains
     integer(kind=i4_kind)                :: i, v, ierr, stat(MPI_STATUS_SIZE), req
     integer(kind=i4_kind)                :: message(1 + SJOB_LEN), requ_wr
     integer(kind=i4_kind)                :: my_jobs(SJOB_LEN)
+    integer(kind=i4_kind),allocatable    :: requ_c(:) !requests storages for CONTROL
     logical                              :: first
 !   !------------ Executable code --------------------------------
     many_tries = 0
@@ -491,14 +494,12 @@ contains
     do while (.not. termination()) ! while active
       !print *, my_rank, "CONTROL before wait job_storage=", job_storage
       if (.not. i_am_waiting) then
-        print *, my_rank, "CONTROL: control_waiting=", control_waiting, i_am_waiting
+        print *, my_rank, "CONTROL:MAIN does not wait", i_am_waiting
         !call timepar("Cwait")
       ! if (first) then
       !   first = .false.
       ! else
-        control_waiting = .true.
         call th_cond_wait(COND_JS_UPDATE, LOCK_JS)  ! unlockes LOCK_JS while waiting for change in it
-        control_waiting = .false.
         endif
         !call timepar("Cwoke")
         !print *, my_rank, "CONTROL finshed waiting for cond"
@@ -527,11 +528,8 @@ contains
           !ASSERT(ierr==MPI_SUCCESS)
           call assert_n(ierr==MPI_SUCCESS, 4)
           call test_requests(requ_c)
-          !print *,my_rank, "CONTROL: job_waiting=", job_waiting
           !call timepar("waitrep")
-          job_waiting = .true.
           call th_cond_wait(COND_NJ_UPDATE, LOCK_NJ) !while waiting is unlocked for MAILBOX
-          job_waiting = .false.
           !call timepar("gotrep")
             my_jobs = new_jobs
             new_jobs(J_STP) = 0
@@ -581,11 +579,9 @@ contains
     endif
     ! make sure nobody (MAILBOX) thinks that CONTROL is waiting somewhere
     call th_mutex_lock(LOCK_JS)
-    if (i_am_waiting) call th_cond_signal(COND_JS2_UPDATE) ! and free MAIN if waiting
-    control_waiting = .false.
+    call th_cond_signal(COND_JS2_UPDATE) ! and free MAIN if waiting
     call th_mutex_unlock(LOCK_JS)
    call th_mutex_lock(LOCK_NJ)
-    job_waiting = .false.
    call th_mutex_unlock(LOCK_NJ)
     print *, my_rank, "CONTROL: tried", many_searches, "times to get new jobs, by trying to steal", many_tries
     print *, my_rank, "CONTROL: done", my_resp_self, "of my own, gave away", my_resp_start - my_resp_self, "and stole", your_resp
@@ -594,7 +590,7 @@ contains
     call th_exit()
   end subroutine thread_control1
   !*************************************************************
-  subroutine check_messages()
+  subroutine check_messages(requ_m)
     !  Purpose: checks if any message has arrived, checks for messages:
     !          Someone finished stolen job slice
     !          Someone has finished its responsibilty (only termination_master)
@@ -606,6 +602,7 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
+    integer, allocatable :: requ_m(:)
 !   !** End of interface *****************************************
 !   !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE), req
@@ -645,8 +642,6 @@ contains
        call th_mutex_lock( LOCK_NJ)
          count_offers = count_offers + 1
          new_jobs = message(2:)
-    !print *, my_rank, "job_waiting=", job_waiting
-         !job_waiting = .false.
          call th_cond_signal(COND_NJ_UPDATE)
        call th_mutex_unlock( LOCK_NJ)  
     elseif (message(1) == WORK_REQUEST) then ! other proc wants something from my jobs
@@ -669,12 +664,12 @@ contains
     integer :: alloc_stat, len_req
     len_req = 0
     if (allocated(requ)) then
-      len_req = size(requ_m,1)
+      len_req = size(requ,1)
       allocate(req_int(len_req), stat = alloc_stat)
       !ASSERT(alloc_stat==0)
       call assert_n(alloc_stat==0, 4)
       req_int = requ
-      deallocate(requ_m, stat = alloc_stat)
+      deallocate(requ, stat = alloc_stat)
       !ASSERT(alloc_stat==0)
       call assert_n(alloc_stat==0, 4)
     endif
@@ -866,10 +861,7 @@ contains
     if (.not. first) then
       ! found no job in first try, now wait for change before doing anything
       ! CONTROL will make a wake up
-      if(control_waiting) then
-        call th_cond_signal(COND_JS_UPDATE)
-        control_waiting = .false.
-      endif
+      call th_cond_signal(COND_JS_UPDATE)
       !call timepar("wakeC")
       i_am_waiting = .true.
       call th_cond_wait(COND_JS2_UPDATE, LOCK_JS)
@@ -883,12 +875,9 @@ contains
 !   print *, "job_storage=", job_storage
 !   print *, "local_tgetm: end locked", my_rank
     store_m = m
-    !print *, my_rank,"control_waiting(MAIN)=", control_waiting, i_am_waiting
-    if (job_storage(J_STP) >= job_storage(J_EP) .and. control_waiting) then
+    if (job_storage(J_STP) >= job_storage(J_EP)) then
       !call timepar("wakeC2")
-      print *, my_rank,"update control_waiting(MAIN)=", control_waiting, i_am_waiting
       print *, my_rank, "MAIN wakes CONTROL"
-      control_waiting = .false.
       call th_cond_signal(COND_JS_UPDATE)
     endif
     !endif
@@ -987,9 +976,7 @@ contains
     call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, partner, MSGTAG, comm_world, requ, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
-    !print *, my_rank, "control_waiting(MAILBOX)=", control_waiting, i_am_waiting
-      !print *, my_rank, "update control_waiting(MAILBOX)=", control_waiting, i_am_waiting
-    if (job_storage(J_STP) >= job_storage(J_EP) .and. control_waiting) then
+    if (job_storage(J_STP) >= job_storage(J_EP)) then
       print *, my_rank, "MAILBOX wakes CONTROL"
       !call timepar("wakeCm")
       call th_cond_signal(COND_JS_UPDATE)
@@ -1060,8 +1047,6 @@ contains
     ! these variables are for the termination algorithm
     terminated = .false.
    i_am_waiting = .false.
-   control_waiting = .false.
-   job_waiting = .false.
     count_messages = 0
     count_offers = 0
     count_requests = 0
