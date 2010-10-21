@@ -123,6 +123,9 @@ module dlb
   logical, allocatable              :: all_done(:) ! only valid on termination_master, stores which proc's
                                                    ! jobs are finished: ATTENTION: NOT which proc is finished
 
+  integer(kind=i4_kind)             :: my_resp_start, my_resp_self, your_resp !how many jobs doen where
+  integer(kind=i4_kind)             :: many_tries, many_searches !how many times asked for jobs
+  integer(kind=i4_kind)             :: many_locked, many_zeros
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
 contains
@@ -260,13 +263,14 @@ contains
     enddo
     call time_stamp("finished local search",3)
 
+    if (jobs(J_STP) >= jobs(J_EP)) many_searches = many_searches + 1 ! just for debugging
     ! if local storage only gives empty job:
     do while ((jobs(J_STP) >= jobs(J_EP)) .and. .not. check_messages())
       ! check like above but also for termination message from termination master
       v = select_victim(my_rank, n_procs)
       ! try to get job from v, if v's memory occupied by another or contains
-      ! nothing to steal, job is still empty
-
+      ! nothing to steal, job is st
+      many_tries = many_tries + 1 ! just for debugging ill empty
       call time_stamp("about to call rmw_tgetm()",4)
       term = rmw_tgetm(n, v, jobs)
       call time_stamp("returned from rmw_tgetm()",4)
@@ -278,7 +282,12 @@ contains
     ! they should be terminated, they could steal jobs setup by already terminated
     ! processors
     !if (terminated) call dlb_setup(setup_jobs)
-
+    if (jobs(J_STP) >= jobs(J_EP)) then
+       print *, my_rank, "tried", many_searches, "for new jobs and stealing", many_tries
+       print *, my_rank, "was locked", many_locked, "got zero", many_zeros
+       !print *, my_rank, "tried", many_searches, "times to get new jobs, by trying to steal", many_tries
+       !print *, my_rank, "done", my_resp_self, "of my own, gave away", my_resp_start - my_resp_self, "and stole", your_resp
+    endif
     call time_stamp("dlb_give_more: exit",3)
   end subroutine dlb_give_more
 
@@ -519,8 +528,10 @@ contains
 
     if (start_job(NRANK) == my_rank) then
       my_resp = my_resp - num_jobs_done
+      my_resp_self = my_resp_self + num_jobs_done
       call is_my_resp_done() ! check if all my jobs are done
     else
+      your_resp = your_resp + num_jobs_done
       ! As all isends have to be closed sometimes, storage of
       ! the request handlers is needed
       if (allocated(requ2)) then
@@ -605,6 +616,7 @@ contains
     if (sap > 0) then ! this one is not the first, thus leave the memory to the others
       call time_stamp("blocked on lock contension rmw",2)
       rmw_tgetm = .false.
+      many_locked = many_locked + 1
     else ! is the first one, therefor do what you want with it
       rmw_tgetm = .true.
       ! how much of the work should be stolen
@@ -615,6 +627,7 @@ contains
         my_jobs(J_EP)  = 0
         my_jobs(J_STP) = 0
         my_jobs(NRANK) = -1
+        many_zeros = many_zeros + 1
       else ! take the last w jobs of the job-storage
         my_jobs(J_STP)  = my_jobs(J_EP) - w
         jobs_infom(J_EP) = my_jobs(J_STP)
@@ -709,6 +722,12 @@ contains
     had_thief = .false.
     terminated = .false.
     all_done  = .false.
+    many_tries = 0
+    many_searches = 0
+    many_locked = 0
+    many_zeros = 0
+    my_resp_self = 0
+    your_resp = 0
     ! set starting values for the jobs, needed also in this way for
     ! termination, as they will be stored also in the job_storage
     ! start_job should only be changed if all current jobs are finished
@@ -717,6 +736,7 @@ contains
     start_job(NRANK) = my_rank
     ! needed for termination
     my_resp = start_job(J_EP) - start_job(J_STP)
+    my_resp_start = my_resp
     ! Job storage holds all the jobs currently in use
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
