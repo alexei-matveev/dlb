@@ -175,8 +175,12 @@ contains
      seed = mod(a * seed + b, m)
 
      ! np - 1 outcomes in the range [0, np-1] excluding victim == rank:
-     victim = mod(seed, np - 1)
-     if (victim >= rank) victim = victim + 1
+     if( np > 1) then
+       victim = mod(seed, np - 1)
+       if (victim >= rank) victim = victim + 1
+     else
+       victim = 0
+     endif
   end function select_victim_random
 
   pure function reserve_workm(m, jobs) result(n)
