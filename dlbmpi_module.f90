@@ -280,11 +280,6 @@ integer, parameter :: comm_world = MPI_COMM_WORLD
 contains
 
 ! ONLY FOR DEBBUGING (WITHOUT PARAGAUSS)
-  subroutine show()
-    implicit none
-
-    call show1(job_storage)
-  end subroutine show
   subroutine timeloc(place,num )
     implicit none
     character(len=*), intent(in) :: place
@@ -295,6 +290,7 @@ contains
       print *,"GGG", my_rank, "local", place,  MPI_Wtime()
     endif
   end subroutine timeloc
+
   subroutine timepar(place )
     implicit none
     character(len=*), intent(in) :: place
@@ -326,13 +322,6 @@ contains
 
     print *, time_stamp_prefix(time), msg
   end subroutine time_stamp
-
-  subroutine show1(storage)
-    implicit none
-    integer(i4_kind), intent(in) :: storage(:)
-
-    print *, "storage=", storage
-  end subroutine show1
 
   subroutine assert_n(exp,num)
     implicit none
