@@ -34,13 +34,15 @@ objs = main.o test.o dlb_common.o
 #
 #dlb_objs = dlb_static.o
 #dlb_objs = dlb_module.o
-dlb_objs = dlbmpi_module.o thread_handle.o thread_wrapper.o
+#dlb_objs = dlbmpi_module.o thread_handle.o thread_wrapper.o
+dlb_objs = dlb2t_module.o thread_handle.o thread_wrapper.o
 
 # WHY? dlbmpi_module.o: thread_wrapper.o
 
 main.o: test.o $(dlb_objs)
-dlb_module.o dlbmpi_module.o thread_handle.o: dlb_common.o
+dlb_module.o dlbmpi_module.o thread_handle.o dlb2t_module.o: dlb_common.o
 dlbmpi_module.o: thread_handle.o thread_wrapper.o
+dlb2t_module.o: thread_handle.o thread_wrapper.o
 thread_handle.o: thread_wrapper.o
 
 %.o: %.c

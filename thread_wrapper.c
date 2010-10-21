@@ -6,9 +6,11 @@
 
 void thread_control(); // extern, Fortran sub
 void thread_mailbox(); // extern, Fortran sub
+void thread_secretary(); // extern, Fortran sub
 
 void th_inits();
 void th_create_all();
+void th_create_one();
 void th_exit();
 void th_join_all();
 
@@ -19,6 +21,8 @@ void th_cond_signal(int *condition);
 void th_rwlock_rdlock(int *rwlock);
 void th_rwlock_wrlock(int *rwlock);
 void th_rwlock_unlock(int *rwlock);
+void c_sleep( int * time);
+
 
 #define NTHREADS 2
 #define NMUTEXES 2
@@ -29,6 +33,7 @@ pthread_t threads[NTHREADS];
 pthread_mutex_t mutexes[NMUTEXES];
 pthread_cond_t conds[NCONDS];
 int cond_active[NCONDS];
+int active_threads[NTHREADS];
 pthread_rwlock_t rwlocks[NRWLOCKS];
 
 void th_inits()
@@ -59,6 +64,11 @@ void th_inits()
 
   rc = pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_PRIVATE);//PTHREAD_PROCESS_SHARED
   assert(!rc);
+
+
+  for (int i = 0; i < NTHREADS; i++) {
+    active_threads[i] = 0;
+    }
 
   for (int i = 0; i < NCONDS; i++) {
     rc = pthread_cond_init(&conds[i], &cond_attr);
@@ -100,9 +110,34 @@ void th_create_all()
 
   rc = pthread_create(&threads[0], &ThreadAttribute, (void *(*)(void *)) thread_mailbox, NULL);
   assert(!rc);
+  active_threads[0] = 1;
 
   rc = pthread_create(&threads[1], &ThreadAttribute, (void *(*)(void *)) thread_control, NULL);
   assert(!rc);
+  active_threads[1] = 1;
+
+  rc = pthread_attr_destroy(&ThreadAttribute);
+  assert(!rc);
+}
+
+void th_create_one()
+{
+  int rc;
+  pthread_attr_t ThreadAttribute;
+
+  rc = pthread_attr_init(&ThreadAttribute);
+  assert(!rc);
+
+  rc = pthread_attr_setdetachstate(&ThreadAttribute, PTHREAD_CREATE_JOINABLE);
+  assert(!rc);
+
+  rc = pthread_attr_setscope(&ThreadAttribute, PTHREAD_SCOPE_SYSTEM);
+  //rc = pthread_attr_setscope(&ThreadAttribute, PTHREAD_SCOPE_PROCESS);
+  assert(!rc);
+
+  rc = pthread_create(&threads[0], &ThreadAttribute, (void *(*)(void *)) thread_secretary, NULL);
+  assert(!rc);
+  active_threads[0] = 1;
 
   rc = pthread_attr_destroy(&ThreadAttribute);
   assert(!rc);
@@ -118,11 +153,14 @@ void th_join_all()
   int rc;
   void *status;
 
-  rc = pthread_join(threads[0], &status);
-  assert(!rc);
 
-  rc = pthread_join(threads[1], &status);
-  assert(!rc);
+  for (int i = 0; i < NTHREADS; i++) {
+    if (active_threads[i]) {
+      rc = pthread_join(threads[i], &status);
+      assert(!rc);
+      active_threads[i] = 0;
+      }
+    }
 }
 
 void th_mutex_lock(int *mutex)
@@ -187,4 +225,7 @@ void th_rwlock_unlock(int *rwlock)
   rc = pthread_rwlock_unlock(&rwlocks[*rwlock]);
   assert(!rc);
 }
-
+c_sleep( int *time)
+{
+usleep(*time);
+}
