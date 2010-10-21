@@ -471,7 +471,7 @@ contains
     logical, allocatable :: finished(:)
     !------------ Executable code --------------------------------
     if (allocated(requ)) then
-      len_req = size(requ,1)
+      len_req = size(requ)
       allocate(finished(len_req), requ_int(len_req), stat = alloc_stat)
       !ASSERT(alloc_stat==0)
       call assert_n(alloc_stat==0, 4)
@@ -692,17 +692,16 @@ contains
 
       call th_mutex_lock(LOCK_MR)
       my_resp = my_resp - message(2)
-      if (is_my_resp_done(MAILBOX, req)) call add_request(req, requ_m)
+      if (is_my_resp_done(MAILBOX, req)) then
+        call add_request(req, requ_m)
+      endif
       call th_mutex_unlock(LOCK_MR)
 
     case (RESP_DONE) ! finished responsibility
-      if (my_rank == termination_master) then
-        call check_termination(message(2), MAILBOX)
-      else ! this should not happen
-        print *, "WARNING: got unexpected message (I'm not termination master",my_rank,"):", message
-        !ASSERT(.false.)
-        call assert_n(.false.,19)
-      endif
+      ! arrives only on termination master:
+      call assert_n(my_rank == termination_master, 19)
+
+      call check_termination(message(2), MAILBOX)
 
     case (NO_WORK_LEFT) ! termination message from termination master
       !ASSERT(message(2)==0)
@@ -723,9 +722,10 @@ contains
 
     case (WORK_REQUEST) ! other proc wants something from my jobs
       count_requests = count_requests + 1
-      !call timeloc("jobdiv1")
-      if (divide_jobs(stat(MPI_SOURCE), req)) call add_request(req, requ_m)
-      !call timeloc("jobdiv2")
+
+      if (divide_jobs(stat(MPI_SOURCE), req)) then
+        call add_request(req, requ_m)
+      endif
 
     case default
       ! This message makes no sense in this context, thus give warning
@@ -1012,7 +1012,7 @@ contains
     !------------ Executable code --------------------------------
     ! these variables are for the termination algorithm
     terminated = .false.
-   i_am_waiting = .false.
+    i_am_waiting = .false.
     count_messages = 0
     count_offers = 0
     count_requests = 0
