@@ -687,45 +687,45 @@ contains
     select case(message(1))
 
     case (DONE_JOB) ! someone finished stolen job slice
-       !ASSERT(message>0)
-       call assert_n(message(2)>0, 4)
+      !ASSERT(message>0)
+      call assert_n(message(2)>0, 4)
 
-       call th_mutex_lock(LOCK_MR)
-       my_resp = my_resp - message(2)
-       if (is_my_resp_done(MAILBOX, req)) call add_request(req, requ_m)
-       call th_mutex_unlock(LOCK_MR)
+      call th_mutex_lock(LOCK_MR)
+      my_resp = my_resp - message(2)
+      if (is_my_resp_done(MAILBOX, req)) call add_request(req, requ_m)
+      call th_mutex_unlock(LOCK_MR)
 
     case (RESP_DONE) ! finished responsibility
-       if (my_rank == termination_master) then
-         call check_termination(message(2), MAILBOX)
-       else ! this should not happen
-         print *, "WARNING: got unexpected message (I'm not termination master",my_rank,"):", message
-         !ASSERT(.false.)
-         call assert_n(.false.,19)
-       endif
+      if (my_rank == termination_master) then
+        call check_termination(message(2), MAILBOX)
+      else ! this should not happen
+        print *, "WARNING: got unexpected message (I'm not termination master",my_rank,"):", message
+        !ASSERT(.false.)
+        call assert_n(.false.,19)
+      endif
 
     case (NO_WORK_LEFT) ! termination message from termination master
-       !ASSERT(message(2)==0)
-       call assert_n(message(2)==0, 4)
-       !ASSERT(stat(MPI_SOURCE)==termination_master)
-       call assert_n(stat(MPI_SOURCE)==termination_master, 4)
+      !ASSERT(message(2)==0)
+      call assert_n(message(2)==0, 4)
+      !ASSERT(stat(MPI_SOURCE)==termination_master)
+      call assert_n(stat(MPI_SOURCE)==termination_master, 4)
 
-       call wrlock()
-       terminated = .true.
-       call unlock()
+      call wrlock()
+      terminated = .true.
+      call unlock()
 
     case (WORK_DONAT) ! got work from other proc
-       call th_mutex_lock( LOCK_NJ)
-         count_offers = count_offers + 1
-         new_jobs = message(2:)
-         call th_cond_signal(COND_NJ_UPDATE)
-       call th_mutex_unlock( LOCK_NJ)  
+      call th_mutex_lock( LOCK_NJ)
+      count_offers = count_offers + 1
+      new_jobs = message(2:)
+      call th_cond_signal(COND_NJ_UPDATE)
+      call th_mutex_unlock( LOCK_NJ)  
 
     case (WORK_REQUEST) ! other proc wants something from my jobs
-       count_requests = count_requests + 1
-       !call timeloc("jobdiv1")
-       if (divide_jobs(stat(MPI_SOURCE), req)) call add_request(req, requ_m)
-       !call timeloc("jobdiv2")
+      count_requests = count_requests + 1
+      !call timeloc("jobdiv1")
+      if (divide_jobs(stat(MPI_SOURCE), req)) call add_request(req, requ_m)
+      !call timeloc("jobdiv2")
 
     case default
       ! This message makes no sense in this context, thus give warning
