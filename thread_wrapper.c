@@ -21,13 +21,14 @@ void th_rwlock_wrlock(int *rwlock);
 void th_rwlock_unlock(int *rwlock);
 
 #define NTHREADS 2
-#define NMUTEXES 3
+#define NMUTEXES 2
 #define NCONDS 3
 #define NRWLOCKS 1
 
 pthread_t threads[NTHREADS];
 pthread_mutex_t mutexes[NMUTEXES];
 pthread_cond_t conds[NCONDS];
+int cond_active[NCONDS];
 pthread_rwlock_t rwlocks[NRWLOCKS];
 
 void th_inits()
@@ -62,6 +63,7 @@ void th_inits()
   for (int i = 0; i < NCONDS; i++) {
     rc = pthread_cond_init(&conds[i], &cond_attr);
     assert(!rc);
+    cond_active[i] = 0; // meaning false
   }
 
   rc = pthread_condattr_destroy(&cond_attr);
@@ -78,6 +80,7 @@ void th_inits()
 
   rc = pthread_rwlockattr_destroy(&rwlock_attr);
   assert(!rc);
+
 }
 
 void th_create_all()
@@ -144,8 +147,10 @@ void th_cond_wait( int *condition, int *mutex)
   assert(*condition >= 0 && *condition < NCONDS);
   assert(*mutex >= 0 && *mutex < NMUTEXES);
   //printf("COND %d WAITS %d\n", *condition, *mutex);
+  cond_active[*condition] = 1; // = true
   rc = pthread_cond_wait(&conds[*condition], &mutexes[*mutex]);
   assert(!rc);
+  cond_active[*condition] = 0; // = false
 }
 
 void th_cond_signal(int *condition)
@@ -153,8 +158,10 @@ void th_cond_signal(int *condition)
   int rc;
   assert(*condition >= 0 && *condition < NCONDS);
   //printf("COND %d RELEASED\n", *condition);
-  rc = pthread_cond_signal (&conds[*condition]);
-  assert(!rc);
+  if (cond_active[*condition]) {
+    rc = pthread_cond_signal (&conds[*condition]);
+    assert(!rc);
+  }
 }
 
 void th_rwlock_rdlock(int *rwlock)
