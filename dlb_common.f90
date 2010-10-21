@@ -47,6 +47,9 @@ module dlb_common
   ! integer with 4 bytes, range 9 decimal digits
   integer, parameter, public :: i4_kind = selected_int_kind(9)
 
+  ! integer with 8 bytes, range 9 decimal digits
+  integer, parameter :: i8_kind = 8
+
   ! real with 8 bytes, precision 15 decimal digits
   integer, parameter, public :: r8_kind = selected_real_kind(15)
 
@@ -112,7 +115,7 @@ contains
      integer(i4_kind)             :: victim
      ! *** end of interface ***
 
-     victim = select_victim_random2(rank, np)
+     victim = select_victim_random(rank, np)
      ! victim = select_victim_r(rank, np)
   end function select_victim
 
@@ -134,53 +137,6 @@ contains
      endif
   end function select_victim_r
 
-  function select_victim_random2(rank, np) result(victim)
-     ! Purpose: decide of who to try next to get any jobs
-     ! Uses primitive pseudorandom code X_n+1 = (aX_n + b)mod m
-     implicit none
-     integer(i4_kind), intent(in) :: rank, np
-     integer(i4_kind)             :: victim
-     ! *** end of interface ***
-
-     !integer, save, dimension(1) :: random
-     integer, allocatable, save :: random(:)
-     real(kind=r8_kind), allocatable     ::  harv(:)
-     integer(kind=i4_kind)  :: i, s, alloc_stat
-
-     !f (random(1)==-1) random(1) = rank
-     call random_seed()
-     call random_seed(size=s)
-     if (.not. allocated(random)) then
-       allocate(random(s), stat=alloc_stat)
-       !ASSERT(alloc_stat==0)
-       call assert_n(alloc_stat==0, 4)
-       call random_seed(get=random)
-       do i = 1, s
-          random(i) = rank + i
-       enddo
-!      print *, rank, s, random
-     endif
-     allocate(harv(s), stat=alloc_stat)
-     !ASSERT(alloc_stat==0)
-     !all assert_n(alloc_stat==0, 4)
-
-     !print *,rank, "random=", random
-     call random_seed(put=random)
-     call random_number(harv)
-     !print *,rank, "harv=",harv
-     victim = int(harv(1) * np)
-     i = 0
-     do while (victim == rank .and. i < 10)
-       call random_number(harv)
-       victim = int(harv(1) * np)
-       i = i + 1
-     enddo
-     if ((victim == np) .or. (victim == rank)) then
-       victim = select_victim_r(rank, np)
-     endif
-     call random_number(harv)
-     call random_seed(get=random)
-  end function select_victim_random2
 
   function select_victim_random(rank, np) result(victim)
      ! Purpose: decide of who to try next to get any jobs
@@ -190,27 +146,17 @@ contains
      integer(i4_kind)             :: victim
      ! *** end of interface ***
 
-     integer(kind=i4_kind),parameter  :: a =134775813, b = 1 ! see Virtual Pascal/Borland Delphi
-     integer(kind=i4_kind),parameter  :: m = 1000 ! FIXME: shoud we use other integer for 2**32 (fit to rest)
-     integer(kind=i4_kind), save :: seed = -1
-     integer(kind=i4_kind)  :: i, seedold
-
+     integer(kind=i8_kind),parameter  :: a =134775813, b = 1 ! see Virtual Pascal/Borland Delphi
+     integer(kind=i8_kind),parameter  :: m = 2**32
+     integer(kind=i8_kind), save :: seed = -1
      ! ASSERT(.false.)
      ! Does not work yet, due to too much overflow (negative procs)
      if (seed == -1) then
         seed = rank
      endif
-     seedold = seed
      seed = mod( (a*seed+b),m)
-     victim = mod(seed, np)
-     i = 0
-     do while (victim == rank .and. i < 10)
-       seed = mod( (a*seed+b),m)
-       victim = mod(seed, np)
-       i = i + 1
-     enddo
-!    print *, rank, seedold,a*seedold+b , seed, select_victim_random, i
-     if (victim == rank) victim = select_victim_r(rank, np)
+     victim = mod(seed, np-1)
+     if (victim >= rank) victim = victim + 1
   end function select_victim_random
 
   pure function reserve_workm(m, jobs) result(n)
