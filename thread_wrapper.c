@@ -19,10 +19,11 @@ void th_cond_wait(int *condition, int *mutex);
 void th_cond_signal(int *condition);
 void th_join_(int * name);
 
+#define NTHREADS 2
 #define NMUTEXES 4
 #define NCONDS 3
 
-pthread_t threads[4];
+pthread_t threads[NTHREADS];
 pthread_mutex_t mutexes[NMUTEXES];
 pthread_cond_t conds[NCONDS];
 
@@ -57,13 +58,13 @@ void th_inits()
   rc = pthread_condattr_setpshared(&cattr, PTHREAD_PROCESS_PRIVATE);//PTHREAD_PROCESS_SHARED
   assert(!rc);
 
-  for (int i = 1; i <= NMUTEXES; i++)
+  for (int i = 0; i < NMUTEXES; i++)
   {
     rc = pthread_mutex_init(&mutexes[i], &attr);
     assert(!rc);
   }
 
-  for (int i = 1; i <= NCONDS; i++)
+  for (int i = 0; i < NCONDS; i++)
   {
     rc = pthread_cond_init(&conds[i], &cattr);
     assert(!rc);
@@ -73,13 +74,17 @@ void th_inits()
 void th_create_control(int *tid)
 {
   int rc;
+
+  assert(*tid >= 0 && *tid < NTHREADS);
   rc = pthread_create(&threads[*tid], &ThreadAttribute,(void *(*)(void *)) thread_control, NULL);
   assert(!rc);
 }
 
-void th_create_mail( int *tid)
+void th_create_mail(int *tid)
 {
   int rc;
+
+  assert(*tid >= 0 && *tid < NTHREADS);
   rc = pthread_create(&threads[*tid], &ThreadAttribute,(void *(*)(void *)) thread_mailbox, NULL);
   assert(!rc);
 }
@@ -89,32 +94,39 @@ void th_exit()
   pthread_exit(NULL);
 }
 
-void th_join_(int * name)
+void th_join_(int *tid)
 {
   int rc;
   void *status;
-  rc = pthread_join(threads[*name], &status);
+
+  assert(*tid >= 0 && *tid < NTHREADS);
+  rc = pthread_join(threads[*tid], &status);
   assert(!rc);
 }
 
 void th_mutex_lock(int *mutex)
 {
+  assert(*mutex >= 0 && *mutex < NMUTEXES);
   pthread_mutex_lock(&mutexes[*mutex]);
 }
 
 void th_mutex_unlock(int *mutex)
 {
+  assert(*mutex >= 0 && *mutex < NMUTEXES);
   pthread_mutex_unlock(&mutexes[*mutex]);
 }
 
 void th_cond_wait( int *condition, int *mutex)
 {
+  assert(*condition >= 0 && *condition < NCONDS);
+  assert(*mutex >= 0 && *mutex < NMUTEXES);
   //printf("COND %d WAITS %d\n", *condition, *mutex);
   pthread_cond_wait(&conds[*condition], &mutexes[*mutex]);
 }
 
 void th_cond_signal(int *condition)
 {
+  assert(*condition >= 0 && *condition < NCONDS);
   //printf("COND %d RELEASED\n", *condition);
   pthread_cond_signal (&conds[*condition]);
 }

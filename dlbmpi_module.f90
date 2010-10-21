@@ -189,11 +189,22 @@ integer, parameter :: comm_world = MPI_COMM_WORLD
   integer(kind=i4_kind), parameter  :: J_STP = 1 ! Number in job, where stp (start point) is stored
   integer(kind=i4_kind), parameter  :: J_EP = 2 ! Number in job, where ep (end point) is stored
   integer(kind=i4_kind), parameter  :: JOBS_LEN = SJOB_LEN  ! Length of complete jobs storage
-  integer(kind=i4_kind), parameter  :: LOCK_JS = 1 , LOCK_NJ = 2, LOCK_MR = 3, LOCK_TERM = 4
-                     !locks names for the threads (via mutex)
-  integer(kind=i4_kind), parameter   :: COND_JS_UPDATE = 1, COND_NJ_UPDATE = 2 ! condition numbers conversation
-  integer(kind=i4_kind), parameter   :: COND_JS2_UPDATE = 3 ! condition numbers conversation
-  integer(kind=i4_kind), parameter  ::  MAILBOX = 1, CONTROL = 2 ! for the new seperate threads
+
+  ! IDs of mutexes, use base-0 indices:
+  integer(kind=i4_kind), parameter :: LOCK_JS   = 0
+  integer(kind=i4_kind), parameter :: LOCK_NJ   = 1
+  integer(kind=i4_kind), parameter :: LOCK_MR   = 2
+  integer(kind=i4_kind), parameter :: LOCK_TERM = 3
+
+  ! IDs for condition variables, use base-0 indices:
+  integer(kind=i4_kind), parameter :: COND_JS_UPDATE  = 0
+  integer(kind=i4_kind), parameter :: COND_NJ_UPDATE  = 1
+  integer(kind=i4_kind), parameter :: COND_JS2_UPDATE = 2
+
+  ! thread IDs, use base-0 indices:
+  integer(kind=i4_kind), parameter :: MAILBOX = 0
+  integer(kind=i4_kind), parameter :: CONTROL = 1
+
   integer(kind=i4_kind), parameter  ::  MSGTAG = 166 ! message tag for all MPI communication
 
   integer(kind=i4_kind)            :: my_rank, n_procs ! some synonyms, They will be initialized once and afterwards
