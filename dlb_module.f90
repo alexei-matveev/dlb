@@ -243,12 +243,14 @@ contains
     ! and my report back
     term = .false.
     if(had_thief .or. (my_rank==termination_master)) term = check_messages()
-    if (term) then
-      my_job = start_job(:L_JOB)
-      my_job(J_STP) = my_job(J_EP)
-      call time_stamp("dlb_give_more: exit on TERMINATION flag", 1)
-      return
-    endif
+
+! This seems to be there with our local network, trying to avoid as much lock/unlocks as possible
+!   if (term) then
+!     my_job = start_job(:L_JOB)
+!     my_job(J_STP) = my_job(J_EP)
+!     call time_stamp("dlb_give_more: exit on TERMINATION flag", 1)
+!     return
+!   endif
 
     ! First try to get job from local storage (loop because some one lese may
     ! try to read from there (then local_tgetm = false)
