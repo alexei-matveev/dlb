@@ -1,5 +1,5 @@
 module test2
-#include 'thread_wrapper.h'
+
   implicit none
   private
   public :: test_calc
