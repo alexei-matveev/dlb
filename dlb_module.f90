@@ -197,7 +197,7 @@ contains
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, sizeofint, v, i
+    integer(kind=i4_kind)                :: ierr, sizeofint
     integer(kind=MPI_ADDRESS_KIND)       :: size_alloc, alloc_stat
     !------------ Executable code --------------------------------
 !   print *, "dlb_init: entered"
@@ -290,7 +290,7 @@ contains
     integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, v
+    integer(kind=i4_kind)                :: v
     logical                              :: term
     integer(i4_kind), target             :: jobs(SJOB_LEN)
     !------------ Executable code --------------------------------
@@ -468,12 +468,11 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr
-    logical                              :: flag
     integer(kind=i4_kind)                :: message(2)
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     print *,my_rank, "Left of my responsibility:", my_resp
     if (my_resp == 0) then
       if (my_rank == termination_master) then
@@ -644,17 +643,15 @@ contains
     !            second case, send to victim, how many of his jobs
     !            were finished
     !------------ Modules used ------------------- ---------------
-!   use
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in  ) :: my_jobs(SJOB_LEN)
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, alloc_stat
-    logical                              :: flag
     integer(kind=i4_kind)                :: num_jobs_done, message(2)
     integer(kind=i4_kind),allocatable    :: intermed(:)
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     print *, my_rank, "FINISHED a job, now report or store", my_jobs
     ! my_jobs hold recent last point, as proc started from beginning and
     ! steal from the back, this means that from the initial starting point on
@@ -715,11 +712,11 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: m, source
     integer(kind=i4_kind), intent(out  ) :: my_jobs(SJOB_LEN)
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, i, sap, w
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
+    integer(kind=i4_kind)                :: ierr, sap, w
     integer(i4_kind), target             :: jobs_infom(jobs_len)
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     my_jobs(J_EP)  = 0
     my_jobs(J_STP) = 0
     my_jobs(NRANK) = -1
@@ -892,7 +889,7 @@ contains
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
 !   !** End of interface *****************************************
 !   !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: jobs(SJOB_LEN), ierr
+    integer(kind=i4_kind)                :: ierr
     !------------ Executable code --------------------------------
     ! these variables are for the termination algorithm
     had_thief = .false.
