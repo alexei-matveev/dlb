@@ -334,10 +334,14 @@ contains
 
   subroutine dlb_finalize()
     !  Purpose: cleaning up everything, after last call
+    !
+    ! Context: main thread after joining other two
+    !
     !------------ Modules used ------------------- ---------------
     implicit none
     integer(kind=i4_kind)    :: alloc_stat
     !** End of interface *****************************************
+
     if (allocated(all_done)) then
       deallocate(all_done, stat=alloc_stat)
       !ASSERT(alloc_stat==0)
@@ -355,6 +359,9 @@ contains
     !  if there are not enough it will wait for either new ones to arrive
     !  or termination, the return value of my_jobs should only contain
     !  my_jobs(J_STP) == my_jobs(J_EP) if all procs are terminated
+    !
+    ! Context: main thread
+    !
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
@@ -389,6 +396,11 @@ contains
 
   logical function termination()
     ! Purpose: make lock around terminated, but have it as one function
+    !
+    ! Context: main, control, and mailbox threads
+    !
+    ! Locks: rdlock
+    !
     implicit none
     ! *** end of interface ***
 
@@ -406,6 +418,9 @@ contains
     !                there is no fear that MAILBOX will be stuck while
     !                all others already finished
     !               the clean up of the finished messges is also contained
+    !
+    ! Context: entry to mailbox thread
+    !
     !------------ Modules used ------------------- ---------------
     implicit none
     !** End of interface *****************************************
@@ -459,6 +474,9 @@ contains
   subroutine test_requests(requ)
     ! Purpose: tests if any of the messages stored in requ have been
     !          received, than remove the corresponding request
+    !
+    ! Context: mailbox thread, control thread, ???
+    !
     !------------ Modules used ------------------- ---------------
     implicit none
     !** End of interface *****************************************
@@ -524,6 +542,9 @@ contains
     !          remove jobs form new_jobs, as it may get back there not only after message of jobs
     !          but also after termination message (MAILBOX will wake it up)
     !          after termination first check if MAIN is waiting, wake it, than exit
+    !
+    ! Context: entry to control thread
+    !
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: select_victim
     implicit none
@@ -665,6 +686,15 @@ contains
     !          Job sended by another proc (after CONTROL sended a request)
     !          Except the last one, they are all handled only by this thread
     !          only after got job, put it in intermediate storage and wake CONTROL
+    !
+    ! Context: mailbox thread.
+    !
+    ! Locks: LOCK_NJ, LOCK_MR, wrlock, ???
+    !        - through divide_jobs(): LOCK_JS, wrlock.
+    !
+    ! Signals: COND_NJ_UPDATE
+    !        - through divide_jobs(): COND_JS_UPDATE.
+    !
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
@@ -737,11 +767,20 @@ contains
   end subroutine check_messages
 
   subroutine add_request(req, requ)
-    !Purpose: stores unfinished requests
+    ! Purpose: stores unfinished requests
+    !
+    ! Context: control thread, mailbox thread.
+    !
+    ! Locks: none.
+    !
+    implicit none
     integer, intent(in) :: req
     integer, allocatable :: requ(:)
+    ! *** end of interface ***
+
     integer, allocatable :: req_int(:)
     integer :: alloc_stat, len_req
+
     len_req = 0
     if (allocated(requ)) then
       len_req = size(requ,1)
@@ -763,6 +802,13 @@ contains
   subroutine check_termination(proc, thread)
     !  Purpose: only on termination_master, checks if all procs
     !           have reported termination
+    !
+    ! Context: mailbox thread, ???
+    !
+    ! Locks: wrlock on "terminated" flag.
+    !
+    ! Signals: none.
+    !
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
@@ -832,6 +878,14 @@ contains
     !           be finished, if my_resp == 0, I should tell termination_master
     !           that, termination master will collect all the finished resp's
     !           untill it gots all of them back
+    !
+    ! Context: mailbox thread, ???
+    !
+    ! Locks:
+    !       - through check_termination(): wrlock.
+    !
+    ! Signals: none.
+    !
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
@@ -845,6 +899,7 @@ contains
     print *,my_rank, "Left of my responsibility:", my_resp
     is_my_resp_done = .false.
     if (my_resp == 0) then
+      ! FIXME: why this if/else branch?
       if (my_rank == termination_master) then
         call check_termination(my_rank,thread)
       else
@@ -909,6 +964,12 @@ contains
     !           one from another, first case just change my number
     !            second case, send to victim, how many of his jobs
     !            were finished
+    !
+    ! Context: control thread, ???
+    !
+    ! Locks: LOCK_MR,
+    !        wrlock through is_my_resp_done()
+    !
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
@@ -952,8 +1013,16 @@ contains
   end function report_or_store
 
   logical function divide_jobs(partner, requ)
-    !  Purpose: chare jobs from job_storage with partner, tell
+    !  Purpose: share jobs from job_storage with partner, tell
     !           partner what he got
+    !
+    ! Context: mailbox thread.
+    !
+    ! Locks: LOCK_JS.
+    !       - through check_termination(): wrlock.
+    !
+    ! Signals: COND_JS_UPDATE.
+    !
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: reserve_workh
     implicit none
