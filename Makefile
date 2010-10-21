@@ -11,13 +11,12 @@ default: $(EXE)
 FC = mpif90
 CC = gcc
 
-MPIINCLUDE =    -I/usr/include/mpi
-MPILIBS =       -lmpi_f77 -lmpi
-THREADLIBS = -lpthread #-lfpthread
-CCLIBS = -lstdc++
+MPIINCLUDE =    #-I/usr/include/mpi
+MPILIBS =       #-lmpi_f77 -lmpi #-lopen-rte -lopen-pal
+THREADLIBS = -lpthread
 
 #### COMPILER FLAGS ####
-FFLAGS = -Wall -g -O2 #-fbounds-check
+FFLAGS = -frecursive -g -O2 #-fbounds-check # Intel: -diag-enable warn
 CFLAGS = -Wall -g -O1 -std=c99
 LINKFLAGS =
 
@@ -52,7 +51,7 @@ dlb_module.o dlbmpi_module.o: dlb_common.o
 # $(^) stays for all prerequisites, see deps above
 #
 $(EXE): $(objs) $(dlb_objs)
-	$(FC) $(FFLAGS) $(LINKFLAGS) $(LIBS) $(CCLIBS) $(MPIINCLUDE) $(^) -o $(@)
+	$(FC) $(FFLAGS) $(LINKFLAGS) $(LIBS) $(MPIINCLUDE) $(^) -o $(@)
 
 ##### SPECIAL COMMANDS #####
 clean:
