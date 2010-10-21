@@ -178,7 +178,6 @@ contains
 
 ! END ONLY FOR DEBUGGING
 
-  !*************************************************************
   subroutine dlb_init()
     !  Purpose: Initialization of the objects needed for running the dlb
     !           job scheduling, the most part is of setting up an RMA
@@ -237,7 +236,7 @@ contains
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
 !   print *, "dlb_init: exit"
   end subroutine dlb_init
-  !*************************************************************
+
   subroutine dlb_finalize()
     !  Purpose: shuts down the dlb objects (especially job_storage)
     !  when it is not further needed, should be called, after ALL
@@ -265,8 +264,6 @@ contains
     !ASSERT(alloc_stat==0)
     call assert_n(alloc_stat==0, 1)
   end subroutine dlb_finalize
-
-  !*************************************************************
 
   subroutine dlb_give_more(n, my_job)
     !  Purpose: Returns next bunch of up to n jobs, if jobs(J_EP)<=
@@ -334,8 +331,6 @@ contains
     call time_stamp("dlb_give_more: exit")
   end subroutine dlb_give_more
 
-  !*************************************************************
-
   logical function check_messages()
     !  Purpose: checks if any message has arrived, checks for messages:
     !          Someone finished stolen job slice
@@ -344,13 +339,13 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE), alloc_stat
     logical                              :: flag
     integer(kind=i4_kind)                :: message(2)
     integer(kind=i4_kind), allocatable  :: statusse(:,:)
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     ! check for any message
     call MPI_IPROBE(MPI_ANY_SOURCE, 185, comm_world,flag, stat, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
@@ -405,7 +400,6 @@ contains
     endif
   end function check_messages
   
-  !************************************************************
   subroutine check_termination(proc)
     !  Purpose: only on termination_master, checks if all procs
     !           have reported termination
@@ -413,13 +407,13 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in)    :: proc
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, i, alloc_stat
     logical                              :: finished
     integer(kind=i4_kind), allocatable   :: request(:), stats(:,:)
     integer(kind=i4_kind)                :: receiver, message(2)
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     ! all_done stores the procs, which have already my_resp = 0
     all_done(proc+1) = .true.
     ! check if there are still some procs not finished
@@ -452,7 +446,7 @@ contains
       call assert_n(ierr==MPI_SUCCESS, 4)
     endif
   end subroutine check_termination
-  !************************************************************
+
   subroutine is_my_resp_done()
     !  Purpose: my_resp holds the number of jobs, assigned at the start
     !           to this proc, so this proc is responsible that they will
@@ -481,15 +475,11 @@ contains
     endif
   end subroutine is_my_resp_done
 
-  !************************************************************
-
   integer(kind=i4_kind) function select_victim()
      ! Purpose: decide of who to try next to get any jobs
      select_victim = select_victim_random2()
      !select_victim = select_victim_r()
   end function select_victim
-
-  !*************************************************************
 
   integer(kind=i4_kind) function select_victim_r()
      ! Purpose: decide of who to try next to get any jobs
@@ -502,8 +492,6 @@ contains
         count = count + 1
      endif
   end function select_victim_r
-
-  !*************************************************************
 
   integer(kind=i4_kind) function select_victim_random2()
      ! Purpose: decide of who to try next to get any jobs
@@ -545,7 +533,7 @@ contains
      call random_number(harv)
      call random_seed(get=random)
   end function select_victim_random2
-  !*************************************************************
+
   integer(kind=i4_kind) function select_victim_random()
      ! Purpose: decide of who to try next to get any jobs
      ! Uses primitive pseudorandom code X_n+1 = (aX_n + b)mod m
@@ -571,7 +559,7 @@ contains
      if (select_victim_random == my_rank) select_victim_random = select_victim_r()
 !    print *, "RRRRRRRRRRR random victim", select_victim_random, my_rank
   end function select_victim_random
-  !*************************************************************
+
    logical function local_tgetm(m, my_jobs)
     !  Purpose: returns true if could acces the global memory with
     !            the local jobs of the machine, false if there is already
@@ -586,10 +574,10 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: m
     integer(kind=i4_kind), intent(out  ) :: my_jobs(SJOB_LEN)
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, sap, w
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
@@ -631,7 +619,7 @@ contains
     call assert_n(ierr==MPI_SUCCESS, 4)
 !   print *, "local_tgetm: exit", my_rank
   end function local_tgetm
-  !*************************************************************
+
   subroutine report_or_store(my_jobs)
     !  Purpose: If a job is finished, this cleans up afterwards
     !           Needed for termination algorithm, there are two
@@ -690,8 +678,8 @@ contains
       call assert_n(ierr==MPI_SUCCESS, 4)
     endif
   end subroutine report_or_store
-  !*************************************************************
-   logical function rmw_tgetm(m,source, my_jobs)
+
+  logical function rmw_tgetm(m,source, my_jobs)
     !  Purpose: read-modify-write variant fo getting m from another proc
     !           source, returns true if the other proc has its memory free
     !           false if it is not
@@ -818,20 +806,20 @@ contains
       endif
     endif
   end function rmw_tgetm
-  !*************************************************************
+
   integer(kind=i4_kind) function reserve_workm(m, jobs)
     integer(kind=i4_kind), intent(in   ) :: m
     integer(kind=i4_kind), intent(in   ) :: jobs(:)
     ! PURPOSE: give back number of jobs to take, should be up to m, but
     ! less if there are not so many available
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     !------------ Executable code --------------------------------
     reserve_workm = min(jobs(J_EP) - jobs(J_STP), m)
     reserve_workm = max(reserve_workm, 0)
   end function reserve_workm
-  !*************************************************************
-   subroutine store_new_work(my_jobs)
+
+  subroutine store_new_work(my_jobs)
     !  Purpose: stores the new jobs (minus the ones for direct use)
     !           in the storage, as soon as there a no more other procs
     !           trying to do something
@@ -839,10 +827,10 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in  ) :: my_jobs(jobs_len)
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, sap
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
     sap = 1
     !ASSERT(sum(my_jobs(SJOB_LEN+1:))==0)
     call assert_n(sum(my_jobs(SJOB_LEN+1:))==0, 4)
@@ -865,13 +853,13 @@ contains
 !     print *, "local_tgetm: exit", my_rank
     enddo
   end subroutine store_new_work
-  !*************************************************************
+
   integer(kind=i4_kind) function reserve_workh(m,jobs)
     integer(kind=i4_kind), intent(in   ) :: m
     integer(kind=i4_kind), intent(in   ) :: jobs(:)
     ! Purpose: give back number of jobs to take, half what is there
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: many_jobs
     !------------ Executable code --------------------------------
     many_jobs = (jobs(J_EP) - jobs(J_STP))
@@ -881,7 +869,7 @@ contains
     reserve_workh =  (many_jobs /(2* m))* m
     reserve_workh = max(reserve_workh, 0)
   end function reserve_workh
-  !*************************************************************
+
   subroutine dlb_setup(job)
     !  Purpose: initialization of a dlb run, each proc should call
     !           it with inital jobs. The inital jobs should be a
@@ -894,8 +882,8 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr
     !------------ Executable code --------------------------------
     ! these variables are for the termination algorithm
@@ -926,8 +914,5 @@ contains
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
   end subroutine dlb_setup
-  !*************************************************************
 
-
-  !--------------- End of module ----------------------------------
 end module dlb
