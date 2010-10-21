@@ -1,7 +1,7 @@
 !===============================================================
 ! Public interface of module
 !===============================================================
-module dlb_module
+module dlb
   !---------------------------------------------------------------
   !
   !  Purpose: takes care about dynamical load balancing,
@@ -931,4 +931,4 @@ contains
 
 
   !--------------- End of module ----------------------------------
-end module dlb_module
+end module dlb

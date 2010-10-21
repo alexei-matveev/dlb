@@ -1,7 +1,7 @@
 !===============================================================
 ! Public interface of module
 !===============================================================
-module dlbmpi_module
+module dlb
   !---------------------------------------------------------------
   !
   !  Purpose: takes care about dynamical load balancing,
@@ -1098,14 +1098,14 @@ contains
   !--------------- End of module ----------------------------------
 
 ! make routines for CONTROL and MAILBOX extern, for usage in c-wrapper
-end module dlbmpi_module
+end module dlb
 
 subroutine thread_control()
-  use dlbmpi_module
+  use dlb
   call thread_control1()
 end subroutine thread_control
 
 subroutine thread_mailbox()
-  use dlbmpi_module
+  use dlb
   call thread_mailbox1()
 end subroutine thread_mailbox

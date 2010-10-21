@@ -5,7 +5,7 @@ program main
 ! Purpose: starts tests
 ! End of public interface
 
-use dlb_module
+use dlb
 use test2, only: test_calc
 implicit none
 include 'mpif.h'
