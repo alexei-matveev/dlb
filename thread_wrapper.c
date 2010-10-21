@@ -17,9 +17,12 @@ void th_mutex_unlock_(int *mutex);
 void th_cond_wait_(int *condition, int *mutex);
 void th_cond_signal_(int *condition);
 
+#define NMUTEXES 4
+#define NCONDS 3
+
 pthread_t threads[4];
-pthread_mutex_t mutexes[4];
-pthread_cond_t conds[3];
+pthread_mutex_t mutexes[NMUTEXES];
+pthread_cond_t conds[NCONDS];
 
 pthread_attr_t ThreadAttribute;
 pthread_mutexattr_t attr;
@@ -65,7 +68,7 @@ void th_inits_()
       printf("Error:  pthread_condattr_setpshared failed with %d\n", rc);
       exit(-1);
       }
-  for (int i = 1; i <= 4; i++)
+  for (int i = 1; i <= NMUTEXES; i++)
   {
    rc = pthread_mutex_init(&mutexes[i], &attr);
   if (rc) {
@@ -73,7 +76,7 @@ void th_inits_()
       exit(-1);
       }
   }
-  for (int i = 1; i <= 3; i++)
+  for (int i = 1; i <= NCONDS; i++)
   {
    rc = pthread_cond_init(&conds[i], &cattr);
   if (rc) {
