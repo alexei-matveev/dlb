@@ -26,7 +26,7 @@ CCLIBS = -lstdc++
 #### COMPILER FLAGS ####
 # These are not critical:
 FFLAGS = -g -O2 #-fbounds-check
-CFLAGS = -g -01
+CFLAGS = -g -O1
 LINKFLAGS =
 
 #### LDFLAGS, LIBRARY-PATH ####
