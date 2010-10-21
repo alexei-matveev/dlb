@@ -383,17 +383,17 @@ contains
 
   integer(i4_kind) function decrease_resp(n)
     ! Purpose: make lock around my_resp, decrease it by done jobs
-    !          and give it back for further inspections
+    !          and retruns updated value further inspections
     !
     ! Context: control, and mailbox threads.
     !
-    ! Locks: rdlock
+    ! Locks: wrlock
     !
     implicit none
     integer(i4_kind), intent(in)  :: n
     ! *** end of interface ***
 
-    call rdlock()
+    call wrlock()
     my_resp = my_resp - n
     decrease_resp = my_resp
     call unlock()
