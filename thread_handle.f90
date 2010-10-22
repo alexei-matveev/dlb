@@ -5,6 +5,7 @@ module thread_handle
   use dlb_common, only: assert_n, time_stamp, time_stamp_prefix ! for debug only
   use dlb_common, only: SJOB_LEN, J_EP, J_STP, MSGTAG, NO_WORK_LEFT
   use dlb_common, only: has_last_done, set_empty_job, add_request, send_termination
+  use dlb_common, only: masterserver
   use mpi
   implicit none
 
@@ -85,7 +86,6 @@ module thread_handle
   integer(kind=i4_kind), parameter, public  :: JOBS_LEN = SJOB_LEN  ! Length of complete jobs storage
   ! IDs of mutexes, use base-0 indices:
   integer(kind=i4_kind), parameter, public :: LOCK_JS   = 0
-  logical, parameter :: masterserver = .false. ! changes to different variant (master slave concept for comparision)
   integer(kind=i4_kind)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
   logical                           :: terminated ! for termination algorithm
 

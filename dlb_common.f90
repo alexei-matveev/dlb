@@ -66,6 +66,7 @@ module dlb_common
   integer(kind=i4_kind), parameter, public  :: J_STP = 1 ! Number in job, where stp (start point) is stored
   integer(kind=i4_kind), parameter, public  :: J_EP = 2 ! Number in job, where ep (end point) is stored
   integer(kind=i4_kind), parameter, public  ::  MSGTAG = 166 ! message tag for all MPI communication
+    logical, parameter, public :: masterserver = .false. ! changes to different variant (master slave concept for comparision)
   integer(kind=i4_kind), public       :: my_rank, n_procs ! some synonyms, They will be initialized once and afterwards
                                         ! be read only
   integer(kind=i4_kind), public             ::  termination_master ! the one who gathers the finished my_resp's

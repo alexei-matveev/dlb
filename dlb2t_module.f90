@@ -92,6 +92,7 @@ module dlb
   use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, SJOB_LEN, L_JOB, NRANK, J_STP, J_EP, MSGTAG
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
+  use dlb_common, only: masterserver
   use iso_c_binding
   use thread_handle
   use mpi

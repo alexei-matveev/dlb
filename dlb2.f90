@@ -74,6 +74,7 @@ module dlb2
 use dlb, only: dlb_init, dlb_setup, dlb_finalize, dlb_give_more
 ! Need here some stuff, that is already defined elsewere
 use dlb_common, only: my_rank, n_procs, J_STP, J_EP, L_JOB
+use dlb_common, only: masterserver, termination_master
 use dlb_common, only: i4_kind
 implicit none
 save            ! save all variables defined in this module
@@ -157,6 +158,33 @@ contains
     call dlb_setup(my_jobs)
   end subroutine distribute_jobs
   !*************************************************************
+  subroutine distribute_jobs_master(N)
+    !  Purpose: given the number of jobs alltogether, decides how many
+    !           will be done on each proc and where is start and endpoint
+    !           in the global job range, this will be fed directly in
+    !           the dlb_setup of the dlb routine
+    !           masterserver variant, 70% are distributed beforehand
+    !           the rest is on the master
+    !------------ Modules used ------------------- ---------------
+    implicit none
+    !------------ Declaration of formal parameters ---------------
+    integer(kind=i4_kind), intent(in   ) :: N
+!   !** End of interface *****************************************
+!   !------------ Declaration of local variables -----------------
+    integer(kind=i4_kind)                :: jobs_per_proc, rest, my_jobs(L_JOB)
+    jobs_per_proc = N / n_procs * 7 / 10
+    my_jobs(J_STP) = jobs_per_proc * my_rank
+    ! if it is not dividable, distribute the rest
+    ! this will shift the start point of each (but the first) proc
+    my_jobs(J_EP) = my_jobs(J_STP) + jobs_per_proc
+    if (my_rank == termination_master) then
+      my_jobs(J_EP) = N
+    endif
+    !print *, my_rank, "has jobs", my_jobs, "of", N
+    ! This is the dlb routine setup, which stores the job for the run
+    call dlb_setup(my_jobs)
+  end subroutine distribute_jobs_master
+  !*************************************************************
   subroutine dlb2_setup(N)
     !  Purpose: initialization of a dlb run, each proc should call
     !           it with the number of jobs alltogether. This is the
@@ -166,7 +194,11 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: N
-    call distribute_jobs(N)
+    if (masterserver) then
+      call distribute_jobs_master(N)
+    else
+      call distribute_jobs(N)
+    endif
   end subroutine dlb2_setup
   !*************************************************************
   subroutine dlb2_setup_color(distr)
@@ -203,8 +235,13 @@ contains
     do i = 2, many_colors +1
       start_color(i) = start_color(i-1) + job_distribution(i-1,J_EP) - job_distribution(i-1,J_STP)
     enddo
-    call distribute_jobs( start_color(many_colors + 1)) ! internal the jobs are treated as
-    ! equal from the dlb-framework
+    if (masterserver) then
+      call distribute_jobs_master( start_color(many_colors + 1)) ! internal the jobs are treated as
+      ! equal from the dlb-framework
+    else
+      call distribute_jobs( start_color(many_colors + 1)) ! internal the jobs are treated as
+      ! equal from the dlb-framework
+    endif
   end subroutine dlb2_setup_color
   !*************************************************************
   subroutine dlb2_give_more(n, my_job)
