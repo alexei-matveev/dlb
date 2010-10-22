@@ -237,7 +237,7 @@ contains
     integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB), color
 !   !** End of interface *****************************************
 !   !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: i,  w, jobs_all, jobs_color, current_color
+    integer(kind=i4_kind)                :: i,  w, jobs_all, jobs_color, current_color, ierr
     if (current_jobs(J_STP) >= current_jobs(J_EP)) then ! only if the own storage is empty, refill
      call dlb_give_more(n, current_jobs)
     endif
@@ -245,6 +245,14 @@ contains
     if (current_jobs(J_STP) >= current_jobs(J_EP)) then ! got empty job from dlb, thus all done, quit
       my_job = current_jobs
       color = 0
+      if (allocated(job_distribution)) then
+        deallocate(job_distribution, stat = ierr)
+        !ASSERT(ierr==0)
+      endif
+      if (allocated(start_color)) then
+        deallocate(start_color, stat = ierr)
+        !ASSERT(ierr==0)
+      endif
       RETURN
     endif
 
