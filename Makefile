@@ -1,67 +1,79 @@
 # -*- makefile -*-
-#  ### Makefile for utilites
+#  ### Makefile for dlb library
 
-# executable:
-EXE = test_dlb
+#
+# DLB library, used for tests and in PG:
+#
+libdlb.a = libdlb.a
 
-# default build target:
-default: $(EXE)
+#
+# Executable for independant test case:
+#
+test_dlb = test_dlb
 
-# compilers:
-FC = mpif90
-CC = gcc
+#
+# Default targets:
+#
+all: $(libdlb.a) $(test_dlb)
 
-MPIINCLUDE =    #-I/usr/include/mpi
-MPILIBS =       #-lmpi_f77 -lmpi #-lopen-rte -lopen-pal
-THREADLIBS = -lpthread
+# for inclusion of for example the right fortran (or C) compiler
+# But be aware that the compiler flags will be reset
+include ../machine.inc
 
-#### COMPILER FLAGS ####
+#### RESET COMPILER FLAGS ####
 FFLAGS = -frecursive -g -O2 #-fbounds-check # Intel: -diag-enable warn
 CFLAGS = -Wall -g -O1 -std=c99 -D_XOPEN_SOURCE=500
 # set _XOPEN_SOURCE=500 to make rwlocks available
-LINKFLAGS =
 
-#### LDFLAGS, LIBRARY-PATH ####
-LIBS = $(MPILIBS) #$(THREADLIBS)
-
-#
-# Objects common for all implementations:
-#
-objs = main.o test.o dlb_common.o
+CPP = cpp --traditional-cpp
+#CPP = cpp --traditional-cpp  -I../include
 
 #
 # Depending on the target set $(dlb_objs):
 #
-#dlb_objs = dlb_static.o
+dlb_objs = dlb_static.o
 #dlb_objs = dlb_module.o
 #dlb_objs = dlbmpi_module.o thread_handle.o thread_wrapper.o
-dlb_objs = dlb2t_module.o thread_handle.o thread_wrapper.o
+#dlb_objs = dlb2t_module.o thread_handle.o thread_wrapper.o
 
-# WHY? dlbmpi_module.o: thread_wrapper.o
+# in the library should also be the genearl file as well as the extensions
+objs =  dlb2.o dlb_common.o $(dlb_objs)
 
-main.o: test.o $(dlb_objs)
-dlb_module.o dlbmpi_module.o thread_handle.o dlb2t_module.o: dlb_common.o
+# This is the dlb library
+$(libdlb.a): $(objs)
+	$(AR) ruv $@  $(^)
+	$(RANLIB) $@
+
+# for including the library in the test example
+LIBS = -L. -ldlb
+
+# dependencies
+dlb_module.o dlbmpi_module.o thread_handle.o dlb2t_module.o dlb_static.o: dlb_common.o
 dlbmpi_module.o: thread_handle.o thread_wrapper.o
 dlb2t_module.o: thread_handle.o thread_wrapper.o
 thread_handle.o: thread_wrapper.o
+dlb2.o: $(dlb_objs)
+main.o: test.o $(libdlb.a)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $(<)
 
-%.o: %.f90
-	$(FC) $(FFLAGS) $(MPIINCLUDE) -c $(<)
+.PRECIOUS: %.F90
+%.F90: %.f90
+	$(CPP) $(<) > $(*).F90
 
-#
-# $(@) stays for the target (respective executable)
-# $(^) stays for all prerequisites, see deps above
-#
-$(EXE): $(objs) $(dlb_objs)
-	$(FC) $(FFLAGS) $(LINKFLAGS) $(LIBS) $(MPIINCLUDE) $(^) -o $(@)
+%.o: %.F90
+	$(FC) $(FFLAGS) -c $(<)
+
+# this is how the test example should be build
+$(test_dlb): main.o test.o $(libdlb.a)
+	$(FC) $(FFLAGS) $(LIBS) $(^) -o $(@)
 
 ##### SPECIAL COMMANDS #####
 clean:
 	rm -f *.o
+	rm -f *.F90
 	rm -f *.mod
 	rm -f *~
-	rm -f $(EXE)
-
+	rm -f $(test_dlb)
+	rm -f $(libdlb.a)
