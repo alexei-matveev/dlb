@@ -528,6 +528,8 @@ contains
       call time_stamp("free",4)
       my_jobs = jobs_infom(:SJOB_LEN)
       if (w == 0) then ! nothing to steal, set default
+        ! FIXME: should we in this case only reset the user lock data? see
+        ! Comments in store_new_work
         my_jobs = set_empty_job()
         many_zeros = many_zeros + 1
       else ! take the last w jobs of the job-storage
@@ -575,6 +577,21 @@ contains
     !  Purpose: stores the new jobs (minus the ones for direct use)
     !           in the storage, as soon as there a no more other procs
     !           trying to do something
+    !
+    !      FIXME:  the while loop may be go on for ever: because it
+    !              is nowere ensured that the current processor will
+    !              find its memory unlocked of the user lock by the others
+    !              some times. If all other procs have finished and this
+    !              one wants to write the additional jobs in its own storage
+    !              it may find each time it gets the win_lock a user lock
+    !              by someone else. This has already happend if some procs
+    !              were trying to get their local_tgetm when all were
+    !              finished. In this case a checking for termination stuff
+    !              already im the local loop helped. Here a solution could be
+    !              that the proc could use the additional information that the storage
+    !              is empty and write back anyhow. In this case stealing procs,
+    !              which find empty storage are allowed only to reset the
+    !              lock relevant part of the storage
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
