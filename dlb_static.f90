@@ -43,6 +43,7 @@ module dlb
 ! Description: ...
 !
 !----------------------------------------------------------------
+use dlb_common, only: dlb_common_init, dlb_common_finalize
 implicit none
 ! ONLY FOR DEBBUGING WITHOUT PARAGAUSS
   include 'mpif.h'
@@ -77,18 +78,14 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !** End of interface *****************************************
-! ONLY FOR DEBBUGING WITHOUT PARAGAUSS
-    integer :: ierr
-    call MPI_COMM_RANK( MPI_COMM_WORLD, my_rank, ierr )
-! END ONLY FOR DEBUGGING
-    return
+    call dlb_common_init()
   end subroutine dlb_init
   !*************************************************************
   subroutine dlb_finalize()
     !  Purpose: cleaning up everything, after last call
     !------------ Modules used ------------------- ---------------
     implicit none
-    return
+    call dlb_common_finalize()
   end subroutine dlb_finalize
   !*************************************************************
   subroutine dlb_give_more(n, my_job)
