@@ -85,6 +85,7 @@ module dlb
   use dlb_common, only: add_request, test_requests, end_requests, send_resp_done, report_job_done
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
+  use dlb_common, only: decrease_resp
   implicit none
   save            ! save all variables defined in this module
   private         ! by default, all names are private
@@ -108,7 +109,6 @@ module dlb
   integer(kind=i4_kind)             :: start_job(SJOB_LEN) ! job_storage is changed a lot, backup for
                                      ! finding out, if someone has stolen something, or how many jobs one
                                      ! has done, when job_storage hold no more jobs
-  integer(kind=i4_kind)             :: my_resp ! number of jobs, this processor is responsible for (given
                                               ! in setup
   logical                           :: had_thief ! only check for messages if there is realy a change that there are some
   logical                           :: terminated!, finishedjob ! for termination algorithm
@@ -294,8 +294,7 @@ contains
       if (message(1) == DONE_JOB) then ! someone finished stolen job slice
          !ASSERT(message>0)
          call assert_n(message(2)>0, 4)
-         my_resp = my_resp - message(2)
-         if (my_resp == 0) then
+         if (decrease_resp(message(2), stat(MPI_SOURCE)) == 0) then
            if (my_rank == termination_master) then
              call check_termination(my_rank)
            else
@@ -452,9 +451,8 @@ contains
     !if (num_jobs_done == 0) return ! there is non job, thus why care
 
     if (start_job(NRANK) == my_rank) then
-      my_resp = my_resp - num_jobs_done
       my_resp_self = my_resp_self + num_jobs_done
-      if (my_resp == 0) then
+      if (decrease_resp(num_jobs_done, my_rank)== 0) then
         if (my_rank == termination_master) then
           call check_termination(my_rank)
         else
@@ -640,21 +638,20 @@ contains
     ! these variables are for the termination algorithm
     had_thief = .false.
     terminated = .false.
-    call dlb_common_setup()
+    ! set starting values for the jobs, needed also in this way for
+    ! termination, as they will be stored also in the job_storage
+    ! start_job should only be changed if all current jobs are finished
+    ! and there is a try to steal new ones
+    start_job = set_start_job(job)
+    call dlb_common_setup(start_job(J_EP) - start_job(J_STP))
     many_tries = 0
     many_searches = 0
     many_locked = 0
     many_zeros = 0
     my_resp_self = 0
     your_resp = 0
-    ! set starting values for the jobs, needed also in this way for
-    ! termination, as they will be stored also in the job_storage
-    ! start_job should only be changed if all current jobs are finished
-    ! and there is a try to steal new ones
-    start_job = set_start_job(job)
     ! needed for termination
-    my_resp = start_job(J_EP) - start_job(J_STP)
-    my_resp_start = my_resp
+    my_resp_start = start_job(J_EP) - start_job(J_STP)
     ! Job storage holds all the jobs currently in use
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
     !ASSERT(ierr==MPI_SUCCESS)

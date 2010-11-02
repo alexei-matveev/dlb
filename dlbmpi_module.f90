@@ -96,6 +96,7 @@ module dlb
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
   use dlb_common, only: masterserver
+  use dlb_common, only: decrease_resp
   use iso_c_binding
   use thread_handle
   use mpi
@@ -141,7 +142,6 @@ module dlb
   integer(kind=i4_kind)             :: start_job(SJOB_LEN) ! job_storage is changed a lot, backup for
                                      ! finding out, if someone has stolen something, or how many jobs one
                                      ! has done, after initalization only used by CONTROL
-  integer(kind=i4_kind)             :: my_resp ! number of jobs, this processor is responsible for (given
                                               ! in setup
   logical                           :: i_am_waiting ! Thead 0 (main thread) is waiting for CONTROL
 
@@ -163,6 +163,8 @@ module dlb
   ! * my_resp: read: CONTROL, MAILBOX
   !          write: CONTROL, MAILBOX
   !          for termination algorithm, CONTROL and MAILBOX may have knowledge about finished jobs
+  !          stored in dlb_common, after other threads have been initalized, will be only accessed
+  !          with function decrease_resp
   !
   ! Those below are the mutexes that are used in combination with signals:
   !
@@ -289,7 +291,7 @@ contains
     my_job = jobs(:L_JOB)
   end subroutine dlb_give_more
 
-  integer(i4_kind) function decrease_resp(n)
+  integer(i4_kind) function decrease_resp_locked(n, source)
     ! Purpose: make lock around my_resp, decrease it by done jobs
     !          and return updated value for further inspections
     !
@@ -298,14 +300,13 @@ contains
     ! Locks: wrlock
     !
     implicit none
-    integer(i4_kind), intent(in)  :: n
+    integer(i4_kind), intent(in)  :: n, source
     ! *** end of interface ***
 
     call wrlock()
-    my_resp = my_resp - n
-    decrease_resp = my_resp
+    decrease_resp_locked = decrease_resp(n, source)
     call unlock()
-  end function decrease_resp
+  end function decrease_resp_locked
 
   subroutine thread_secretary() bind(C)
   end subroutine
@@ -391,7 +392,9 @@ contains
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: i, v, ierr, stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind)                :: message(1 + SJOB_LEN), requ_wr
+    integer(kind=i4_kind)                :: message(1 + SJOB_LEN) ! there will be always
+                                                 ! only one job request around, thus saved
+    integer(kind=i4_kind)                :: requ_wr
     integer(kind=i4_kind)                :: my_jobs(SJOB_LEN)
     integer(kind=i4_kind),allocatable    :: requ_c(:) !requests storages for CONTROL
     double precision :: timestart, timeend
@@ -530,7 +533,7 @@ contains
       !ASSERT(message>0)
       call assert_n(message(2)>0, 4)
 
-      if (decrease_resp(message(2)) == 0) then
+      if (decrease_resp_locked(message(2),stat(MPI_SOURCE)) == 0) then
         call send_resp_done( requ_m)
       endif
 
@@ -614,7 +617,7 @@ contains
     ! Context: control thread.
     !
     ! Locks: wrlock,
-    !        wrlock through decrease_resp()
+    !        wrlock through decrease_resp_locked()
     !
     !------------ Modules used ------------------- ---------------
     implicit none
@@ -635,7 +638,7 @@ contains
     !if (num_jobs_done == 0) return ! there is non job, thus why care
     if (start_job(NRANK) == my_rank) then
       my_resp_self = my_resp_self + num_jobs_done
-      if(decrease_resp(num_jobs_done)== 0) then ! if all my jobs are done
+      if(decrease_resp_locked(num_jobs_done, my_rank)== 0) then ! if all my jobs are done
          call send_resp_done(requ)
       endif
     else
@@ -669,17 +672,16 @@ contains
     count_messages = 0
     count_offers = 0
     count_requests = 0
-    call dlb_common_setup()
     ! set starting values for the jobs, needed also in this way for
     ! termination, as they will be stored also in the job_storage
     ! start_job should only be changed if all current jobs are finished
     start_job = set_start_job(job)
-    ! needed for termination
-    my_resp = start_job(J_EP) - start_job(J_STP)
-    my_resp_start = my_resp
+    call dlb_common_setup(start_job(J_EP) - start_job(J_STP))
+    ! only for debugging:
+    my_resp_start = start_job(J_EP) - start_job(J_STP)
     ! Job storage holds all the jobs currently in use
     job_storage(:SJOB_LEN) = start_job
-    ! from now on, there are several threads, so chared objects have to
+    ! from now on, there are several threads, so shared objects have to
     ! be locked/unlocked in order to use them!!
     call th_create_all()
     call time_stamp("finished setup", 3)

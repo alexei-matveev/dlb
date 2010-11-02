@@ -48,6 +48,7 @@ module dlb_common
   public :: add_request, test_requests, end_requests
   public :: send_resp_done, report_job_done, send_termination, has_last_done
   public :: set_start_job, set_empty_job
+  public :: decrease_resp
 
   ! integer with 4 bytes, range 9 decimal digits
   integer, parameter, public :: i4_kind = selected_int_kind(9)
@@ -72,7 +73,12 @@ module dlb_common
   integer(kind=i4_kind), public             ::  termination_master ! the one who gathers the finished my_resp's
                                          ! and who tells all, when it is complety finished
                                          ! in case of the variant with master as server of jobs, its also the master
-
+  integer(kind=i4_kind), allocatable :: my_resp(:)
+  integer(kind=i4_kind), allocatable :: messages(:,:), req_dj(:) !need to store the messages for DONE_JOB,
+                     ! as they may still be not finished, when the subroutine for generating them is finshed.
+                     ! There may be a lot of them, message_on_way keeps track, to whom they are already on their way
+                     ! the requests are handeled also separately, as it is needed to know, which one has finsished:
+  logical, allocatable :: message_on_way(:) ! which messages are already sended
   !================================================================
   ! End of public interface of module
   !================================================================
@@ -131,6 +137,7 @@ contains
 
   subroutine dlb_common_init()
     ! Intialization of common stuff, needed by all routines
+    implicit none
     integer :: ierr, alloc_stat
     call MPI_COMM_DUP(MPI_COMM_WORLD, comm_world, ierr)
     !ASSERT(ierr==0)
@@ -151,6 +158,7 @@ contains
 
   subroutine dlb_common_finalize()
     ! shut down the common stuff, as needed
+    implicit none
     integer :: ierr, alloc_stat
     call MPI_COMM_FREE( comm_world, ierr)
     !ASSERT(ierr==0)
@@ -162,10 +170,28 @@ contains
     endif
   end subroutine
 
-  subroutine dlb_common_setup()
+  subroutine dlb_common_setup(resp)
     ! Termination master start of a new dlb run
     implicit none
+    integer(kind=i4_kind), intent(in   ) :: resp
+    integer ::  alloc_stat
     if (allocated(all_done)) all_done  = .false.
+    ! if there is any exchange of jobs, the following things are needed
+    ! (they will help to get the DONE_JOB messages on their way)
+    allocate(messages(n_procs, SJOB_LEN + 1), message_on_way(n_procs), stat = alloc_stat)
+    !ASSERT(alloc_stat==0)
+    call assert_n(alloc_stat==0, 1)
+    allocate(my_resp(n_procs), req_dj(n_procs), stat = alloc_stat)
+    !ASSERT(alloc_stat==0)
+    call assert_n(alloc_stat==0, 1)
+    ! Here they are initalizied, at the beginning none message has been
+    ! put on its way, from the messages we know everything except the
+    ! second entry which will be the number of jobs done
+    messages(1,:) = DONE_JOB
+    messages(3:,:) = 0
+    message_on_way = .false.
+    my_resp = 0
+    my_resp(my_rank) = resp
   end subroutine dlb_common_setup
 
   ! To make it easier to add for example new job informations
@@ -420,6 +446,22 @@ contains
     deallocate(requ_int, finished, stat = alloc_stat)
     !ASSERT(alloc_stat==0)
     call assert_n(alloc_stat==0, 4)
+    do i = 0, size(message_on_way) ! messages for DONE_JOBS
+          ! have to be handled separatly, as the messages have
+          ! to be kept and may not be changed till the request
+          ! has been sended, but here also some messages
+          ! may be finished, message_on_way stores informations
+          ! to whom there are still some messages of DONE_JOBS
+          ! on their way
+      if (message_on_way(i)) then
+        call MPI_TEST(req_dj(i), flag, stat, ierr)
+        !ASSERT(ierr==MPI_SUCCESS)
+        call assert_n(ierr==MPI_SUCCESS, 4)
+        if (flag) then
+           message_on_way(i) = .false.
+        endif
+      endif
+    enddo
   end subroutine test_requests
 
   subroutine end_requests(requ)
@@ -434,6 +476,7 @@ contains
     !------------ Declaration of local variables -----------------
     integer, allocatable :: requ(:)
     integer(kind=i4_kind)                :: i, ierr
+    integer(kind=i4_kind)                :: alloc_stat
     integer(kind=i4_kind)                :: stat(MPI_STATUS_SIZE)
     !------------ Executable code --------------------------------
     if (allocated(requ)) then
@@ -445,11 +488,50 @@ contains
         !ASSERT(ierr==MPI_SUCCESS)
         call assert_n(ierr==MPI_SUCCESS, 4)
       enddo
-      deallocate(requ)
+      deallocate(requ, stat=alloc_stat)
+      !ASSERT(alloc_stat==0)
+      call assert_n(alloc_stat==0, 4)
     endif
+    do i = 1, size(req_dj)
+      if (message_on_way(i)) then
+        ! the messages DONE_JOB should be all finshed already
+        ! so using MPI_CANCEL is just for being completly certain
+        call MPI_CANCEL(req_dj(i), ierr)
+        !ASSERT(ierr==MPI_SUCCESS)
+        call assert_n(ierr==MPI_SUCCESS, 4)
+        call MPI_WAIT(req_dj(i),stat, ierr)
+        !ASSERT(ierr==MPI_SUCCESS)
+        call assert_n(ierr==MPI_SUCCESS, 4)
+      endif
+    enddo
+    ! these variables will only be needed after the next dlb-setup
+    deallocate(message_on_way, req_dj, messages, my_resp, stat=alloc_stat)
+    !ASSERT(alloc_stat==0)
+    call assert_n(alloc_stat==0, 4)
   end subroutine end_requests
 
 ! algorithm for termination (is in principle the same for all dynamical variants)
+  integer(i4_kind) function decrease_resp(n, source)
+    ! Purpose:  decrease my_resp  by done jobs, for itself increamental
+    !          other procs give sum of their changes
+    !          return sum, thats all jobs which have done
+    !
+    !          there is need to differenciate between the resp of the proc itself
+    !          and those he gets from others, the other will give always the sum of all
+    !          they have done for this proc, as this proc wants to store only the ones
+    !          of the current job batch
+    implicit none
+    integer(i4_kind), intent(in)  :: n, source
+    ! *** end of interface ***
+
+    if (source == my_rank) then
+    my_resp(source) = my_resp(source) - n
+    else
+    my_resp(source) = -n
+    endif
+    decrease_resp = sum(my_resp)
+  end function decrease_resp
+
   subroutine send_resp_done(requ)
     !  Purpose: my_resp holds the number of jobs, assigned at the start
     !           to this proc, so this proc is responsible that they will
@@ -471,7 +553,11 @@ contains
     integer(kind=i4_kind), allocatable   :: requ(:)
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, req
-    integer(kind=i4_kind)                :: message(1+SJOB_LEN)
+    integer(kind=i4_kind), save          :: message(1+SJOB_LEN) ! message may only be
+     ! changed or rewritten after communication finished, thus it is saved here in order
+     ! to still be present when the subroutine finishes
+     ! as this routine is only called once each process in each dlb call
+     ! it will not be overwritten too sone
     !------------ Executable code --------------------------------
 
     message(1) = RESP_DONE
@@ -494,9 +580,6 @@ contains
     ! Context: control thread.
     !             2 Threads: secretary thread
     !
-    ! Locks: wrlock,
-    !        wrlock through decrease_resp()
-    !
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
@@ -504,20 +587,28 @@ contains
     integer(kind=i4_kind), allocatable  :: requ(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, req
-    integer(kind=i4_kind)                :: message(1 + SJOB_LEN)
+    integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)
+    integer(kind=i4_kind)                :: i
     !------------ Executable code --------------------------------
-    ! As all isends have to be closed sometimes, storage of
-    ! the request handlers is needed
-    message(1) = DONE_JOB
-    message(2) = num_jobs_done
-    message(3:) = 0
+    ! We need the messages and req_dj entry of source in any case
+    ! thus if there is still a message pending delete it
+    ! by sending the sum of all jobs done so far, it is not
+    ! of interest any more if the previous message has arrived
+    if (message_on_way(source)) then
+        call MPI_CANCEL(req_dj(source), ierr)
+        !ASSERT(ierr==MPI_SUCCESS)
+        call assert_n(ierr==MPI_SUCCESS, 4)
+        call MPI_WAIT(req_dj(source),stat, ierr)
+        !ASSERT(ierr==MPI_SUCCESS)
+        call assert_n(ierr==MPI_SUCCESS, 4)
+    endif
+    messages(source, 2) = messages(source, 2) +  num_jobs_done
     call time_stamp("send message to source", 2)
-    call MPI_ISEND(message,1 + SJOB_LEN, MPI_INTEGER4, source,&
-                                MSGTAG,comm_world, req, ierr)
+    call MPI_ISEND(messages(source,:),1 + SJOB_LEN, MPI_INTEGER4, source,&
+                                MSGTAG,comm_world, req_dj, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
-    call add_request(req, requ)
+    message_on_way(source) = .true.
   end subroutine report_job_done
 
   logical function has_last_done(proc)
@@ -541,7 +632,11 @@ contains
     ! Context 3Thread: mailbox thread. (termination master only)
     !             2 Threads: secretary thread
     !
-    !
+    ! FIXME: is it okay to use the same message buffer for all the (exactly same)
+    !        messages?
+    !      At least here it is okay to have the message only during the routine
+    !      as it will be wait for finishing before returning to the calling
+    !      code
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
