@@ -178,17 +178,23 @@ contains
     if (allocated(all_done)) all_done  = .false.
     ! if there is any exchange of jobs, the following things are needed
     ! (they will help to get the DONE_JOB messages on their way)
-    allocate(messages(n_procs, SJOB_LEN + 1), message_on_way(n_procs), stat = alloc_stat)
+    allocate(messages(SJOB_LEN + 1, n_procs), stat = alloc_stat)
     !ASSERT(alloc_stat==0)
     call assert_n(alloc_stat==0, 1)
-    allocate(my_resp(n_procs), req_dj(n_procs), stat = alloc_stat)
+    allocate(message_on_way(n_procs), stat = alloc_stat)
     !ASSERT(alloc_stat==0)
-    call assert_n(alloc_stat==0, 1)
+    call assert_n(alloc_stat==0, 2)
+    allocate(req_dj(n_procs), stat = alloc_stat)
+    !ASSERT(alloc_stat==0)
+    call assert_n(alloc_stat==0, 3)
+    allocate(my_resp(n_procs), stat = alloc_stat)
+    !ASSERT(alloc_stat==0)
+    call assert_n(alloc_stat==0, 4)
     ! Here they are initalizied, at the beginning none message has been
     ! put on its way, from the messages we know everything except the
     ! second entry which will be the number of jobs done
+    messages = 0
     messages(1,:) = DONE_JOB
-    messages(3:,:) = 0
     message_on_way = .false.
     my_resp = 0
     my_resp(my_rank) = resp
@@ -505,7 +511,10 @@ contains
       endif
     enddo
     ! these variables will only be needed after the next dlb-setup
-    deallocate(message_on_way, req_dj, messages, my_resp, stat=alloc_stat)
+    deallocate(message_on_way, messages, stat=alloc_stat)
+    !ASSERT(alloc_stat==0)
+    call assert_n(alloc_stat==0, 3)
+    deallocate(req_dj, my_resp, stat=alloc_stat)
     !ASSERT(alloc_stat==0)
     call assert_n(alloc_stat==0, 4)
   end subroutine end_requests
@@ -602,9 +611,11 @@ contains
         !ASSERT(ierr==MPI_SUCCESS)
         call assert_n(ierr==MPI_SUCCESS, 4)
     endif
-    messages(source, 2) = messages(source, 2) +  num_jobs_done
+    messages(1, source) = DONE_JOB
+    messages(3:, source) = 0
+    messages(2, source) = messages(2, source) +  num_jobs_done
     call time_stamp("send message to source", 2)
-    call MPI_ISEND(messages(source,:),1 + SJOB_LEN, MPI_INTEGER4, source,&
+    call MPI_ISEND(messages(:,source),1 + SJOB_LEN, MPI_INTEGER4, source,&
                                 MSGTAG,comm_world, req_dj, ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
