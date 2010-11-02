@@ -363,6 +363,7 @@ contains
     if (n_procs > 1) then
       call send_termination()
     endif
+    call end_requests(requ2)
   end subroutine check_termination
 
   logical function local_tgetm(m, my_jobs)
