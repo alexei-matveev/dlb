@@ -86,6 +86,7 @@ module dlb
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: decrease_resp
+  use dlb_common, only: end_communication, clear_up
   implicit none
   save            ! save all variables defined in this module
   private         ! by default, all names are private
@@ -263,6 +264,7 @@ contains
        print *, my_rank, "was locked", many_locked, "got zero", many_zeros
        !print *, my_rank, "tried", many_searches, "times to get new jobs, by trying to steal", many_tries
        !print *, my_rank, "done", my_resp_self, "of my own, gave away", my_resp_start - my_resp_self, "and stole", your_resp
+       call clear_up()
     endif
     call time_stamp("dlb_give_more: exit",3)
   end subroutine dlb_give_more
@@ -321,6 +323,7 @@ contains
          terminated = .true.
          ! NOW all my messages HAVE to be complete, so close (without delay)
          call end_requests(requ2)
+         call end_communication()
       else
         ! This message makes no sense in this context, thus give warning
         ! and continue (maybe the actual calculation has used it)
@@ -364,6 +367,7 @@ contains
       call send_termination()
     endif
     call end_requests(requ2)
+    call end_communication()
   end subroutine check_termination
 
   logical function local_tgetm(m, my_jobs)

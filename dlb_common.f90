@@ -46,9 +46,11 @@ module dlb_common
   public :: assert_n
   public :: dlb_common_init, dlb_common_finalize, dlb_common_setup
   public :: add_request, test_requests, end_requests
+  public :: end_communication
   public :: send_resp_done, report_job_done, send_termination, has_last_done
   public :: set_start_job, set_empty_job
   public :: decrease_resp
+  public :: clear_up
 
   ! integer with 4 bytes, range 9 decimal digits
   integer, parameter, public :: i4_kind = selected_int_kind(9)
@@ -60,6 +62,7 @@ module dlb_common
   integer, parameter, public :: r8_kind = selected_real_kind(15)
 
   integer,  public :: comm_world
+  integer,  public :: comm_world_end
   integer(kind=i4_kind), parameter, public  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 !for distingishuing the messages
   integer(kind=i4_kind), parameter, public  :: SJOB_LEN = 3 ! Length of a single job in interface
   integer(kind=i4_kind), parameter, public  :: L_JOB = 2  ! Length of job to give back from interface
@@ -142,6 +145,9 @@ contains
     call MPI_COMM_DUP(MPI_COMM_WORLD, comm_world, ierr)
     !ASSERT(ierr==0)
     call assert_n(ierr==0,4)
+    call MPI_COMM_DUP(MPI_COMM_WORLD, comm_world_end, ierr)
+    !ASSERT(ierr==0)
+    call assert_n(ierr==0,4)
     call MPI_COMM_RANK( comm_world, my_rank, ierr )
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 1)
@@ -160,20 +166,24 @@ contains
     ! shut down the common stuff, as needed
     implicit none
     integer :: ierr, alloc_stat
-    call MPI_COMM_FREE( comm_world, ierr)
-    !ASSERT(ierr==0)
-    call assert_n(ierr==0,4)
     if (allocated(all_done)) then
       deallocate(all_done, stat=alloc_stat)
       !ASSERT(alloc_stat==0)
       call assert_n(alloc_stat==0, 1)
     endif
+    call MPI_COMM_FREE( comm_world, ierr)
+    !ASSERT(ierr==0)
+    call assert_n(ierr==0,4)
+    call MPI_COMM_FREE( comm_world_end, ierr)
+    !ASSERT(ierr==0)
+    call assert_n(ierr==0,4)
   end subroutine
 
   subroutine dlb_common_setup(resp)
     ! Termination master start of a new dlb run
     implicit none
     integer(kind=i4_kind), intent(in   ) :: resp
+    integer :: ierr
     integer ::  alloc_stat
     if (allocated(all_done)) all_done  = .false.
     ! if there is any exchange of jobs, the following things are needed
@@ -197,7 +207,7 @@ contains
     messages(1,:) = DONE_JOB
     message_on_way = .false.
     my_resp = 0
-    my_resp(my_rank) = resp
+    my_resp(my_rank + 1) = resp
   end subroutine dlb_common_setup
 
   ! To make it easier to add for example new job informations
@@ -452,7 +462,7 @@ contains
     deallocate(requ_int, finished, stat = alloc_stat)
     !ASSERT(alloc_stat==0)
     call assert_n(alloc_stat==0, 4)
-    do i = 0, size(message_on_way) ! messages for DONE_JOBS
+    do i = 1, size(message_on_way) ! messages for DONE_JOBS
           ! have to be handled separatly, as the messages have
           ! to be kept and may not be changed till the request
           ! has been sended, but here also some messages
@@ -498,16 +508,32 @@ contains
       !ASSERT(alloc_stat==0)
       call assert_n(alloc_stat==0, 4)
     endif
-    do i = 1, size(req_dj)
+  end subroutine end_requests
+
+  subroutine end_communication()
+    ! Purpose: end all of the stored requests in requ
+    !          no matter if the corresponding message has arived
+    !
+    ! Context for 3Threads: mailbox thread, control thread.
+    !             2 Threads: secretary thread
+    !------------ Modules used ------------------- ---------------
+    implicit none
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
+    integer(kind=i4_kind)                :: i, ierr
+    integer(kind=i4_kind)                :: alloc_stat
+    integer(kind=i4_kind)                :: stat(MPI_STATUS_SIZE)
+    !------------ Executable code --------------------------------
+    do i = 1, size(message_on_way)
       if (message_on_way(i)) then
         ! the messages DONE_JOB should be all finshed already
         ! so using MPI_CANCEL is just for being completly certain
-        call MPI_CANCEL(req_dj(i), ierr)
+        !call MPI_CANCEL(req_dj(i), ierr)
         !ASSERT(ierr==MPI_SUCCESS)
-        call assert_n(ierr==MPI_SUCCESS, 4)
+        !call assert_n(ierr==MPI_SUCCESS, 1)
         call MPI_WAIT(req_dj(i),stat, ierr)
         !ASSERT(ierr==MPI_SUCCESS)
-        call assert_n(ierr==MPI_SUCCESS, 4)
+        call assert_n(ierr==MPI_SUCCESS, 2)
       endif
     enddo
     ! these variables will only be needed after the next dlb-setup
@@ -517,7 +543,15 @@ contains
     deallocate(req_dj, my_resp, stat=alloc_stat)
     !ASSERT(alloc_stat==0)
     call assert_n(alloc_stat==0, 4)
-  end subroutine end_requests
+  end subroutine end_communication
+
+  subroutine clear_up()
+    integer(kind=i4_kind) :: ierr
+    call  MPI_BARRIER(comm_world_end, ierr)
+    !ASSERT(ierr==MPI_SUCCESS)
+    call assert_n(ierr==MPI_SUCCESS, 1)
+  end subroutine clear_up
+
 
 ! algorithm for termination (is in principle the same for all dynamical variants)
   integer(i4_kind) function decrease_resp(n, source)
@@ -534,9 +568,9 @@ contains
     ! *** end of interface ***
 
     if (source == my_rank) then
-    my_resp(source) = my_resp(source) - n
+    my_resp(source+1) = my_resp(source+1) - n
     else
-    my_resp(source) = -n
+    my_resp(source+1) = -n
     endif
     decrease_resp = sum(my_resp)
   end function decrease_resp
@@ -578,7 +612,7 @@ contains
     call add_request(req, requ)
   end subroutine send_resp_done
 
-  subroutine report_job_done(num_jobs_done, source, requ)
+  subroutine report_job_done(num_jobs_done, source2, requ)
     !  Purpose: If a job is finished, this cleans up afterwards
     !           Needed for termination algorithm, there are two
     !           cases, it was a job of the own responsibilty or
@@ -592,13 +626,14 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in  ) :: num_jobs_done, source
+    integer(kind=i4_kind), intent(in  ) :: num_jobs_done, source2
     integer(kind=i4_kind), allocatable  :: requ(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind)                :: i
+    integer(kind=i4_kind)                :: i, source
     !------------ Executable code --------------------------------
+    source = source2 + 1
     ! We need the messages and req_dj entry of source in any case
     ! thus if there is still a message pending delete it
     ! by sending the sum of all jobs done so far, it is not
@@ -615,8 +650,8 @@ contains
     messages(3:, source) = 0
     messages(2, source) = messages(2, source) +  num_jobs_done
     call time_stamp("send message to source", 2)
-    call MPI_ISEND(messages(:,source),1 + SJOB_LEN, MPI_INTEGER4, source,&
-                                MSGTAG,comm_world, req_dj, ierr)
+    call MPI_ISEND(messages(:,source),1 + SJOB_LEN, MPI_INTEGER4, source2,&
+                                MSGTAG,comm_world, req_dj(source), ierr)
     !ASSERT(ierr==MPI_SUCCESS)
     call assert_n(ierr==MPI_SUCCESS, 4)
     message_on_way(source) = .true.

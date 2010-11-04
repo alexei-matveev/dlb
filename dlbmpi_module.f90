@@ -347,7 +347,9 @@ contains
     enddo
 
     ! now finish all messges still available, no matter if they have been received
+    call wrlock()
     call end_requests(requ_m)
+    call unlock()
 
     ! MAILBOX should be the first thread to get the termination
     ! if CONTROL is stuck somewhere waiting, this here will
@@ -490,7 +492,9 @@ contains
     call th_mutex_unlock(LOCK_JS)
 
     ! shut down
+    call wrlock()
     call end_requests(requ_c)
+    call unlock()
 
     call th_mutex_lock(LOCK_JS)
     call th_cond_signal(COND_JS2_UPDATE) ! free MAIN if waiting
