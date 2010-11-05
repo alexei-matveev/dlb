@@ -244,7 +244,7 @@ contains
     endif
   end subroutine dlb2_setup_color
   !*************************************************************
-  subroutine dlb2_give_more(n, my_job)
+  logical function dlb2_give_more(n, my_job)
     !  Purpose: Returns next bunch of up to n jobs, if jobs(J_EP)<=
     !  jobs(J_STP) there are no more jobs there, else returns the jobs
     !  done by the procs should be jobs(J_STP) + 1 to jobs(J_EP) in
@@ -257,9 +257,10 @@ contains
 !   !** End of interface *****************************************
 !   !------------ Declaration of local variables -----------------
     call dlb_give_more(n, my_job)
-  end subroutine dlb2_give_more
+    dlb2_give_more = .not. (my_job(J_STP) >= my_job(J_EP))
+  end function dlb2_give_more
   !*************************************************************
-  subroutine dlb2_give_more_color(n, color, my_job)
+  logical function dlb2_give_more_color(n, color, my_job)
     !  Purpose: Returns next bunch of up to n jobs, if jobs(J_EP)<=
     !  jobs(J_STP) there are no more jobs there, else returns the jobs
     !  done by the procs should be jobs(J_STP) + 1 to jobs(J_EP) in
@@ -275,11 +276,14 @@ contains
 !   !** End of interface *****************************************
 !   !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: i,  w, jobs_all, jobs_color, current_color, ierr
+    dlb2_give_more_color = .true.
     if (current_jobs(J_STP) >= current_jobs(J_EP)) then ! only if the own storage is empty, refill
      call dlb_give_more(n, current_jobs)
     endif
 
+    ! ATTENTION: this if statement contains a return
     if (current_jobs(J_STP) >= current_jobs(J_EP)) then ! got empty job from dlb, thus all done, quit
+      dlb2_give_more_color = .false.
       my_job = current_jobs
       color = 0
       if (allocated(job_distribution)) then
@@ -310,5 +314,5 @@ contains
     my_job(J_STP) = job_distribution(current_color,J_STP) + current_jobs(J_STP) - start_color(current_color)
     my_job(J_EP) = my_job(J_STP) + w
     current_jobs(J_STP) = current_jobs(J_STP) + w
-  end subroutine dlb2_give_more_color
+  end function dlb2_give_more_color
 end module dlb2
