@@ -31,10 +31,10 @@ CPP = cpp --traditional-cpp
 #
 # Depending on the target set $(dlb_objs):
 #
-dlb_objs = dlb_static.o
-#dlb_objs = dlb_module.o
-#dlb_objs = dlbmpi_module.o thread_handle.o thread_wrapper.o
-#dlb_objs = dlb2t_module.o thread_handle.o thread_wrapper.o
+dlb_objs = dlb_impl_static.o
+#dlb_objs = dlb_impl_rma.o
+#dlb_objs = dlb_impl_thread_multiple.o thread_handle.o thread_wrapper.o
+#dlb_objs = dlb_impl_thread_single.o thread_handle.o thread_wrapper.o
 
 # in the library should also be the genearl file as well as the extensions
 objs =  dlb2.o dlb_common.o $(dlb_objs)
@@ -48,9 +48,9 @@ $(libdlb.a): $(objs)
 LIBS = -L. -ldlb
 
 # dependencies
-dlb_module.o dlbmpi_module.o thread_handle.o dlb2t_module.o dlb_static.o: dlb_common.o
-dlbmpi_module.o: thread_handle.o thread_wrapper.o
-dlb2t_module.o: thread_handle.o thread_wrapper.o
+dlb_impl_rma.o dlb_impl_thread_multiple.o thread_handle.o dlb_impl_thread_single.o dlb_impl_static.o: dlb_common.o
+dlb_impl_thread_multiple.o: thread_handle.o thread_wrapper.o
+dlb_impl_thread_single.o: thread_handle.o thread_wrapper.o
 thread_handle.o: thread_wrapper.o
 dlb2.o: $(dlb_objs)
 main.o: test.o $(libdlb.a)
