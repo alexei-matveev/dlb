@@ -120,7 +120,10 @@ contains
     !------------ Modules used ------------------- ---------------
     use dlb_impl, only: dlb_impl_finalize => dlb_finalize
     implicit none
+    ! *** end of interface ***
+
     integer(i4_kind)              :: ierr
+
     ! Theu should not be there anymore but one may wnat to ensure this
     if (allocated(job_distribution)) then
       deallocate(job_distribution, stat = ierr)
@@ -146,8 +149,10 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: N
     !** End of interface *****************************************
+
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: jobs_per_proc, rest, my_jobs(L_JOB)
+
     jobs_per_proc = N / n_procs
     my_jobs(J_STP) = jobs_per_proc * my_rank
     ! if it is not dividable, distribute the rest
@@ -181,8 +186,10 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: N
     !** End of interface *****************************************
+
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: jobs_per_proc, rest, my_jobs(L_JOB)
+
     jobs_per_proc = N / n_procs * 7 / 10
     my_jobs(J_STP) = jobs_per_proc * my_rank
     ! if it is not dividable, distribute the rest
@@ -205,6 +212,8 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: N
+    ! *** end of interface ***
+
     if (masterserver) then
       call distribute_jobs_master(N)
     else
@@ -221,9 +230,11 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: distr(:,:)
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, many_colors,i
+
     if (allocated(job_distribution)) then
       deallocate(job_distribution, stat = ierr)
       !ASSERT(ierr==0)
@@ -267,7 +278,7 @@ contains
     integer(kind=i4_kind), intent(in   ) :: n
     integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB)
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
+
     call dlb_impl_give_more(n, my_job)
     dlb_give_more = (my_job(J_STP) < my_job(J_EP))
   end function dlb_give_more
@@ -286,9 +297,11 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
     integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB), color
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: i,  w, jobs_all, jobs_color, current_color, ierr
+
     dlb_give_more_color = .true.
     if (current_jobs(J_STP) >= current_jobs(J_EP)) then ! only if the own storage is empty, refill
         call dlb_impl_give_more(n, current_jobs)
