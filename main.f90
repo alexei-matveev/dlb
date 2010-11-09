@@ -7,7 +7,7 @@ program main
 
 use dlb_common, only: time_stamp ! for debug prints
 use dlb
-use test2, only: test_calc
+use test, only: test_calc
 implicit none
 include 'mpif.h'
 integer :: rank, n_procs, my_amount

@@ -1,8 +1,9 @@
-module test2
+module test
 
   implicit none
   private
   public :: test_calc
+
   integer :: i = 8
   integer, parameter :: LOOP = 7
 
@@ -87,4 +88,4 @@ module test2
     !
     test_calc2 = num *2 - 90 + i ** 2 + num ** 3 /7 + k
   end function test_calc2
-end module test2
+end module test
