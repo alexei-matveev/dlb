@@ -1,7 +1,7 @@
 !===============================================================
 ! Public interface of module
 !===============================================================
-module dlb
+module dlb_impl
   !---------------------------------------------------------------
   !
   !  Purpose: takes care about dynamical load balancing,
@@ -671,4 +671,4 @@ contains
     call assert_n(ierr==MPI_SUCCESS, 4)
   end subroutine dlb_setup
 
-end module dlb
+end module dlb_impl

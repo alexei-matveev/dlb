@@ -71,7 +71,7 @@ module dlb2
 !----------------------------------------------------------------
 ! there are different implementations of dlb available, the interface
 ! looks all the same. The linking will define which one is used
-use dlb, only: dlb_init, dlb_setup, dlb_finalize, dlb_give_more
+use dlb_impl, only: dlb_init, dlb_setup, dlb_finalize, dlb_give_more
 ! Need here some stuff, that is already defined elsewere
 use dlb_common, only: my_rank, n_procs, J_STP, J_EP, L_JOB
 use dlb_common, only: masterserver, termination_master
