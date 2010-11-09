@@ -1,12 +1,9 @@
-!==========================================================
-! Interface for testing
-!=========================================================
 program main
 ! Purpose: starts tests
-! End of public interface
 
-use dlb2
+use dlb2, only: dlb2_init, dlb2_finalize, dlb2_setup, dlb2_give_more
 use test, only: echo
+
 use dlb_common, only: time_stamp ! for debug prints
 implicit none
 include 'mpif.h'
