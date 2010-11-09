@@ -1,7 +1,7 @@
 program main
 ! Purpose: starts tests
 
-use dlb2, only: dlb2_init, dlb2_finalize, dlb2_setup, dlb2_give_more
+use dlb, only: dlb_init, dlb_finalize, dlb_setup, dlb_give_more
 use test, only: echo
 
 use dlb_common, only: time_stamp ! for debug prints
@@ -69,7 +69,7 @@ time_stamps(rank,1) = MPI_WTIME()
 !
 ! Needs to be done once:
 !
-call dlb2_init()
+call dlb_init()
 
 time_stamps(rank,2) = MPI_WTIME()
 
@@ -83,12 +83,12 @@ do k = 1, NTIMES
     !
     ! Prepare a loop over jobs:
     !
-    call dlb2_setup(NJOBS)
+    call dlb_setup(NJOBS)
 
     ! FIXME: this time stamp is bogus:
     time_stamps(rank, 3) = MPI_WTIME()
 
-    do while ( dlb2_give_more(MAXJOBS, interval) )
+    do while ( dlb_give_more(MAXJOBS, interval) )
         ! measure working time:
         time = MPI_WTIME()
 
@@ -111,7 +111,7 @@ time_stamps(rank,4) = MPI_WTIME()
 !
 ! Do once:
 !
-call dlb2_finalize()
+call dlb_finalize()
 
 !
 ! The rest is debug and diagnostics.

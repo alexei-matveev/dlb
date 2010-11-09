@@ -1,7 +1,7 @@
 !===============================================================
 ! Public interface of module
 !===============================================================
-module dlb2
+module dlb
 !---------------------------------------------------------------
 !
 !  Purpose: takes care about dynamical load balancing, there are two different
@@ -13,15 +13,15 @@ module dlb2
 !           There are several dlb routines possible, which could be used to generate
 !           the dynamical balancing themselves
 !           INTERFACE to others:
-!           call dlb2_init() - once before first acces
-!           call dlb2_finalize() - once after last acces
+!           call dlb_init() - once before first acces
+!           call dlb_finalize() - once after last acces
 !
-!           There are two choices for the actual dlb2 run, they can be used alternatly
+!           There are two choices for the actual DLB run, they can be used alternatly
 !           but routines of them may not be mixed up.
 !           First WITHOUT COLORS (e.g. all jobs are equal):
-!           call dlb2_setup(N) - once every time a dlb should
+!           call dlb_setup(N) - once every time a dlb should
 !                               be used, N should be the number of jobs
-!           dlb2_give_more(n, jobs) :
+!           dlb_give_more(n, jobs) :
 !              n should be the number of jobs requested at once, the next
 !              time dlb_give_more is called again, all jobs from jobs should
 !              be finished, jobs are at most n, they are just the number of the
@@ -32,7 +32,7 @@ module dlb2
 !           Second WITH COLORS (e.ge. each job has an integer number attached to it, which
 !              gives the "color" of the job. It is supposed that several succeeding jobs have
 !              the same color, thus the color is given for job slices)
-!           call dlb2_setup_color(distr) - once every time a dlb should be used,
+!           call dlb_setup_color(distr) - once every time a dlb should be used,
 !                                distr is an array containing elements
 !                                like: (/color, startnumber, endnumber/),
 !                                it is possible to have several not succeeding
@@ -41,9 +41,9 @@ module dlb2
 !                                startnumber and endnumber of each color are independent of
 !                                each other, they may have overlapping intervals, in this
 !                                case one has to ensure, that the right jobs are done, as
-!                                the dlb2 routine gives back the numbers of the array
-!           dlb2_give_more_color(n, color, jobs):
-!              the same as dlb2_give_more, but for the color case
+!                                the DLB routine gives back the numbers of the array
+!           dlb_give_more_color(n, color, jobs):
+!              the same as dlb_give_more, but for the color case
 !              gives back the numbers between startnumber and endnumber of the
 !              element color, it only gives jobs of the same color, even if it
 !              still has some left but from another color, but it also will only give
@@ -69,9 +69,14 @@ module dlb2
 ! Description: ...
 !
 !----------------------------------------------------------------
-! there are different implementations of dlb available, the interface
-! looks all the same. The linking will define which one is used
-use dlb_impl, only: dlb_init, dlb_setup, dlb_finalize, dlb_give_more
+
+!
+! There are different implementations of DLB available, the interface
+! looks all the same. The linking will define which one is used.
+! See "use dlb_impl" instances in text, these are the references to
+! the actual implementation.
+!
+
 ! Need here some stuff, that is already defined elsewere
 use dlb_common, only: my_rank, n_procs, J_STP, J_EP, L_JOB
 use dlb_common, only: masterserver, termination_master
@@ -82,15 +87,15 @@ private         ! by default, all names are private
 !== Interrupt end of public interface of module =================
  !------------ Declaration of types ------------------------------
 
-public dlb2_init, dlb2_finalize, dlb2_setup, dlb2_setup_color, dlb2_give_more
-public dlb2_give_more_color
+public dlb_init, dlb_finalize, dlb_setup, dlb_setup_color, dlb_give_more
+public dlb_give_more_color
 
 ! This global variables are only needed for the color-case
 ! Ensure that if J_STP and J_EP should be changed some time that J_COLOR is
 ! still valid
 integer(i4_kind), parameter   :: J_COLOR = 3
 ! storage for the distribution of jobs over the colors, should hold exactly
-! the distr one has given in dlb2_setup_color, start_color is a helpe varialbe
+! the distr one has given in dlb_setup_color, start_color is a helpe varialbe
 ! for linking the intern job-numbers (succeeding ones) on the job-ids of the
 ! job distribution
 integer(i4_kind), allocatable :: job_distribution(:,:), start_color(:)
@@ -98,18 +103,22 @@ integer(i4_kind), allocatable :: job_distribution(:,:), start_color(:)
 integer(i4_kind)              :: current_jobs(L_JOB)
 
 contains
-  subroutine dlb2_init()
+
+  subroutine dlb_init()
     !  Purpose: initalization of needed stuff
     !------------ Modules used ------------------- ---------------
+    use dlb_impl, only: dlb_impl_init => dlb_init
     implicit none
     !** End of interface *****************************************
-    call dlb_init()
+
+    call dlb_impl_init()
     current_jobs = 0
-  end subroutine dlb2_init
-  !*************************************************************
-  subroutine dlb2_finalize()
+  end subroutine dlb_init
+
+  subroutine dlb_finalize()
     !  Purpose: cleaning up everything, after last call
     !------------ Modules used ------------------- ---------------
+    use dlb_impl, only: dlb_impl_finalize => dlb_finalize
     implicit none
     integer(i4_kind)              :: ierr
     ! Theu should not be there anymore but one may wnat to ensure this
@@ -121,9 +130,9 @@ contains
       deallocate(start_color, stat = ierr)
       !ASSERT(ierr==0)
     endif
-    call dlb_finalize()
-  end subroutine dlb2_finalize
-  !*************************************************************
+    call dlb_impl_finalize()
+  end subroutine dlb_finalize
+
   subroutine distribute_jobs(N)
     !  Purpose: given the number of jobs alltogether, decides how many
     !           will be done on each proc and where is start and endpoint
@@ -132,11 +141,12 @@ contains
     !           each one should get an equal amount of them, if it
     !           is not equally dividable the first ones get one more
     !------------ Modules used ------------------- ---------------
+    use dlb_impl, only: dlb_impl_setup => dlb_setup
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: N
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: jobs_per_proc, rest, my_jobs(L_JOB)
     jobs_per_proc = N / n_procs
     my_jobs(J_STP) = jobs_per_proc * my_rank
@@ -155,9 +165,9 @@ contains
 
     !print *, my_rank, "has jobs", my_jobs, "of", N
     ! This is the dlb routine setup, which stores the job for the run
-    call dlb_setup(my_jobs)
+    call dlb_impl_setup(my_jobs)
   end subroutine distribute_jobs
-  !*************************************************************
+
   subroutine distribute_jobs_master(N)
     !  Purpose: given the number of jobs alltogether, decides how many
     !           will be done on each proc and where is start and endpoint
@@ -166,11 +176,12 @@ contains
     !           masterserver variant, 70% are distributed beforehand
     !           the rest is on the master
     !------------ Modules used ------------------- ---------------
+    use dlb_impl, only: dlb_impl_setup => dlb_setup
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: N
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: jobs_per_proc, rest, my_jobs(L_JOB)
     jobs_per_proc = N / n_procs * 7 / 10
     my_jobs(J_STP) = jobs_per_proc * my_rank
@@ -182,10 +193,10 @@ contains
     endif
     !print *, my_rank, "has jobs", my_jobs, "of", N
     ! This is the dlb routine setup, which stores the job for the run
-    call dlb_setup(my_jobs)
+    call dlb_impl_setup(my_jobs)
   end subroutine distribute_jobs_master
-  !*************************************************************
-  subroutine dlb2_setup(N)
+
+  subroutine dlb_setup(N)
     !  Purpose: initialization of a dlb run, each proc should call
     !           it with the number of jobs alltogether. This is the
     !           version without color distingishing, thus this information
@@ -199,9 +210,9 @@ contains
     else
       call distribute_jobs(N)
     endif
-  end subroutine dlb2_setup
-  !*************************************************************
-  subroutine dlb2_setup_color(distr)
+  end subroutine dlb_setup
+
+  subroutine dlb_setup_color(distr)
     !  Purpose: initialization of a dlb run, each proc should call
     !           it with the number of jobs alltogether. This is the
     !           version with color distingishing, thus the distribution
@@ -242,25 +253,26 @@ contains
       call distribute_jobs( start_color(many_colors + 1)) ! internal the jobs are treated as
       ! equal from the dlb-framework
     endif
-  end subroutine dlb2_setup_color
-  !*************************************************************
-  logical function dlb2_give_more(n, my_job)
+  end subroutine dlb_setup_color
+
+  logical function dlb_give_more(n, my_job)
     !  Purpose: Returns next bunch of up to n jobs, if jobs(J_EP)<=
     !  jobs(J_STP) there are no more jobs there, else returns the jobs
     !  done by the procs should be jobs(J_STP) + 1 to jobs(J_EP) in
     !  the related job list
     !------------ Modules used ------------------- ---------------
+    use dlb_impl, only: dlb_impl_give_more => dlb_give_more
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
     integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB)
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
-    call dlb_give_more(n, my_job)
-    dlb2_give_more = .not. (my_job(J_STP) >= my_job(J_EP))
-  end function dlb2_give_more
-  !*************************************************************
-  logical function dlb2_give_more_color(n, color, my_job)
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
+    call dlb_impl_give_more(n, my_job)
+    dlb_give_more = (my_job(J_STP) < my_job(J_EP))
+  end function dlb_give_more
+
+  logical function dlb_give_more_color(n, color, my_job)
     !  Purpose: Returns next bunch of up to n jobs, if jobs(J_EP)<=
     !  jobs(J_STP) there are no more jobs there, else returns the jobs
     !  done by the procs should be jobs(J_STP) + 1 to jobs(J_EP) in
@@ -269,6 +281,7 @@ contains
     !  that the jobs given back all have the same color
     !  it keeps other colored jobs in its own storage
     !------------ Modules used ------------------- ---------------
+    use dlb_impl, only: dlb_impl_give_more => dlb_give_more
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
@@ -276,14 +289,14 @@ contains
 !   !** End of interface *****************************************
 !   !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: i,  w, jobs_all, jobs_color, current_color, ierr
-    dlb2_give_more_color = .true.
+    dlb_give_more_color = .true.
     if (current_jobs(J_STP) >= current_jobs(J_EP)) then ! only if the own storage is empty, refill
-     call dlb_give_more(n, current_jobs)
+        call dlb_impl_give_more(n, current_jobs)
     endif
 
     ! ATTENTION: this if statement contains a return
     if (current_jobs(J_STP) >= current_jobs(J_EP)) then ! got empty job from dlb, thus all done, quit
-      dlb2_give_more_color = .false.
+      dlb_give_more_color = .false.
       my_job = current_jobs
       color = 0
       if (allocated(job_distribution)) then
@@ -314,5 +327,6 @@ contains
     my_job(J_STP) = job_distribution(current_color,J_STP) + current_jobs(J_STP) - start_color(current_color)
     my_job(J_EP) = my_job(J_STP) + w
     current_jobs(J_STP) = current_jobs(J_STP) + w
-  end function dlb2_give_more_color
-end module dlb2
+  end function dlb_give_more_color
+
+end module dlb
