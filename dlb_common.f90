@@ -27,6 +27,7 @@ module dlb_common
   ! Description: ...
   !
   !----------------------------------------------------------------
+# include "dlb.h"
   use mpi
   implicit none
   save            ! save all variables defined in this module
@@ -43,7 +44,6 @@ module dlb_common
 
   public :: time_stamp_prefix
   public :: time_stamp
-  public :: assert_n
   public :: dlb_common_init, dlb_common_finalize, dlb_common_setup
   public :: add_request, test_requests, end_requests
   public :: end_communication
@@ -126,16 +126,6 @@ contains
 
    if(output_level < output_border) print *, time_stamp_prefix(time), msg
   end subroutine time_stamp
-
-  subroutine assert_n(exp,num)
-    implicit none
-    logical, intent(in) :: exp
-    integer, intent(in) :: num
-    if (.not. exp) then
-       print *, "ASSERT FAILED", num
-       call abort
-    endif
-  end subroutine assert_n
 ! END ONLY FOR DEBUGGING
 
   subroutine dlb_common_init()
@@ -143,22 +133,17 @@ contains
     implicit none
     integer :: ierr, alloc_stat
     call MPI_COMM_DUP(MPI_COMM_WORLD, comm_world, ierr)
-    !ASSERT(ierr==0)
-    call assert_n(ierr==0,4)
+    ASSERT(ierr==0)
     call MPI_COMM_DUP(MPI_COMM_WORLD, comm_world_end, ierr)
-    !ASSERT(ierr==0)
-    call assert_n(ierr==0,4)
+    ASSERT(ierr==0)
     call MPI_COMM_RANK( comm_world, my_rank, ierr )
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 1)
+    ASSERT(ierr==MPI_SUCCESS)
     call MPI_COMM_SIZE(comm_world, n_procs, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 2)
+    ASSERT(ierr==MPI_SUCCESS)
     termination_master = n_procs - 1
     if (my_rank == termination_master) then
       allocate(all_done(n_procs), stat = alloc_stat)
-      !ASSERT(alloc_stat==0)
-      call assert_n(alloc_stat==0, 1)
+      ASSERT(alloc_stat==0)
     endif
   end subroutine
 
@@ -168,15 +153,12 @@ contains
     integer :: ierr, alloc_stat
     if (allocated(all_done)) then
       deallocate(all_done, stat=alloc_stat)
-      !ASSERT(alloc_stat==0)
-      call assert_n(alloc_stat==0, 1)
+      ASSERT(alloc_stat==0)
     endif
     call MPI_COMM_FREE( comm_world, ierr)
-    !ASSERT(ierr==0)
-    call assert_n(ierr==0,4)
+    ASSERT(ierr==0)
     call MPI_COMM_FREE( comm_world_end, ierr)
-    !ASSERT(ierr==0)
-    call assert_n(ierr==0,4)
+    ASSERT(ierr==0)
   end subroutine
 
   subroutine dlb_common_setup(resp)
@@ -189,17 +171,13 @@ contains
     ! if there is any exchange of jobs, the following things are needed
     ! (they will help to get the DONE_JOB messages on their way)
     allocate(messages(SJOB_LEN + 1, n_procs), stat = alloc_stat)
-    !ASSERT(alloc_stat==0)
-    call assert_n(alloc_stat==0, 1)
+    ASSERT(alloc_stat==0)
     allocate(message_on_way(n_procs), stat = alloc_stat)
-    !ASSERT(alloc_stat==0)
-    call assert_n(alloc_stat==0, 2)
+    ASSERT(alloc_stat==0)
     allocate(req_dj(n_procs), stat = alloc_stat)
-    !ASSERT(alloc_stat==0)
-    call assert_n(alloc_stat==0, 3)
+    ASSERT(alloc_stat==0)
     allocate(my_resp(n_procs), stat = alloc_stat)
-    !ASSERT(alloc_stat==0)
-    call assert_n(alloc_stat==0, 4)
+    ASSERT(alloc_stat==0)
     ! Here they are initalizied, at the beginning none message has been
     ! put on its way, from the messages we know everything except the
     ! second entry which will be the number of jobs done
@@ -392,16 +370,13 @@ contains
     if (allocated(requ)) then
       len_req = size(requ,1)
       allocate(req_int(len_req), stat = alloc_stat)
-      !ASSERT(alloc_stat==0)
-      call assert_n(alloc_stat==0, 4)
+      ASSERT(alloc_stat==0)
       req_int = requ
       deallocate(requ, stat = alloc_stat)
-      !ASSERT(alloc_stat==0)
-      call assert_n(alloc_stat==0, 4)
+      ASSERT(alloc_stat==0)
     endif
     allocate(requ(len_req +1), stat = alloc_stat)
-    !ASSERT(alloc_stat==0)
-    call assert_n(alloc_stat==0, 4)
+    ASSERT(alloc_stat==0)
     if (len_req > 0) requ(:len_req) = req_int
     requ(len_req +1) = req
   end subroutine add_request
@@ -429,15 +404,13 @@ contains
 
     len_req = size(requ)
     allocate(finished(len_req), requ_int(len_req), stat = alloc_stat)
-    !ASSERT(alloc_stat==0)
-    call assert_n(alloc_stat==0, 4)
+    ASSERT(alloc_stat==0)
     finished = .false.
     len_new = len_req
     do i = 1, len_req
       req = requ(i)
       call MPI_TEST(req, flag, stat, ierr)
-      !ASSERT(ierr==MPI_SUCCESS)
-      call assert_n(ierr==MPI_SUCCESS, 4)
+      ASSERT(ierr==MPI_SUCCESS)
       if (flag) then
         finished(i) = .true.
         len_new = len_new - 1
@@ -445,12 +418,10 @@ contains
     enddo
     requ_int(:) = requ(:)
     deallocate(requ, stat = alloc_stat)
-    !ASSERT(alloc_stat==0)
-    call assert_n(alloc_stat==0, 4)
+    ASSERT(alloc_stat==0)
     if (len_new > 0) then
       allocate(requ(len_new), stat = alloc_stat)
-      !ASSERT(alloc_stat==0)
-      call assert_n(alloc_stat==0, 4)
+      ASSERT(alloc_stat==0)
       j = 0
       do i = 1, len_req
         if (.not. finished(i)) then
@@ -460,8 +431,7 @@ contains
       enddo
     endif
     deallocate(requ_int, finished, stat = alloc_stat)
-    !ASSERT(alloc_stat==0)
-    call assert_n(alloc_stat==0, 4)
+    ASSERT(alloc_stat==0)
     do i = 1, size(message_on_way) ! messages for DONE_JOBS
           ! have to be handled separatly, as the messages have
           ! to be kept and may not be changed till the request
@@ -471,8 +441,7 @@ contains
           ! on their way
       if (message_on_way(i)) then
         call MPI_TEST(req_dj(i), flag, stat, ierr)
-        !ASSERT(ierr==MPI_SUCCESS)
-        call assert_n(ierr==MPI_SUCCESS, 4)
+        ASSERT(ierr==MPI_SUCCESS)
         if (flag) then
            message_on_way(i) = .false.
         endif
@@ -498,15 +467,12 @@ contains
     if (allocated(requ)) then
       do i = 1, size(requ,1)
         call MPI_CANCEL(requ(i), ierr)
-        !ASSERT(ierr==MPI_SUCCESS)
-        call assert_n(ierr==MPI_SUCCESS, 4)
+        ASSERT(ierr==MPI_SUCCESS)
         call MPI_WAIT(requ(i),stat, ierr)
-        !ASSERT(ierr==MPI_SUCCESS)
-        call assert_n(ierr==MPI_SUCCESS, 4)
+        ASSERT(ierr==MPI_SUCCESS)
       enddo
       deallocate(requ, stat=alloc_stat)
-      !ASSERT(alloc_stat==0)
-      call assert_n(alloc_stat==0, 4)
+      ASSERT(alloc_stat==0)
     endif
   end subroutine end_requests
 
@@ -529,27 +495,22 @@ contains
         ! the messages DONE_JOB should be all finshed already
         ! so using MPI_CANCEL is just for being completly certain
         !call MPI_CANCEL(req_dj(i), ierr)
-        !ASSERT(ierr==MPI_SUCCESS)
-        !call assert_n(ierr==MPI_SUCCESS, 1)
+        ASSERT(ierr==MPI_SUCCESS)
         call MPI_WAIT(req_dj(i),stat, ierr)
-        !ASSERT(ierr==MPI_SUCCESS)
-        call assert_n(ierr==MPI_SUCCESS, 2)
+        ASSERT(ierr==MPI_SUCCESS)
       endif
     enddo
     ! these variables will only be needed after the next dlb-setup
     deallocate(message_on_way, messages, stat=alloc_stat)
-    !ASSERT(alloc_stat==0)
-    call assert_n(alloc_stat==0, 3)
+    ASSERT(alloc_stat==0)
     deallocate(req_dj, my_resp, stat=alloc_stat)
-    !ASSERT(alloc_stat==0)
-    call assert_n(alloc_stat==0, 4)
+    ASSERT(alloc_stat==0)
   end subroutine end_communication
 
   subroutine clear_up()
     integer(kind=i4_kind) :: ierr
     call  MPI_BARRIER(comm_world_end, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 1)
+    ASSERT(ierr==MPI_SUCCESS)
   end subroutine clear_up
 
 
@@ -607,8 +568,7 @@ contains
     message(2) = my_rank
     message(3:) = 0
     call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, termination_master, MSGTAG,comm_world, req, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     call add_request(req, requ)
   end subroutine send_resp_done
 
@@ -640,11 +600,9 @@ contains
     ! of interest any more if the previous message has arrived
     if (message_on_way(source)) then
         call MPI_CANCEL(req_dj(source), ierr)
-        !ASSERT(ierr==MPI_SUCCESS)
-        call assert_n(ierr==MPI_SUCCESS, 4)
+        ASSERT(ierr==MPI_SUCCESS)
         call MPI_WAIT(req_dj(source),stat, ierr)
-        !ASSERT(ierr==MPI_SUCCESS)
-        call assert_n(ierr==MPI_SUCCESS, 4)
+        ASSERT(ierr==MPI_SUCCESS)
     endif
     messages(1, source) = DONE_JOB
     messages(3:, source) = 0
@@ -652,8 +610,7 @@ contains
     call time_stamp("send message to source", 2)
     call MPI_ISEND(messages(:,source),1 + SJOB_LEN, MPI_INTEGER4, source2,&
                                 MSGTAG,comm_world, req_dj(source), ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     message_on_way(source) = .true.
   end subroutine report_job_done
 
@@ -695,8 +652,7 @@ contains
 
     allocate(request(n_procs -1), stats(n_procs -1, MPI_STATUS_SIZE),&
     stat = alloc_stat)
-    !ASSERT(alloc_stat==0)
-    call assert_n(alloc_stat==0,9)
+    ASSERT(alloc_stat==0)
     message(1) = NO_WORK_LEFT
     message(2:) = 0
     do i = 0, n_procs-2
@@ -705,12 +661,10 @@ contains
     if (i >= termination_master) receiver = i+1
     call time_stamp("send termination", 5)
     call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, receiver, MSGTAG, comm_world ,request(i+1), ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     enddo
     call MPI_WAITALL(size(request), request, stats, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
   end subroutine send_termination
 
 end module dlb_common

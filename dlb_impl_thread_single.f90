@@ -86,8 +86,9 @@ module dlb_impl
   ! Description: ...
   !
   !----------------------------------------------------------------
+# include "dlb.h"
   use dlb_common, only: i4_kind, r8_kind, comm_world
-  use dlb_common, only: assert_n, time_stamp, time_stamp_prefix ! for debug only
+  use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
   use dlb_common, only: add_request, test_requests, end_requests, send_resp_done, report_job_done
   use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, SJOB_LEN, L_JOB, NRANK, J_STP, J_EP, MSGTAG
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
@@ -318,16 +319,14 @@ contains
     !------------ Executable code --------------------------------
     ! check for any message
     call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     do while (flag)!got a message
       call time_stamp("got message", 4)
       count_messages = count_messages + 1
       call MPI_RECV(message, 1+SJOB_LEN, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
       call check_messages(requ, message, stat, wait_answer)
       call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
-      !ASSERT(ierr==MPI_SUCCESS)
-      call assert_n(ierr==MPI_SUCCESS, 4)
+      ASSERT(ierr==MPI_SUCCESS)
     enddo
   end subroutine task_messages
 
@@ -390,8 +389,7 @@ contains
     endif
     call time_stamp("SECRETARY sends message",5)
     call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, v, MSGTAG, comm_world, requ_wr, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     call add_request(requ_wr, requ)
   end subroutine send_request
 
@@ -424,8 +422,7 @@ contains
     select case(message(1))
 
     case (DONE_JOB) ! someone finished stolen job slice
-      !ASSERT(message>0)
-      call assert_n(message(2)>0, 4)
+      ASSERT(message(2)>0)
 
       if (decrease_resp(message(2), stat(MPI_SOURCE)) == 0) then
         if (my_rank == termination_master) then
@@ -437,15 +434,17 @@ contains
 
     case (RESP_DONE) ! finished responsibility
       ! arrives only on termination master:
-      call assert_n(my_rank == termination_master, 19)
+      if( my_rank /= termination_master )then
+          stop "my_rank /= termination_master"
+      endif
 
       call check_termination(message(2))
 
     case (NO_WORK_LEFT) ! termination message from termination master
-      !ASSERT(message(2)==0)
-      call assert_n(message(2)==0, 4)
-      !ASSERT(stat(MPI_SOURCE)==termination_master)
-      call assert_n(stat(MPI_SOURCE)==termination_master, 4)
+      ASSERT(message(2)==0)
+      if( stat(MPI_SOURCE) /= termination_master )then
+          stop "stat(MPI_SOURCE) /= termination_master"
+      endif
 
       call wrlock()
       terminated = .true.

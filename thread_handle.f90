@@ -1,8 +1,9 @@
 module thread_handle
+# include "dlb.h"
   use iso_c_binding
   use dlb_common, only: dlb_common_init, dlb_common_finalize
   use dlb_common, only: i4_kind, r8_kind, comm_world, n_procs, termination_master
-  use dlb_common, only: assert_n, time_stamp, time_stamp_prefix ! for debug only
+  use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
   use dlb_common, only: SJOB_LEN, J_EP, J_STP, MSGTAG, NO_WORK_LEFT
   use dlb_common, only: has_last_done, set_empty_job, add_request, send_termination
   use dlb_common, only: masterserver
@@ -181,8 +182,7 @@ module thread_handle
     message(2:) = g_jobs
     call time_stamp("chare jobs with other",5)
     call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, partner, MSGTAG, comm_world, req, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     call add_request(req, requ)
     call th_mutex_unlock(LOCK_JS)
   end subroutine divide_jobs

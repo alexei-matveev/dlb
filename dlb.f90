@@ -77,6 +77,7 @@ module dlb
 ! the actual implementation.
 !
 
+# include "dlb.h"
 ! Need here some stuff, that is already defined elsewere
 use dlb_common, only: my_rank, n_procs, J_STP, J_EP, L_JOB
 use dlb_common, only: masterserver, termination_master
@@ -127,11 +128,11 @@ contains
     ! Theu should not be there anymore but one may wnat to ensure this
     if (allocated(job_distribution)) then
       deallocate(job_distribution, stat = ierr)
-      !ASSERT(ierr==0)
+      ASSERT(ierr==0)
     endif
     if (allocated(start_color)) then
       deallocate(start_color, stat = ierr)
-      !ASSERT(ierr==0)
+      ASSERT(ierr==0)
     endif
     call dlb_impl_finalize()
   end subroutine dlb_finalize
@@ -237,19 +238,23 @@ contains
 
     if (allocated(job_distribution)) then
       deallocate(job_distribution, stat = ierr)
-      !ASSERT(ierr==0)
+      ASSERT(ierr==0)
     endif
+
     if (allocated(start_color)) then
       deallocate(start_color, stat = ierr)
-      !ASSERT(ierr==0)
+      ASSERT(ierr==0)
     endif
+
     ! There is also an internal color_link which gives every distribution line just the
     ! line number as color, the "real" color is only used to give it back
     ! there are many_colors internal colors
     many_colors = size(distr,1)
-    !ASSERT(size(distr, 2) == 3)
+    ASSERT(size(distr, 2) == 3)
+
     allocate(job_distribution(many_colors, 3), start_color(many_colors+1), stat = ierr)
-    !ASSERT(ierr==0)
+    ASSERT(ierr==0)
+
     job_distribution = distr ! to keep the informations
     ! start_color just keeps for every internal color the information with wich of the internal
     ! job-numbers this color will start. The last entry point gives the number of all jobs altogether
@@ -314,12 +319,14 @@ contains
       color = 0
       if (allocated(job_distribution)) then
         deallocate(job_distribution, stat = ierr)
-        !ASSERT(ierr==0)
+        ASSERT(ierr==0)
       endif
+
       if (allocated(start_color)) then
         deallocate(start_color, stat = ierr)
-        !ASSERT(ierr==0)
+        ASSERT(ierr==0)
       endif
+
       RETURN
     endif
 

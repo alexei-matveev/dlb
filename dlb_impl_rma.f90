@@ -77,10 +77,11 @@ module dlb_impl
   ! Description: ...
   !
   !----------------------------------------------------------------
+# include "dlb.h"
   use mpi
   use iso_c_binding
   use dlb_common, only: i4_kind, r8_kind, comm_world
-  use dlb_common, only: assert_n, time_stamp, time_stamp_prefix ! for debug only
+  use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
   use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, SJOB_LEN, L_JOB, NRANK, J_STP, J_EP, MSGTAG
   use dlb_common, only: add_request, test_requests, end_requests, send_resp_done, report_job_done
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
@@ -147,8 +148,7 @@ contains
     jobs_len = SJOB_LEN + n_procs
     size_alloc = jobs_len * sizeofint
     call MPI_ALLOC_MEM(size_alloc, MPI_INFO_NULL, c_job_pointer, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 3)
+    ASSERT(ierr==MPI_SUCCESS)
     ! this connects a c'like pointer with our job_storage, as MPI can not handle our
     ! pointers as they are
     call c_f_pointer(c_job_pointer, job_storage, [jobs_len])
@@ -158,12 +158,10 @@ contains
     ! they will then get acces to the local stored job_storage of the corresponding proc
     call MPI_WIN_CREATE(job_storage, size_all, sizeofint, MPI_INFO_NULL, &
                         comm_world, win, ierr)
-    call assert_n(ierr==MPI_SUCCESS, 4)
-    !ASSERT(ierr==MPI_SUCCESS)
+    ASSERT(ierr==MPI_SUCCESS)
     ! needed to make certain, that in the next steps, all the procs have all the informations
     call MPI_WIN_FENCE(0, win, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     ! put the complete storage content to 0
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
     job_storage = 0
@@ -183,17 +181,13 @@ contains
     !------------ Executable code --------------------------------
 
     call MPI_WIN_FENCE(0, win, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     CALL MPI_FREE_MEM(job_storage, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 5)
+    ASSERT(ierr==MPI_SUCCESS)
     call MPI_WIN_FENCE(0, win, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     CALL MPI_WIN_FREE(win, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 5)
+    ASSERT(ierr==MPI_SUCCESS)
     call dlb_common_finalize()
   end subroutine dlb_finalize
 
@@ -286,16 +280,13 @@ contains
     !------------ Executable code --------------------------------
     ! check for any message
     call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     do while (flag) !got a message
       call MPI_RECV(message, 1+SJOB_LEN, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG,comm_world, stat,ierr)
       !print *, time_stamp_prefix(MPI_Wtime()), "got message from", stat(MPI_SOURCE), "with", message
-      !ASSERT(ierr==MPI_SUCCESS)
-      call assert_n(ierr==MPI_SUCCESS, 4)
+      ASSERT(ierr==MPI_SUCCESS)
       if (message(1) == DONE_JOB) then ! someone finished stolen job slice
-         !ASSERT(message>0)
-         call assert_n(message(2)>0, 4)
+         ASSERT(message(2)>0)
          if (decrease_resp(message(2), stat(MPI_SOURCE)) == 0) then
            if (my_rank == termination_master) then
              call check_termination(my_rank)
@@ -316,10 +307,12 @@ contains
            call abort()
          endif
       elseif (message(1) == NO_WORK_LEFT) then ! termination message from termination master
-         !ASSERT(message(2)==0)
-         call assert_n(message(2)==0, 4)
-         !ASSERT(stat(MPI_SOURCE)==termination_master)
-         call assert_n(stat(MPI_SOURCE)==termination_master, 4)
+         ASSERT(message(2)==0)
+
+         if( stat(MPI_SOURCE) /= termination_master )then
+             stop "stat(MPI_SOURCE) /= termination_master"
+         endif
+
          terminated = .true.
          ! NOW all my messages HAVE to be complete, so close (without delay)
          call end_requests(requ2)
@@ -334,8 +327,7 @@ contains
       endif
 
     call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     enddo
     check_messages = terminated
 
@@ -390,8 +382,7 @@ contains
     integer(kind=i4_kind)                :: ierr, sap, w
     !------------ Executable code --------------------------------
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     ! each proc which ones to acces the memory, sets his point to 1
     ! (else they are all 0), so if the sum is more than 0, at least one
     ! proc tries to get the memory, the one, who got sap = 0 has the right
@@ -426,8 +417,7 @@ contains
     endif
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
     call time_stamp("release",3)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
   end function local_tgetm
 
   subroutine report_or_store(my_jobs)
@@ -503,18 +493,14 @@ contains
     ! second one to show to other procs, that this one is interested in modifing the data
 
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     call MPI_GET(jobs_infom, jobs_len, MPI_INTEGER4, source, 0, jobs_len, MPI_INTEGER4, win, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     displacement = my_rank + SJOB_LEN !for getting it in the correct kind
     call MPI_PUT(ON,1,MPI_INTEGER4, source, displacement, 1, MPI_INTEGER4, win, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     call MPI_WIN_UNLOCK(source, win, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
 
     jobs_infom(my_rank+1+SJOB_LEN) = 0
     ! check if there are any procs, saying that they want to acces the memory
@@ -550,17 +536,13 @@ contains
       !
 
       call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
-      !ASSERT(ierr==MPI_SUCCESS)
-      call assert_n(ierr==MPI_SUCCESS, 4)
+      ASSERT(ierr==MPI_SUCCESS)
 
       call MPI_PUT(jobs_infom, jobs_len, MPI_INTEGER4, source, 0, jobs_len, MPI_INTEGER4, win, ierr)
-      !ASSERT(ierr==MPI_SUCCESS)
-      call assert_n(ierr==MPI_SUCCESS, 4)
+      ASSERT(ierr==MPI_SUCCESS)
 
       call MPI_WIN_UNLOCK(source, win, ierr)
-      !ASSERT(ierr==MPI_SUCCESS)
-      call assert_n(ierr==MPI_SUCCESS, 4)
-
+      ASSERT(ierr==MPI_SUCCESS)
 
       ! The give_grid function needs only up to m' jobs at once, thus
       ! divide the jobs
@@ -604,12 +586,10 @@ contains
     integer(kind=i4_kind)                :: ierr, sap
     !------------ Executable code --------------------------------
     sap = 1
-    !ASSERT(sum(my_jobs(SJOB_LEN+1:))==0)
-    call assert_n(sum(my_jobs(SJOB_LEN+1:))==0, 4)
+    ASSERT(sum(my_jobs(SJOB_LEN+1:))==0)
     do while (sap > 0 )
       call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
-      !ASSERT(ierr==MPI_SUCCESS)
-      call assert_n(ierr==MPI_SUCCESS, 4)
+      ASSERT(ierr==MPI_SUCCESS)
       ! Test if there are more procs doing something on the storage
       ! (They may give back something wrong) if yes cycle, else store
       sap = sum(job_storage(SJOB_LEN+1:))
@@ -619,8 +599,7 @@ contains
         job_storage = my_jobs
       endif
       call MPI_WIN_UNLOCK(my_rank, win, ierr)
-      !ASSERT(ierr==MPI_SUCCESS)
-      call assert_n(ierr==MPI_SUCCESS, 4)
+      ASSERT(ierr==MPI_SUCCESS)
     enddo
   end subroutine store_new_work
 
@@ -659,16 +638,13 @@ contains
     my_resp_start = start_job(J_EP) - start_job(J_STP)
     ! Job storage holds all the jobs currently in use
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     job_storage(:SJOB_LEN) = start_job
     job_storage(SJOB_LEN+1:) = 0
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
     call MPI_WIN_FENCE(0, win, ierr)
-    !ASSERT(ierr==MPI_SUCCESS)
-    call assert_n(ierr==MPI_SUCCESS, 4)
+    ASSERT(ierr==MPI_SUCCESS)
   end subroutine dlb_setup
 
 end module dlb_impl

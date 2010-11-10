@@ -37,7 +37,8 @@ dlb_objs = dlb_impl_static.o
 #dlb_objs = dlb_impl_thread_single.o thread_handle.o thread_wrapper.o
 
 # in the library should also be the genearl file as well as the extensions
-objs =  dlb.o dlb_common.o $(dlb_objs)
+objs =  dlb.o dlb_common.o $(dlb_objs) \
+	dlb_assert_failed.o
 
 # This is the dlb library
 $(libdlb.a): $(objs)

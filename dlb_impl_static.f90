@@ -43,6 +43,7 @@ module dlb_impl
 ! Description: ...
 !
 !----------------------------------------------------------------
+# include "dlb.h"
 use dlb_common, only: dlb_common_init, dlb_common_finalize
 implicit none
 ! ONLY FOR DEBBUGING WITHOUT PARAGAUSS
