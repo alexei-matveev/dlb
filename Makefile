@@ -1,5 +1,10 @@
 # -*- makefile -*-
 #  ### Makefile for dlb library
+# if used without PG, set DLB_EXTERNAL = 1
+# else it will take the comilers and
+# other needed variables from the machine.inc
+# file of PG
+DLB_EXTERNAL = 0
 
 #
 # DLB library, used for tests and in PG:
@@ -16,9 +21,17 @@ test_dlb = test_dlb
 #
 all: $(libdlb.a) $(test_dlb)
 
+ifeq ($(DLB_EXTERNAL), 0)
 # for inclusion of for example the right fortran (or C) compiler
 # But be aware that the compiler flags will be reset
 include ../machine.inc
+else
+FC = mpif90
+CC = mpicc
+AR = ar
+RANLIB = ranlib
+DLB_VARIANT = 0
+endif
 
 #### RESET COMPILER FLAGS ####
 FFLAGS = -frecursive -g -O2 #-fbounds-check # Intel: -diag-enable warn
