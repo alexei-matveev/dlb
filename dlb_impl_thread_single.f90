@@ -92,9 +92,10 @@ module dlb_impl
   use dlb_common, only: add_request, test_requests, end_requests, send_resp_done, report_job_done
   use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, SJOB_LEN, L_JOB, NRANK, J_STP, J_EP, MSGTAG
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
-  use dlb_common, only: dlb_common_setup, has_last_done, send_termination
+  use dlb_common, only: dlb_common_setup
   use dlb_common, only: masterserver
   use dlb_common, only: decrease_resp
+  use dlb_common, only: end_communication
   use iso_c_binding
   use thread_handle
   use mpi
@@ -285,6 +286,7 @@ contains
 
     ! now finish all messges still available, no matter if they have been received
     call end_requests(requ_m)
+    call end_communication()
 
     call th_mutex_lock( LOCK_JS)
     call th_cond_signal(COND_JS2_UPDATE)
