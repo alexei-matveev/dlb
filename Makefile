@@ -31,10 +31,18 @@ CPP = cpp --traditional-cpp
 #
 # Depending on the target set $(dlb_objs):
 #
-dlb_objs = dlb_impl_static.o
-#dlb_objs = dlb_impl_rma.o
-#dlb_objs = dlb_impl_thread_multiple.o thread_handle.o thread_wrapper.o
-#dlb_objs = dlb_impl_thread_single.o thread_handle.o thread_wrapper.o
+ifeq ($(DLB_VARIANT), 0)
+	dlb_objs = dlb_impl_static.o
+endif
+ifeq ($(DLB_VARIANT), 1)
+	dlb_objs = dlb_impl_rma.o
+endif
+ifeq ($(DLB_VARIANT), 2)
+	dlb_objs = dlb_impl_thread_single.o thread_handle.o thread_wrapper.o
+endif
+ifeq ($(DLB_VARIANT), 3)
+	dlb_objs = dlb_impl_thread_multiple.o thread_handle.o thread_wrapper.o
+endif
 
 # in the library should also be the genearl file as well as the extensions
 objs =  dlb.o dlb_common.o $(dlb_objs) \
