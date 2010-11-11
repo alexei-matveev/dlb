@@ -42,6 +42,8 @@ module dlb_common
   public :: divide_work_master!(m, jobs) -> integer n
   public :: steal_work_for_rma!(m, jobs) -> integer n
 
+  public :: irand!(long int) -> long int
+
   public :: time_stamp_prefix
   public :: time_stamp
   public :: dlb_common_init, dlb_common_finalize, dlb_common_setup

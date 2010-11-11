@@ -23,6 +23,7 @@ module test
   end function echo
 
   subroutine burn_cpu(i)
+    use dlb_common, only: irand
     implicit none
     integer, intent(in) :: i
     ! *** end of interface ***
@@ -41,7 +42,7 @@ module test
     ! A pseudo random number between IMIN and IMAX:
     !
     i8 = i ! conversion to long int
-    random_cost = IMIN + mod(prand(prand(prand(i8))), IMAX - IMIN + 1)
+    random_cost = IMIN + mod(irand(irand(irand(i8))), IMAX - IMIN + 1)
     ! print *, "random_cost(", i,") =", random_cost, "between", IMIN, "and", IMAX
 
     k = 0
@@ -98,17 +99,5 @@ module test
     !
     global_state = k
   end subroutine burn_cpu
-
-  function prand(i) result(p)
-    implicit none
-    integer(8), intent(in) :: i
-    integer(8)             :: p
-    ! *** end of interface ***
-
-    integer(8), parameter :: A = 134775813, B = 1
-    integer(8), parameter :: RANGE = 2_8**32
-
-    p = mod(A * i + B, RANGE)
-  end function prand
 
 end module test
