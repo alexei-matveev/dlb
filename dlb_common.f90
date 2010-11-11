@@ -287,6 +287,7 @@ contains
      integer(i8_kind), parameter :: a = 134775813, b = 1 ! see Virtual Pascal/Borland Delphi
      integer(i8_kind), parameter :: m = 2_i8_kind**32
      integer(i8_kind), save :: seed = -1
+     integer(i8_kind) :: np8
 
      if (seed == -1) then
         seed = rank
@@ -297,7 +298,8 @@ contains
 
      ! np - 1 outcomes in the range [0, np-1] excluding victim == rank:
      if( np > 1) then
-       victim = mod(seed, np - 1)
+       np8 = np ! convert to long int
+       victim = mod(seed, np8 - 1)
        if (victim >= rank) victim = victim + 1
      else
        victim = 0
