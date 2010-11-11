@@ -43,6 +43,12 @@ CPP = cpp --traditional-cpp
 #
 # Depending on the target set $(dlb_objs):
 #
+
+ifndef DLB_VARIANT
+	# default variant DLB_VARIANT = 0 should work in any case
+	DLB_VARIANT = 0
+endif
+
 ifeq ($(DLB_VARIANT), 0)
 	dlb_objs = dlb_impl_static.o
 endif
