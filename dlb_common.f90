@@ -253,12 +253,26 @@ contains
      endif
   end function select_victim_r
 
-  function select_victim_random(rank, np) result(victim)
-     ! Purpose: decide of who to try next to get any jobs
-     ! Uses pseudorandom sequence:
+  pure function irand(i) result(p)
+     ! Pseudorandom sequence:
      !
      ! X    = (a * X + b) mod m
      !  n+1         n
+     !
+     implicit none
+     integer(i8_kind), intent(in) :: i
+     integer(i8_kind)             :: p
+     ! *** end of interface ***
+
+     ! see Virtual Pascal/Borland Delphi
+     integer(i8_kind), parameter :: A = 134775813, B = 1
+     integer(i8_kind), parameter :: RANGE = 2_i8_kind**32
+
+     p = mod(A * i + B, RANGE)
+  end function irand
+
+  function select_victim_random(rank, np) result(victim)
+     ! Purpose: decide of who to try next to get any jobs
      !
      ! Context: 3 thread: control thread
      !          2 thread: secretary thread
@@ -279,7 +293,7 @@ contains
      endif
 
      ! PRNG step:
-     seed = mod(a * seed + b, m)
+     seed = irand(seed)
 
      ! np - 1 outcomes in the range [0, np-1] excluding victim == rank:
      if( np > 1) then
