@@ -1,17 +1,20 @@
-The library created in this subfolder (called libdlb.a)
-takes care about dynamical load balancing.
-There are two different cases possible: one where all jobs are equal in
-name and a second one where each job has a special colour.
-There are 6 different functions alltogether, where two are commmon ones,
-while of the other each two belong to the case with and without color.
+
+The library created in this subfolder (called libdlb.a) takes care about
+dynamical load balancing.  There are two different cases possible: one where
+all jobs are equal in name and a second one where each job has a special
+colour.  There are 6 different functions alltogether, where two are commmon
+ones, while of the other each two belong to the case with and without color.
 
 
 DIFFERENT VARIANTS
+
 Which of the different variants of the DLB implementions is used is selected by
 DLB_VARIANT. In the case of DLB_VARIANT = 0 there is a static distribution,
 where no communication between the processors is used.
+
 DLB_VARIANT = 1: is a remote memory access (RMA) method. When RMA is really
     asynchornous, or done by the hardware, this method can be uses.
+
 DLB_VARIANT = 2 and DLB_VARIANT = 3: Both methods use threads for making the
     DLB algorithm work. They need a higher level of thread safety than the
     normal MPI_INIT. They should be run with MPI_INIT_THREAD, where the variant
@@ -25,82 +28,102 @@ DLB_VARIANT = 2 and DLB_VARIANT = 3: Both methods use threads for making the
     The variants need also POSIX Threads available.
 
 ACTING OF DLB:
-DLB takes care about the available job numbers. On request it gives several of this
-to a processor to work on. It takes care that each of them is given back exactly once.
-If a processor runs out of jobs, he can, for DLB_VARIANT > 0, ask the other processors
-to give them some of theirs.
+
+DLB takes care about the available job numbers. On request it gives several of
+this to a processor to work on. It takes care that each of them is given back
+exactly once.  If a processor runs out of jobs, he can, for DLB_VARIANT > 0,
+ask the other processors to give them some of theirs.
 
 INTERFACE
-All functions have to be called on all processors.
-The two common functions are:
-dlb_init and dlb_finalize. They have to surround the use of the other functions.
-When calling dlb_init MPI has to be already initalized, also dlb finalize has to
-be called before MPI_FINALIZE. Other than the MPI counterparts there is the possibility
-to finalize and initalize dlb in between some uses.
+
+All functions have to be called on all processors.  The two common functions
+are: dlb_init and dlb_finalize. They have to surround the use of the other
+functions.  When calling dlb_init MPI has to be already initalized, also dlb
+finalize has to be called before MPI_FINALIZE. Other than the MPI counterparts
+there is the possibility to finalize and initalize dlb in between some uses.
 Both functions have no arguments, thus use them by:
-call dlb_init()
-call dlb_finalize()
 
-The calculation itself is done by the thow functions dlb_setup and dlb_give_more
-(or their counterpart with colors dlb_setup_color and dlb_give_more_color)
+    call dlb_init()
+    ...
+    call dlb_finalize()
 
-dlb_setup will take the number of available jobs as an argument. It will already
- perform a statical distribution.
-dlb_give_more has two arguments: the first n stands for the number of job numbers
-   it wants at once. The second argument is the interval jobs, which the processor
-   should now work on. The work the processor should then do is between
-   jobs(1) + 1 and jobs(2). dlb_give_more is a function, which will return true
-   as long as there a jobs and false if there are none. In the last case there will
-   be also jobs(1) >= jobs(2). If it returns true there is always at least one job.
-   But there may be also fewer, if the proccessor has only few, this has nothing to do
-   with the amount of jobs, all processors have.
-   If it returns false, all processors have terminated (except in case DLB_VARIANT = 0).
-   Otherwise it will wait in the function dlb_give_more if the termination
-   has not yet confirmed.
+The calculation itself is done by the thow functions dlb_setup and
+dlb_give_more (or their counterpart with colors dlb_setup_color and
+dlb_give_more_color)
+
+dlb_setup will take the number of available jobs as an argument. It will
+already perform a statical distribution.
+
+dlb_give_more has two arguments: the first MAXJOBS stands for the number of job
+numbers it wants at once. The second argument is the interval jobs, which the
+processor should now work on. The work the processor should then do is between
+jobs(1) + 1 and jobs(2). dlb_give_more is a function, which will return true as
+long as there a jobs and false if there are none. In the last case there will
+be also jobs(1) >= jobs(2). If it returns true there is always at least one
+job.  But there may be also fewer, if the proccessor has only few, this has
+nothing to do with the amount of jobs, all processors have.  If it returns
+false, all processors have terminated (except in case DLB_VARIANT = 0).
+Otherwise it will wait in the function dlb_give_more if the termination has not
+yet confirmed.
+
 Usage:
-call dlb_setup(N) ! N is integer
-while dlb_give_more(n, jobs) ! n is integer, jobs(2) is integer array
+
+    call dlb_setup(NJOBS) ! NJOBS is integer
+
+while dlb_give_more(MAXJOBS, jobs) ! MAXJOBS is integer, jobs(2) is integer array
 
 The difference of the color case, is that here the color is also considered.
 In dlb_setup_color one gives a distribution, with the colors, thus it gets an
 integer array containing elements like (/startnumber, endnumber, color/).
 Where startnumber +1 to endnumber a the jobsnumber on element color.
 dlb_give_more_color will give in adition to the jobs their color. Furhermore it
-   ensures that all jobs it gives back have the same color.
+ensures that all jobs it gives back have the same color.
+
 Usage:
+
 call dlb_setup_color(distr) ! distr is integer array of size (many_colors, 3)
-while dlb_give_more_color(n, color, jobs) ! n and color are integers, jobs(2) is integer array
+while dlb_give_more_color(MAXJOBS, color, jobs) ! MAXJOBS and color are integers, jobs(2)
+is integer array
 
 EXAMPLE:
 
-use mpi
-use dlb
-integer :: ierr, prov, N, n, jobs(2), i
-integer :: distr(4,3), color
-call MPI_INIT_THREADS(MPI_THREAD_MULTIPLE, prov, ierr)
-call dlb_init()
-N = 20
-n = 2
-call dlb_setup(20)
-do while(dlb_give_more(n, jobs)
-   do i = jobs(1) + 1, jobs(2)
-      print *, "Doing job", i
-   enddo
-enddo
-n = 3
-distr(1,:) = (/1, 0, 10)
-distr(2,:) = (/0, 9, 13)
-distr(3,:) = (/2, 0, 1)
-distr(4,:) = (/3, 3, 9)
-call dlb_setup_color(distr)
-do while(dlb_give_more_color(n, color, jobs)
-   do i = jobs(1) + 1, jobs(2)
-      print *, "Doing job", i, "of color", color
-   enddo
-enddo
-call dlb_finalize()
-call MPI_FINALIZE(ierr)
+  use mpi
+  use dlb
+  integer :: ierr, prov, NJOBS, MAXJOBS, jobs(2), i
+  integer :: distr(4,3), color
+
+  call MPI_INIT_THREADS(MPI_THREAD_MULTIPLE, prov, ierr)
+
+  call dlb_init()
+
+  NJOBS = 20
+  MAXJOBS = 2
+
+  call dlb_setup(NJOBS)
+  do while( dlb_give_more(MAXJOBS, jobs) )
+     do i = jobs(1) + 1, jobs(2)
+        print *, "Doing job", i
+     enddo
+  enddo
+
+  MAXJOBS = 3
+  distr(1,:) = (/1, 0, 10)
+  distr(2,:) = (/0, 9, 13)
+  distr(3,:) = (/2, 0, 1)
+  distr(4,:) = (/3, 3, 9)
+
+  call dlb_setup_color(distr)
+  do while( dlb_give_more_color(MAXJOBS, color, jobs) )
+     do i = jobs(1) + 1, jobs(2)
+        print *, "Doing job", i, "of color", color
+     enddo
+  enddo
+
+  call dlb_finalize()
+
+  call MPI_FINALIZE(ierr)
 
 COMPILATION:
+
 If DLB is used external from the ParaGauss repository set DLB_EXTERNAL = 1 on
 top of the DLB Makefile.
