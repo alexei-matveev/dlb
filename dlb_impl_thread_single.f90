@@ -98,9 +98,8 @@ module dlb_impl
   use dlb_common, only: end_communication
   use iso_c_binding
   use thread_handle
-  use mpi
+  USE_MPI
   implicit none
-  !include 'mpif.h'
   !use type_module ! type specification parameters
   save            ! save all variables defined in this module
   private         ! by default, all names are private

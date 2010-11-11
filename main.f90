@@ -3,10 +3,12 @@ program main
 
 use dlb, only: dlb_init, dlb_finalize, dlb_setup, dlb_give_more
 use test, only: echo
+# include "dlb.h"
+USE_MPI
 
 use dlb_common, only: time_stamp ! for debug prints
 implicit none
-include 'mpif.h'
+!include 'mpif.h'
 
 integer, parameter :: NJOBS = 20
 integer, parameter :: MAXJOBS = 1

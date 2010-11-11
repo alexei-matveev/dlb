@@ -28,7 +28,7 @@ module dlb_common
   !
   !----------------------------------------------------------------
 # include "dlb.h"
-  use mpi
+  USE_MPI
   implicit none
   save            ! save all variables defined in this module
   private         ! by default, all names are private

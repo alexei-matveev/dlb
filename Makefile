@@ -34,7 +34,6 @@ DLB_VARIANT = 0
 endif
 
 #### RESET COMPILER FLAGS ####
-FFLAGS = -frecursive -g -O2 #-fbounds-check # Intel: -diag-enable warn
 CFLAGS = -Wall -g -O1 -std=c99 -D_XOPEN_SOURCE=500
 # set _XOPEN_SOURCE=500 to make rwlocks available
 
@@ -59,7 +58,7 @@ endif
 
 # in the library should also be the genearl file as well as the extensions
 objs =  dlb.o dlb_common.o $(dlb_objs) \
-	dlb_assert_failed.o
+	dlb_assert_failed.o dlb_mpi.o
 
 # This is the dlb library
 $(libdlb.a): $(objs)
@@ -67,14 +66,16 @@ $(libdlb.a): $(objs)
 	$(RANLIB) $@
 
 # for including the library in the test example
-LIBS = -L. -ldlb
+LIBS = -L. -ldlb $(MPILIBS)
 
 # dependencies
 dlb_impl_rma.o dlb_impl_thread_multiple.o thread_handle.o dlb_impl_thread_single.o dlb_impl_static.o: dlb_common.o
 dlb_impl_thread_multiple.o: thread_handle.o thread_wrapper.o
 dlb_impl_thread_single.o: thread_handle.o thread_wrapper.o
+dlb_impl_rma.o dlb_impl_thread_multiple.o thread_handle.o dlb_impl_thread_single.o dlb_impl_static.o: dlb_mpi.o
+main.o dlb_common.o dlb.o: dlb_mpi.o
 thread_handle.o: thread_wrapper.o
-dlb.o: $(dlb_objs)
+dlb.o: $(dlb_objs) dlb_common.o
 main.o: test.o $(libdlb.a)
 
 %.o: %.c
@@ -85,11 +86,11 @@ main.o: test.o $(libdlb.a)
 	$(CPP) $(<) > $(*).F90
 
 %.o: %.F90
-	$(FC) $(FFLAGS) -c $(<)
+	$(FC) $(FFLAGS) $(MPIINCLUDE) -c $(<)
 
 # this is how the test example should be build
 $(test_dlb): main.o test.o $(libdlb.a)
-	$(FC) $(FFLAGS) $(LIBS) $(^) -o $(@)
+	$(FC) -o $(@) main.o test.o $(LIBS)
 
 ##### SPECIAL COMMANDS #####
 clean:

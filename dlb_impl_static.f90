@@ -47,7 +47,6 @@ module dlb_impl
 use dlb_common, only: dlb_common_init, dlb_common_finalize
 implicit none
 ! ONLY FOR DEBBUGING WITHOUT PARAGAUSS
-  include 'mpif.h'
 ! END ONLY FOR DEBUGGING
 save            ! save all variables defined in this module
 private         ! by default, all names are private

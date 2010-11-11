@@ -78,7 +78,7 @@ module dlb_impl
   !
   !----------------------------------------------------------------
 # include "dlb.h"
-  use mpi
+  USE_MPI
   use iso_c_binding
   use dlb_common, only: i4_kind, r8_kind, comm_world
   use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only

@@ -7,7 +7,7 @@ module thread_handle
   use dlb_common, only: SJOB_LEN, J_EP, J_STP, MSGTAG, NO_WORK_LEFT
   use dlb_common, only: has_last_done, set_empty_job, add_request, send_termination
   use dlb_common, only: masterserver
-  use mpi
+  USE_MPI
   implicit none
 
   interface
