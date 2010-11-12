@@ -174,7 +174,6 @@ contains
     ! Termination master start of a new dlb run
     implicit none
     integer(kind=i4_kind), intent(in   ) :: resp
-    integer :: ierr
     integer ::  alloc_stat
     if (allocated(all_done)) all_done  = .false.
     ! if there is any exchange of jobs, the following things are needed
@@ -616,7 +615,7 @@ contains
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind)                :: i, source
+    integer(kind=i4_kind)                :: source
     !------------ Executable code --------------------------------
     source = source2 + 1
     ! We need the messages and req_dj entry of source in any case

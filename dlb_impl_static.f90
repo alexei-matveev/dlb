@@ -100,7 +100,7 @@ contains
     integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB)
 !   !** End of interface *****************************************
 !   !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, w
+    integer(kind=i4_kind)                :: w
     integer(i4_kind), target             :: jobs(SJOB_LEN)
 !   !------------ Executable code --------------------------------
     ! First try to get a job from local storage

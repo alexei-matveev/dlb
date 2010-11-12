@@ -377,7 +377,6 @@ contains
                                              ! be for sure finished, when it is needed for the next request
     integer(kind=i4_kind)                :: requ_wr
     integer(kind=i4_kind)                :: my_jobs(SJOB_LEN)
-    integer(kind=i4_kind),allocatable    :: requ_c(:) !requests storages for CONTROL
     many_tries = many_tries + 1 ! just for debugging
     message = 0
     message(1) = WORK_REQUEST
