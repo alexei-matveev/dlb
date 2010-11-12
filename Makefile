@@ -82,6 +82,7 @@ dlb_impl_rma.o dlb_impl_thread_multiple.o thread_handle.o dlb_impl_thread_single
 main.o dlb_common.o dlb.o: dlb_mpi.o
 thread_handle.o: thread_wrapper.o
 dlb.o: $(dlb_objs) dlb_common.o
+test.o: dlb_common.o
 main.o: test.o $(libdlb.a)
 
 %.o: %.c
