@@ -136,86 +136,25 @@ contains
     call dlb_impl_finalize()
   end subroutine dlb_finalize
 
-  function distribute_jobs(N, n_procs, my_rank) result(my_jobs)
-    !  Purpose: given the number of jobs alltogether, decides how many
-    !           will be done on each proc and where is start and endpoint
-    !           in the global job range, this will be fed directly in
-    !           the dlb_setup of the dlb routine
-    !           each one should get an equal amount of them, if it
-    !           is not equally dividable the first ones get one more
-    !------------ Modules used ------------------- ---------------
-    implicit none
-    !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: N, n_procs, my_rank
-    integer(kind=i4_kind)                :: my_jobs(L_JOB)
-    !** End of interface *****************************************
-
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind) :: jobs_per_proc, rest
-
-    jobs_per_proc = N / n_procs
-    my_jobs(J_STP) = jobs_per_proc * my_rank
-    ! if it is not dividable, distribute the rest
-    ! this will shift the start point of each (but the first) proc
-    rest = N - jobs_per_proc * n_procs
-    if (my_rank < rest) then
-       my_jobs(J_STP) = my_jobs(J_STP) + my_rank
-    else
-       my_jobs(J_STP) = my_jobs(J_STP) + rest
-    endif
-
-    ! if this proc has to do one more job tell him so
-    if (my_rank < rest) jobs_per_proc = jobs_per_proc + 1
-    my_jobs(J_EP) = my_jobs(J_STP) + jobs_per_proc
-  end function distribute_jobs
-
-  function distribute_jobs_master(N, n_procs, my_rank) result(my_jobs)
-    !  Purpose: given the number of jobs alltogether, decides how many
-    !           will be done on each proc and where is start and endpoint
-    !           in the global job range, this will be fed directly in
-    !           the dlb_setup of the dlb routine
-    !           masterserver variant, 70% are distributed beforehand
-    !           the rest is on the master
-    !------------ Modules used ------------------- ---------------
-    use dlb_common, only: masterserver, termination_master
-    implicit none
-    !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: N, n_procs, my_rank
-    integer(kind=i4_kind)                :: my_jobs(L_JOB)
-    !** End of interface *****************************************
-
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind) :: jobs_per_proc, rest
-
-    jobs_per_proc = N / n_procs * 7 / 10
-    my_jobs(J_STP) = jobs_per_proc * my_rank
-    ! if it is not dividable, distribute the rest
-    ! this will shift the start point of each (but the first) proc
-    my_jobs(J_EP) = my_jobs(J_STP) + jobs_per_proc
-    if (my_rank == termination_master) then
-      my_jobs(J_EP) = N
-    endif
-  end function distribute_jobs_master
-
   subroutine dlb_setup(N)
     !  Purpose: initialization of a dlb run, each proc should call
     !           it with the number of jobs alltogether. This is the
     !           version without color distingishing, thus this information
     !           is enough
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: masterserver
-    use dlb_common, only: my_rank, n_procs
+    use dlb_common, only: distribute_jobs, n_procs, my_rank
     use dlb_impl, only: dlb_impl_setup => dlb_setup
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: N
     ! *** end of interface ***
 
-    if (masterserver) then
-      call dlb_impl_setup(distribute_jobs_master(N, n_procs, my_rank))
-    else
-      call dlb_impl_setup(distribute_jobs(N, n_procs, my_rank))
-    endif
+    !
+    ! FIXME: why my_rank as an argument?
+    !        Should the result of distribute_jobs(...)
+    !        depend on where it is executed?
+    !
+    call dlb_impl_setup(distribute_jobs(N, n_procs, my_rank))
   end subroutine dlb_setup
 
   subroutine dlb_setup_color(distr)
