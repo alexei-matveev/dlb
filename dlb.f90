@@ -208,7 +208,7 @@ contains
     dlb_give_more = (my_job(J_STP) < my_job(J_EP))
   end function dlb_give_more
 
-  logical function dlb_give_more_color(n, color, my_job)
+  function dlb_give_more_color(n, color, my_job) result(more)
     !  Purpose: Returns next bunch of up to n jobs, if jobs(J_EP)<=
     !  jobs(J_STP) there are no more jobs there, else returns the jobs
     !  done by the procs should be jobs(J_STP) + 1 to jobs(J_EP) in
@@ -217,33 +217,38 @@ contains
     !  that the jobs given back all have the same color
     !  it keeps other colored jobs in its own storage
     !------------ Modules used ------------------- ---------------
-    use dlb_impl, only: dlb_impl_give_more => dlb_give_more
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
     integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB), color
+    logical                              :: more ! result
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: i,  w, jobs_all, jobs_color, ierr
 
-    dlb_give_more_color = .true.
-    if (current_jobs(J_STP) >= current_jobs(J_EP)) then ! only if the own storage is empty, refill
-        call dlb_impl_give_more(n, current_jobs)
+    if (current_jobs(J_STP) < current_jobs(J_EP)) then
+        ! some are left over from the last time:
+        more = .true.
+    else
+        ! only if the own storage is empty, refill:
+        more = dlb_give_more(n, current_jobs)
     endif
 
+    !
     ! ATTENTION: this if statement contains a return
-    if (current_jobs(J_STP) >= current_jobs(J_EP)) then ! got empty job from dlb, thus all done, quit
-      dlb_give_more_color = .false.
-      my_job = current_jobs
-      color = 0
+    !
+    if ( .not. more ) then
+        ! got empty job from dlb, thus all done, quit
+        my_job = current_jobs
+        color = 0
 
-      if (allocated(start_color)) then
-        deallocate(start_color, stat = ierr)
-        ASSERT(ierr==0)
-      endif
+        if (allocated(start_color)) then
+            deallocate(start_color, stat = ierr)
+            ASSERT(ierr==0)
+        endif
 
-      RETURN
+        RETURN
     endif
 
     !
