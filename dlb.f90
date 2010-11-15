@@ -80,7 +80,6 @@ module dlb
 # include "dlb.h"
 ! Need here some stuff, that is already defined elsewere
 use dlb_common, only: J_STP, J_EP, L_JOB
-use dlb_common, only: masterserver, termination_master
 use dlb_common, only: i4_kind
 implicit none
 save            ! save all variables defined in this module
@@ -178,6 +177,7 @@ contains
     !           masterserver variant, 70% are distributed beforehand
     !           the rest is on the master
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: masterserver, termination_master
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: N, n_procs, my_rank
@@ -203,6 +203,7 @@ contains
     !           version without color distingishing, thus this information
     !           is enough
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: masterserver
     use dlb_common, only: my_rank, n_procs
     use dlb_impl, only: dlb_impl_setup => dlb_setup
     implicit none
