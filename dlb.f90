@@ -137,7 +137,7 @@ contains
     call dlb_impl_finalize()
   end subroutine dlb_finalize
 
-  subroutine distribute_jobs(N, n_procs, my_rank)
+  function distribute_jobs(N, n_procs, my_rank) result(my_jobs)
     !  Purpose: given the number of jobs alltogether, decides how many
     !           will be done on each proc and where is start and endpoint
     !           in the global job range, this will be fed directly in
@@ -145,14 +145,14 @@ contains
     !           each one should get an equal amount of them, if it
     !           is not equally dividable the first ones get one more
     !------------ Modules used ------------------- ---------------
-    use dlb_impl, only: dlb_impl_setup => dlb_setup
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: N, n_procs, my_rank
+    integer(kind=i4_kind)                :: my_jobs(L_JOB)
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: jobs_per_proc, rest, my_jobs(L_JOB)
+    integer(kind=i4_kind) :: jobs_per_proc, rest
 
     jobs_per_proc = N / n_procs
     my_jobs(J_STP) = jobs_per_proc * my_rank
@@ -168,13 +168,9 @@ contains
     ! if this proc has to do one more job tell him so
     if (my_rank < rest) jobs_per_proc = jobs_per_proc + 1
     my_jobs(J_EP) = my_jobs(J_STP) + jobs_per_proc
+  end function distribute_jobs
 
-    !print *, my_rank, "has jobs", my_jobs, "of", N
-    ! This is the dlb routine setup, which stores the job for the run
-    call dlb_impl_setup(my_jobs)
-  end subroutine distribute_jobs
-
-  subroutine distribute_jobs_master(N, n_procs, my_rank)
+  function distribute_jobs_master(N, n_procs, my_rank) result(my_jobs)
     !  Purpose: given the number of jobs alltogether, decides how many
     !           will be done on each proc and where is start and endpoint
     !           in the global job range, this will be fed directly in
@@ -182,14 +178,14 @@ contains
     !           masterserver variant, 70% are distributed beforehand
     !           the rest is on the master
     !------------ Modules used ------------------- ---------------
-    use dlb_impl, only: dlb_impl_setup => dlb_setup
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: N, n_procs, my_rank
+    integer(kind=i4_kind)                :: my_jobs(L_JOB)
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: jobs_per_proc, rest, my_jobs(L_JOB)
+    integer(kind=i4_kind) :: jobs_per_proc, rest
 
     jobs_per_proc = N / n_procs * 7 / 10
     my_jobs(J_STP) = jobs_per_proc * my_rank
@@ -199,10 +195,7 @@ contains
     if (my_rank == termination_master) then
       my_jobs(J_EP) = N
     endif
-    !print *, my_rank, "has jobs", my_jobs, "of", N
-    ! This is the dlb routine setup, which stores the job for the run
-    call dlb_impl_setup(my_jobs)
-  end subroutine distribute_jobs_master
+  end function distribute_jobs_master
 
   subroutine dlb_setup(N)
     !  Purpose: initialization of a dlb run, each proc should call
@@ -211,15 +204,16 @@ contains
     !           is enough
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: my_rank, n_procs
+    use dlb_impl, only: dlb_impl_setup => dlb_setup
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: N
     ! *** end of interface ***
 
     if (masterserver) then
-      call distribute_jobs_master(N, n_procs, my_rank)
+      call dlb_impl_setup(distribute_jobs_master(N, n_procs, my_rank))
     else
-      call distribute_jobs(N, n_procs, my_rank)
+      call dlb_impl_setup(distribute_jobs(N, n_procs, my_rank))
     endif
   end subroutine dlb_setup
 
@@ -229,14 +223,13 @@ contains
     !           version with color distingishing, thus the distribution
     !           of the jobs over the color have to be given
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: my_rank, n_procs
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: distr(:,:)
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, many_colors,i
+    integer(kind=i4_kind)                :: ierr, many_colors, i
 
     if (allocated(job_distribution)) then
       deallocate(job_distribution, stat = ierr)
@@ -266,13 +259,9 @@ contains
     enddo
 
     !
-    ! Internally jobs are treated as equal by DLB
+    ! Internally jobs are treated as equal by DLB:
     !
-    if (masterserver) then
-      call distribute_jobs_master( start_color(many_colors + 1), n_procs, my_rank)
-    else
-      call distribute_jobs( start_color(many_colors + 1), n_procs, my_rank)
-    endif
+    call dlb_setup(start_color(many_colors + 1))
   end subroutine dlb_setup_color
 
   logical function dlb_give_more(n, my_job)
