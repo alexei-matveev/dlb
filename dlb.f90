@@ -90,15 +90,12 @@ private         ! by default, all names are private
 public dlb_init, dlb_finalize, dlb_setup, dlb_setup_color, dlb_give_more
 public dlb_give_more_color
 
-! This global variables are only needed for the color-case
-! Ensure that if J_STP and J_EP should be changed some time that J_COLOR is
-! still valid
-integer(i4_kind), parameter   :: J_COLOR = 3
 ! storage for the distribution of jobs over the colors, should hold exactly
 ! the distr one has given in dlb_setup_color, start_color is a helpe varialbe
 ! for linking the intern job-numbers (succeeding ones) on the job-ids of the
 ! job distribution
-integer(i4_kind), allocatable :: job_distribution(:,:), start_color(:)
+integer(i4_kind), allocatable :: start_color(:)
+
 ! in the color case one may not be able to hand over all jobs at once, thus store them here
 integer(i4_kind)              :: current_jobs(L_JOB)
 
@@ -124,15 +121,14 @@ contains
 
     integer(i4_kind)              :: ierr
 
-    ! Theu should not be there anymore but one may wnat to ensure this
-    if (allocated(job_distribution)) then
-      deallocate(job_distribution, stat = ierr)
-      ASSERT(ierr==0)
-    endif
+    !
+    ! Only if colored-version was in use:
+    !
     if (allocated(start_color)) then
       deallocate(start_color, stat = ierr)
       ASSERT(ierr==0)
     endif
+
     call dlb_impl_finalize()
   end subroutine dlb_finalize
 
@@ -157,7 +153,7 @@ contains
     call dlb_impl_setup(distribute_jobs(N, n_procs, my_rank))
   end subroutine dlb_setup
 
-  subroutine dlb_setup_color(distr)
+  subroutine dlb_setup_color(N)
     !  Purpose: initialization of a dlb run, each proc should call
     !           it with the number of jobs alltogether. This is the
     !           version with color distingishing, thus the distribution
@@ -165,43 +161,34 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: distr(:,:)
+    integer(kind=i4_kind), intent(in   ) :: N(:)
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, many_colors, i
-
-    if (allocated(job_distribution)) then
-      deallocate(job_distribution, stat = ierr)
-      ASSERT(ierr==0)
-    endif
+    integer(kind=i4_kind)                :: ierr, i
 
     if (allocated(start_color)) then
       deallocate(start_color, stat = ierr)
       ASSERT(ierr==0)
     endif
 
-    ! There is also an internal color_link which gives every distribution line just the
-    ! line number as color, the "real" color is only used to give it back
-    ! there are many_colors internal colors
-    many_colors = size(distr,1)
-    ASSERT(size(distr, 2) == 3)
-
-    allocate(job_distribution(many_colors, 3), start_color(many_colors+1), stat = ierr)
+    !
+    ! There are size(N) many colors:
+    !
+    allocate(start_color(size(N) + 1), stat = ierr)
     ASSERT(ierr==0)
 
-    job_distribution = distr ! to keep the informations
     ! start_color just keeps for every internal color the information with wich of the internal
     ! job-numbers this color will start. The last entry point gives the number of all jobs altogether
     start_color(1) = 0
-    do i = 2, many_colors +1
-      start_color(i) = start_color(i-1) + job_distribution(i-1,J_EP) - job_distribution(i-1,J_STP)
+    do i = 2, size(N) + 1
+      start_color(i) = start_color(i - 1) + N(i - 1)
     enddo
 
     !
     ! Internally jobs are treated as equal by DLB:
     !
-    call dlb_setup(start_color(many_colors + 1))
+    call dlb_setup(sum(N))
   end subroutine dlb_setup_color
 
   logical function dlb_give_more(n, my_job)
@@ -238,7 +225,7 @@ contains
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: i,  w, jobs_all, jobs_color, current_color, ierr
+    integer(kind=i4_kind)                :: i,  w, jobs_all, jobs_color, ierr
 
     dlb_give_more_color = .true.
     if (current_jobs(J_STP) >= current_jobs(J_EP)) then ! only if the own storage is empty, refill
@@ -250,10 +237,6 @@ contains
       dlb_give_more_color = .false.
       my_job = current_jobs
       color = 0
-      if (allocated(job_distribution)) then
-        deallocate(job_distribution, stat = ierr)
-        ASSERT(ierr==0)
-      endif
 
       if (allocated(start_color)) then
         deallocate(start_color, stat = ierr)
@@ -263,21 +246,23 @@ contains
       RETURN
     endif
 
-    ! find out which color the first current job has, (in internal color)
+    !
+    ! Find out which color the first current job has:
+    !
     do i = 2, size(start_color)
       if (start_color(i) > current_jobs(J_STP)) then
-        current_color = i - 1
+        color = i - 1
         exit
       endif
     enddo
-    color = job_distribution(current_color, J_COLOR) ! transform it in the color, the calling program
+
     ! will want
     jobs_all = current_jobs(J_EP) - current_jobs(J_STP) ! how many jobs do I have
-    jobs_color = start_color(current_color + 1) - current_jobs(J_STP) ! how many jobs are there left
+    jobs_color = start_color(color + 1) - current_jobs(J_STP) ! how many jobs are there left
     ! of the color
     w = min(jobs_all, jobs_color)
     ! now share the own storage with the calling program
-    my_job(J_STP) = job_distribution(current_color,J_STP) + current_jobs(J_STP) - start_color(current_color)
+    my_job(J_STP) = current_jobs(J_STP) - start_color(color)
     my_job(J_EP) = my_job(J_STP) + w
     current_jobs(J_STP) = current_jobs(J_STP) + w
   end function dlb_give_more_color
