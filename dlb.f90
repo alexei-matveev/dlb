@@ -147,7 +147,7 @@ contains
 
     !
     ! FIXME: why my_rank as an argument?
-    !        Should the result of distribute_jobs(...)
+    !        Should the input to dlb_impl_setup(...)
     !        depend on where it is executed?
     !
     call dlb_impl_setup(distribute_jobs(N, n_procs, my_rank))
