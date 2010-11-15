@@ -79,7 +79,7 @@ module dlb
 
 # include "dlb.h"
 ! Need here some stuff, that is already defined elsewere
-use dlb_common, only: my_rank, n_procs, J_STP, J_EP, L_JOB
+use dlb_common, only: J_STP, J_EP, L_JOB
 use dlb_common, only: masterserver, termination_master
 use dlb_common, only: i4_kind
 implicit none
@@ -137,7 +137,7 @@ contains
     call dlb_impl_finalize()
   end subroutine dlb_finalize
 
-  subroutine distribute_jobs(N)
+  subroutine distribute_jobs(N, n_procs, my_rank)
     !  Purpose: given the number of jobs alltogether, decides how many
     !           will be done on each proc and where is start and endpoint
     !           in the global job range, this will be fed directly in
@@ -148,7 +148,7 @@ contains
     use dlb_impl, only: dlb_impl_setup => dlb_setup
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: N
+    integer(kind=i4_kind), intent(in   ) :: N, n_procs, my_rank
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
@@ -174,7 +174,7 @@ contains
     call dlb_impl_setup(my_jobs)
   end subroutine distribute_jobs
 
-  subroutine distribute_jobs_master(N)
+  subroutine distribute_jobs_master(N, n_procs, my_rank)
     !  Purpose: given the number of jobs alltogether, decides how many
     !           will be done on each proc and where is start and endpoint
     !           in the global job range, this will be fed directly in
@@ -185,7 +185,7 @@ contains
     use dlb_impl, only: dlb_impl_setup => dlb_setup
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: N
+    integer(kind=i4_kind), intent(in   ) :: N, n_procs, my_rank
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
@@ -210,15 +210,16 @@ contains
     !           version without color distingishing, thus this information
     !           is enough
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: my_rank, n_procs
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: N
     ! *** end of interface ***
 
     if (masterserver) then
-      call distribute_jobs_master(N)
+      call distribute_jobs_master(N, n_procs, my_rank)
     else
-      call distribute_jobs(N)
+      call distribute_jobs(N, n_procs, my_rank)
     endif
   end subroutine dlb_setup
 
@@ -228,6 +229,7 @@ contains
     !           version with color distingishing, thus the distribution
     !           of the jobs over the color have to be given
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: my_rank, n_procs
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: distr(:,:)
@@ -262,12 +264,14 @@ contains
     do i = 2, many_colors +1
       start_color(i) = start_color(i-1) + job_distribution(i-1,J_EP) - job_distribution(i-1,J_STP)
     enddo
+
+    !
+    ! Internally jobs are treated as equal by DLB
+    !
     if (masterserver) then
-      call distribute_jobs_master( start_color(many_colors + 1)) ! internal the jobs are treated as
-      ! equal from the dlb-framework
+      call distribute_jobs_master( start_color(many_colors + 1), n_procs, my_rank)
     else
-      call distribute_jobs( start_color(many_colors + 1)) ! internal the jobs are treated as
-      ! equal from the dlb-framework
+      call distribute_jobs( start_color(many_colors + 1), n_procs, my_rank)
     endif
   end subroutine dlb_setup_color
 
