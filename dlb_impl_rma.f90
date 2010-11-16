@@ -515,33 +515,46 @@ contains
       w = steal_work_for_rma(m,jobs_infom)
       call time_stamp("free",4)
       my_jobs = jobs_infom(:SJOB_LEN)
+      ! after setting back, there is a new chance to access the memory for the others
+      jobs_infom(SJOB_LEN+1:) = 0
       if (w == 0) then ! nothing to steal, set default
-        ! FIXME: should we in this case only reset the user lock data? see
-        ! Comments in store_new_work
         my_jobs = set_empty_job()
         many_zeros = many_zeros + 1
+        !
+        ! Final lock of this memory, to free the
+        ! user setted outer lock for the others
+        ! there were no jobs to steal, for ensure the
+        ! progress, the proc may reset only the outer lock
+        ! writing back the empty job is illegal, as there may
+        ! be new ones comming, see store_new_work function
+        !
+        call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
+        ASSERT(ierr==MPI_SUCCESS)
+
+        call MPI_PUT(jobs_infom(SJOB_LEN+1:), n_procs, MPI_INTEGER4, source, 0, n_procs, MPI_INTEGER4, win, ierr)
+        ASSERT(ierr==MPI_SUCCESS)
+
+        call MPI_WIN_UNLOCK(source, win, ierr)
+        ASSERT(ierr==MPI_SUCCESS)
+
       else ! take the last w jobs of the job-storage
         my_jobs(J_STP)  = my_jobs(J_EP) - w
         jobs_infom(J_EP) = my_jobs(J_STP)
         ! the rest is for reseting the single job run, needed for termination
         start_job = my_jobs
+        !
+        ! Final lock of this memory, to give back unstolen jobs and to free the
+        ! user setted outer lock for the others
+        !
+        call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
+        ASSERT(ierr==MPI_SUCCESS)
+
+        call MPI_PUT(jobs_infom, jobs_len, MPI_INTEGER4, source, 0, jobs_len, MPI_INTEGER4, win, ierr)
+        ASSERT(ierr==MPI_SUCCESS)
+
+        call MPI_WIN_UNLOCK(source, win, ierr)
+        ASSERT(ierr==MPI_SUCCESS)
       endif
-      ! after setting back, there is a new chance to access the memory for the others
-      jobs_infom(SJOB_LEN+1:) = 0
-
-      !
-      ! Final lock of this memory, to give back unstolen jobs and to free the 
-      ! user setted outer lock for the others
-      !
-
-      call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
-      ASSERT(ierr==MPI_SUCCESS)
-
-      call MPI_PUT(jobs_infom, jobs_len, MPI_INTEGER4, source, 0, jobs_len, MPI_INTEGER4, win, ierr)
-      ASSERT(ierr==MPI_SUCCESS)
-
-      call MPI_WIN_UNLOCK(source, win, ierr)
-      ASSERT(ierr==MPI_SUCCESS)
 
       ! The give_grid function needs only up to m' jobs at once, thus
       ! divide the jobs
@@ -562,7 +575,7 @@ contains
     !           in the storage, as soon as there a no more other procs
     !           trying to do something
     !
-    !      FIXME:  the while loop may be go on for ever: because it
+    !       fixed:the while loop may be go on for ever: because it
     !              is nowere ensured that the current processor will
     !              find its memory unlocked of the user lock by the others
     !              some times. If all other procs have finished and this
@@ -571,35 +584,37 @@ contains
     !              by someone else. This has already happend if some procs
     !              were trying to get their local_tgetm when all were
     !              finished. In this case a checking for termination stuff
-    !              already im the local loop helped. Here a solution could be
-    !              that the proc could use the additional information that the storage
-    !              is empty and write back anyhow. In this case stealing procs,
-    !              which find empty storage are allowed only to reset the
-    !              lock relevant part of the storage
+    !              already im the local loop helped.
+    !              Here the solution is that the proc writes the additional
+    !              information in the storage, that is empty, anyhow.
+    !              In this case stealing procs, which find empty storage
+    !              are allowed only to reset the lock relevant part of the storage
+    !              A better solution is welcome.
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in  ) :: my_jobs(jobs_len)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, sap
+   !integer(kind=i4_kind)                :: ierr, sap
     !------------ Executable code --------------------------------
-    sap = 1
-    ASSERT(sum(my_jobs(SJOB_LEN+1:))==0)
-    do while (sap > 0 )
-      call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
-      ASSERT(ierr==MPI_SUCCESS)
-      ! Test if there are more procs doing something on the storage
-      ! (They may give back something wrong) if yes cycle, else store
-      sap = sum(job_storage(SJOB_LEN+1:))
-      if (sap > 0) then
-        call time_stamp("I'm blocked on lock contension",2)
-      else
-        job_storage = my_jobs
-      endif
-      call MPI_WIN_UNLOCK(my_rank, win, ierr)
-      ASSERT(ierr==MPI_SUCCESS)
-    enddo
+   ! check not for lock, ensure progress
+   !sap = 1
+   !ASSERT(sum(my_jobs(SJOB_LEN+1:))==0)
+   !do while (sap > 0 )
+   !  call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
+   !  ASSERT(ierr==MPI_SUCCESS)
+   !  ! Test if there are more procs doing something on the storage
+   !  ! (They may give back something wrong) if yes cycle, else store
+   !  sap = sum(job_storage(SJOB_LEN+1:))
+   !  if (sap > 0) then
+   !    call time_stamp("I'm blocked on lock contension",2)
+   !  else
+      job_storage(:SJOB_LEN) = my_jobs(:SJOB_LEN)
+   !  endif
+   !  call MPI_WIN_UNLOCK(my_rank, win, ierr)
+   !  ASSERT(ierr==MPI_SUCCESS)
+   !enddo
   end subroutine store_new_work
 
   subroutine dlb_setup(job)
