@@ -447,7 +447,7 @@ contains
       endif
     else
       your_resp = your_resp + num_jobs_done
-      call report_job_done(num_jobs_done, start_job(NRANK), requ2)
+      call report_job_done(num_jobs_done, start_job(NRANK))
     endif
   end subroutine report_or_store
 
