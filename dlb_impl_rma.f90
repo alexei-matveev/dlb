@@ -588,14 +588,15 @@ contains
     integer(kind=i4_kind), intent(in  ) :: my_jobs(jobs_len)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-   !integer(kind=i4_kind)                :: ierr, sap
+   integer(kind=i4_kind)                :: ierr
+   !integer(kind=i4_kind)                :: sap
     !------------ Executable code --------------------------------
    ! check not for lock, ensure progress
    !sap = 1
    !ASSERT(sum(my_jobs(SJOB_LEN+1:))==0)
    !do while (sap > 0 )
-   !  call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
-   !  ASSERT(ierr==MPI_SUCCESS)
+     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
+     ASSERT(ierr==MPI_SUCCESS)
    !  ! Test if there are more procs doing something on the storage
    !  ! (They may give back something wrong) if yes cycle, else store
    !  sap = sum(job_storage(SJOB_LEN+1:))
@@ -604,8 +605,8 @@ contains
    !  else
       job_storage(:SJOB_LEN) = my_jobs(:SJOB_LEN)
    !  endif
-   !  call MPI_WIN_UNLOCK(my_rank, win, ierr)
-   !  ASSERT(ierr==MPI_SUCCESS)
+     call MPI_WIN_UNLOCK(my_rank, win, ierr)
+     ASSERT(ierr==MPI_SUCCESS)
    !enddo
   end subroutine store_new_work
 
