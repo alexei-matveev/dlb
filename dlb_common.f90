@@ -653,7 +653,7 @@ contains
     call add_request(req, requ)
   end subroutine send_resp_done
 
-  subroutine report_job_done(num_jobs_done, source2, requ)
+  subroutine report_job_done(num_jobs_done, source2)
     !  Purpose: If a job is finished, this cleans up afterwards
     !           Needed for termination algorithm, there are two
     !           cases, it was a job of the own responsibilty or
@@ -668,7 +668,6 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in  ) :: num_jobs_done, source2
-    integer(kind=i4_kind), allocatable  :: requ(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)

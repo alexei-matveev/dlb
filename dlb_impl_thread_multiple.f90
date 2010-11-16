@@ -234,7 +234,6 @@ contains
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: dlb_common_finalize
     implicit none
-    integer(kind=i4_kind)    :: alloc_stat
     !** End of interface *****************************************
     call dlb_common_finalize()
   end subroutine dlb_finalize
@@ -336,7 +335,7 @@ contains
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: i, stat(MPI_STATUS_SIZE)
+    integer(kind=i4_kind)                :: stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind)                :: ierr, alloc_stat
     integer(kind=i4_kind)                :: message(1 + SJOB_LEN)
     integer(kind=i4_kind),allocatable    :: requ_m(:) !requests storages for MAILBOX
@@ -407,7 +406,7 @@ contains
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: i, v, ierr, stat(MPI_STATUS_SIZE)
+    integer(kind=i4_kind)                :: v, ierr, stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind)                :: message(1 + SJOB_LEN) ! there will be always
                                                  ! only one job request around, thus saved
     integer(kind=i4_kind)                :: requ_wr
@@ -549,7 +548,6 @@ contains
     integer(kind=i4_kind), intent(inout) :: lm_source(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                ::  req
     !------------ Executable code --------------------------------
     select case(message(1))
 
@@ -655,7 +653,6 @@ contains
     integer(kind=i4_kind), allocatable  :: requ(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: my_resp_local
     integer(kind=i4_kind)                :: num_jobs_done
     !------------ Executable code --------------------------------
     call time_stamp("finished a job",4)
@@ -674,7 +671,7 @@ contains
       your_resp = your_resp + num_jobs_done
       ! As all isends have to be closed sometimes, storage of
       ! the request handlers is needed
-      call report_job_done(num_jobs_done, start_job(NRANK), requ)
+      call report_job_done(num_jobs_done, start_job(NRANK))
     endif
   end subroutine report_or_store
 

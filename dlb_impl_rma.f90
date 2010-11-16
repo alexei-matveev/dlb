@@ -139,7 +139,6 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, sizeofint
     integer(kind=MPI_ADDRESS_KIND)       :: size_alloc, size_all
-    integer(kind=i4_kind)                :: alloc_stat
     !------------ Executable code --------------------------------
     ! some aliases, highly in use during the whole module
     call dlb_common_init()
@@ -177,7 +176,7 @@ contains
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, alloc_stat
+    integer(kind=i4_kind)                :: ierr
     !------------ Executable code --------------------------------
 
     call MPI_WIN_FENCE(0, win, ierr)
@@ -272,10 +271,9 @@ contains
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE), alloc_stat
+    integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)
     logical                              :: flag
     integer(kind=i4_kind)                :: message(1 + SJOB_LEN)
-    integer(kind=i4_kind), allocatable  :: statusse(:,:)
     !------------ Executable code --------------------------------
     ! check for any message
     call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
@@ -344,10 +342,6 @@ contains
     integer(kind=i4_kind), intent(in)    :: proc
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, i, alloc_stat
-    logical                              :: finished
-    integer(kind=i4_kind), allocatable   :: request(:), stats(:,:)
-    integer(kind=i4_kind)                :: receiver, message(2)
     !------------ Executable code --------------------------------
     if (.not. has_last_done(proc)) RETURN
 
@@ -432,9 +426,7 @@ contains
     integer(kind=i4_kind), intent(in  ) :: my_jobs(SJOB_LEN)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, alloc_stat
-    integer(kind=i4_kind)                :: num_jobs_done, message(2)
-    integer(kind=i4_kind),allocatable    :: intermed(:)
+    integer(kind=i4_kind)                :: num_jobs_done
     !------------ Executable code --------------------------------
     !print *, time_stamp_prefix(MPI_Wtime()), "finished a job, now report or store", my_jobs
     ! my_jobs hold recent last point, as proc started from beginning and
