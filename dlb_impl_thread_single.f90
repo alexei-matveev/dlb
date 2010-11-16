@@ -294,6 +294,7 @@ contains
     ! now finish all messges still available, no matter if they have been received
     call clear_up(count_ask, proc_asked_last, lm_source, requ_m)
     call end_communication()
+    call end_threads()
     ! To ensure that no processor has already started with the next dlb iteration
     call MPI_BARRIER(comm_world, ierr)
     ASSERT(ierr==MPI_SUCCESS)
@@ -597,6 +598,7 @@ contains
     !
     ! Starts other Thread, runs on MAIN
     !------------ Modules used ------------------- ---------------
+    use thread_handle, only: thread_setup, th_create_one
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
@@ -616,6 +618,7 @@ contains
     job_storage(:SJOB_LEN) = start_job
     ! from now on, there are several threads, so chared objects have to
     ! be locked/unlocked in order to use them!!
+    call thread_setup()
     call th_create_one()
     call time_stamp("finished setup", 3)
   end subroutine dlb_setup

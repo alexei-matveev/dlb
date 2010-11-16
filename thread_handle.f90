@@ -89,7 +89,7 @@ module thread_handle
   integer(kind=i4_kind), parameter, public :: LOCK_JS   = 0
   integer(kind=i4_kind)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
   logical                           :: terminated ! for termination algorithm
-
+  integer(kind=i4_kind), allocatable :: messagesJA(:,:)
 
   contains
     subroutine rdlock()
@@ -123,6 +123,19 @@ module thread_handle
     call th_inits()
   end subroutine dlb_thread_init
 
+  subroutine thread_setup()
+    !  Purpose: initalization of needed stuff
+    !           is in one thread context
+    !           does not start the threads yet
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
+    integer :: alloc_stat
+    allocate(messagesJA(SJOB_LEN + 1,n_procs), stat = alloc_stat)
+    ASSERT(alloc_stat==0)
+
+  end subroutine thread_setup
+
+
   subroutine divide_jobs(partner, requ)
     !  Purpose: share jobs from job_storage with partner, tell
     !           partner what he got
@@ -143,7 +156,7 @@ module thread_handle
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, w, req
-    integer(kind=i4_kind)                :: g_jobs(SJOB_LEN), message(1 + SJOB_LEN)
+    integer(kind=i4_kind)                :: g_jobs(SJOB_LEN)
     !------------ Executable code --------------------------------
     call th_mutex_lock(LOCK_JS)
 
@@ -157,13 +170,13 @@ module thread_handle
     endif
 
     g_jobs = job_storage
-    message(1) = WORK_DONAT
+    messagesJA(1, partner+1) = WORK_DONAT
     if (w == 0) then ! nothing to give, set empty
 
       !!! variant with master, if master cannot give work back, there is no more
       ! work for the proc, thus tell him to terminate
       if (masterserver) then
-         message(1) = NO_WORK_LEFT
+         messagesJA(1, partner+1) = NO_WORK_LEFT
          call check_termination(partner)
          ! don't send too many messages to myself, anyhow, termination master
          ! has to wait, till all procs got termination send back
@@ -179,9 +192,9 @@ module thread_handle
       g_jobs(J_STP)  = g_jobs(J_EP) - w
       job_storage(J_EP) = g_jobs(J_STP)
     endif
-    message(2:) = g_jobs
+    messagesJA(2:,partner+1) = g_jobs
     call time_stamp("share jobs with other",5)
-    call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, partner, MSGTAG, comm_world, req, ierr)
+    call MPI_ISEND(messagesJA(:,partner+1), 1+SJOB_LEN, MPI_INTEGER4, partner, MSGTAG, comm_world, req, ierr)
     ASSERT(ierr==MPI_SUCCESS)
     call add_request(req, requ)
     call th_mutex_unlock(LOCK_JS)
@@ -236,5 +249,12 @@ module thread_handle
     call unlock()
   end function termination
 
+   subroutine end_threads()
+     integer :: alloc_stat
+     if (allocated(messagesJA)) then
+       deallocate(messagesJA, stat=alloc_stat)
+       ASSERT(alloc_stat==0)
+     endif
+   end subroutine end_threads
 
 end module thread_handle

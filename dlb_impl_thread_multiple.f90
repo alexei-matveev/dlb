@@ -369,6 +369,7 @@ contains
     call th_cond_signal(COND_NJ_UPDATE)
     call th_mutex_unlock( LOCK_NJ)
     call end_communication()
+    call end_threads()
     ! To ensure that no processor has already started with the next dlb iteration
     call MPI_BARRIER(comm_world, ierr)
     ASSERT(ierr==MPI_SUCCESS)
@@ -688,6 +689,7 @@ contains
     !
     ! Starts other Threads, runs on MAIN
     !------------ Modules used ------------------- ---------------
+    use thread_handle, only: thread_setup, th_create_all
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
@@ -716,6 +718,7 @@ contains
     job_storage(:SJOB_LEN) = start_job
     ! from now on, there are several threads, so shared objects have to
     ! be locked/unlocked in order to use them!!
+    call thread_setup()
     call th_create_all()
     call time_stamp("finished setup", 3)
   end subroutine dlb_setup
