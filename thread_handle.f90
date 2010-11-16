@@ -7,6 +7,7 @@ module thread_handle
   use dlb_common, only: SJOB_LEN, J_EP, J_STP, MSGTAG, NO_WORK_LEFT
   use dlb_common, only: has_last_done, set_empty_job, add_request, send_termination
   use dlb_common, only: masterserver
+  use dlb_common, only: WORK_DONAT, WORK_REQUEST
   USE_MPI
   implicit none
 
@@ -83,7 +84,6 @@ module thread_handle
   !------------ Declaration of types ------------------------------
 
   !------------ Declaration of constants and variables ----
-  integer(kind=i4_kind), parameter, public  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
   integer(kind=i4_kind), parameter, public  :: JOBS_LEN = SJOB_LEN  ! Length of complete jobs storage
   ! IDs of mutexes, use base-0 indices:
   integer(kind=i4_kind), parameter, public :: LOCK_JS   = 0

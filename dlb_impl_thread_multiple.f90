@@ -94,8 +94,10 @@ module dlb_impl
   use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
   use dlb_common, only: add_request, test_requests, end_requests, send_resp_done, report_job_done
   use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, SJOB_LEN, L_JOB, NRANK, J_STP, J_EP, MSGTAG
+  use dlb_common, only: WORK_DONAT, WORK_REQUEST
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
+  use dlb_common, only: clear_up
   use dlb_common, only: masterserver
   use dlb_common, only: decrease_resp
   use dlb_common, only: end_communication
@@ -136,8 +138,10 @@ module dlb_impl
   integer(kind=i4_kind), parameter :: MAILBOX = 0
   integer(kind=i4_kind), parameter :: CONTROL = 1
 
-
-
+   ! for the complete termination, count_ask will be filled by CONTROL and interpreted by MAILBOX, proc_asked_last 
+   ! is used by both of them
+   integer(kind=i4_kind),allocatable    :: count_ask(:)
+   integer(kind=i4_kind)                :: proc_asked_last
 
   integer(kind=i4_kind)             :: new_jobs(SJOB_LEN) ! stores new job, just arrived from other proc
   integer(kind=i4_kind)             :: start_job(SJOB_LEN) ! job_storage is changed a lot, backup for
@@ -183,6 +187,10 @@ module dlb_impl
   ! * new_jobs:   read: CONTROL          locked by LOCK_NJ
   !             write: CONTROL, MAILBOX
   !             MAILBOX stores here messages, gotten for CONTROL, CONTROL "deletes" them after reading
+  ! * count_ask: read: MAILBOX
+  !              write: CONTROL
+  ! * proc_asked_last: read: MAILBOX
+  !                    write: CONTROL, MAILBOX
   !
   ! termination_master, my_rank, n_procs and the paramater: they will be only read, after they have been
   !                initalized in a one thread context
@@ -329,11 +337,14 @@ contains
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: i, stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind)                :: ierr
+    integer(kind=i4_kind)                :: ierr, alloc_stat
     integer(kind=i4_kind)                :: message(1 + SJOB_LEN)
     integer(kind=i4_kind),allocatable    :: requ_m(:) !requests storages for MAILBOX
+    integer(kind=i4_kind)                :: lm_source(n_procs) ! remember which job request
+                                                   ! I got
     !------------ Executable code --------------------------------
 
+    lm_source = -1
     do while (.not. termination())
       ! check and wait for any message with messagetag dlb
       call MPI_RECV(message, 1+SJOB_LEN, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
@@ -342,21 +353,25 @@ contains
       !print *, my_rank, "got message", message, "from", stat(MPI_SOURCE)
       call time_stamp("got message", 4)
       count_messages = count_messages + 1
-      call check_messages(requ_m, message, stat)
+      call check_messages(requ_m, message, stat, lm_source)
       call test_requests(requ_m)
     enddo
 
-    ! now finish all messges still available, no matter if they have been received
-    call end_requests(requ_m)
-    call end_communication()
     ! MAILBOX should be the first thread to get the termination
     ! if CONTROL is stuck somewhere waiting, this here will
     ! wake it up, so that it can find out about the termination
     ! CONTROL should then wake up MAIN if neccessary
 
     call th_mutex_lock( LOCK_NJ)
+    call clear_up(count_ask, proc_asked_last, lm_source, requ_m)
+    deallocate(count_ask, stat = alloc_stat)
+    ASSERT(alloc_stat==0)
     call th_cond_signal(COND_NJ_UPDATE)
     call th_mutex_unlock( LOCK_NJ)
+    call end_communication()
+    ! To ensure that no processor has already started with the next dlb iteration
+    call MPI_BARRIER(comm_world, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
 
     call th_mutex_lock( LOCK_JS)
     call th_cond_signal(COND_JS_UPDATE)
@@ -444,6 +459,19 @@ contains
                ! victim
             v = select_victim(my_rank, n_procs)
           endif
+          ! store informations on the last proc we have asked:
+          ! first his number
+          proc_asked_last = v
+          ! then the request-message counter for the proc, we
+          ! want to send to (consider overflow of integer)
+          if (count_ask(v+1) < 1e9) then
+            count_ask(v+1) = count_ask(v+1) + 1
+          else
+            count_ask(v+1) = 0
+          endif
+          ! send along the request-messge counter to identify the last received
+          ! message of each proc in the termination phase
+          message(2) = count_ask(v+1)
 
           timestart = MPI_WTIME()
           call time_stamp("CONTROL sends message",5)
@@ -461,10 +489,7 @@ contains
 
           ! at this point message should have been arrived (there is an answer back!)
           ! but it may also be that the answer message is from termination master
-          ! thus cancel to get sure, that there is no dead lock in the MPI_WAIT
-          call MPI_CANCEL(requ_wr, ierr)
-          ASSERT(ierr==MPI_SUCCESS)
-
+          ! the message will be answered any how, so just wait
           call MPI_WAIT(requ_wr, stat, ierr)
           ASSERT(ierr==MPI_SUCCESS)
           if (my_jobs(J_STP) >= my_jobs(J_EP)) many_zeros = many_zeros + 1
@@ -497,7 +522,7 @@ contains
     call th_exit() ! will be joined on MAIN
   end subroutine thread_control
 
-  subroutine check_messages(requ_m, message, stat)
+  subroutine check_messages(requ_m, message, stat, lm_source)
     !  Purpose: checks if any message has arrived, checks for messages:
     !          Someone finished stolen job slice
     !          Someone has finished its responsibilty (only termination_master)
@@ -520,6 +545,7 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer, allocatable :: requ_m(:)
     integer, intent(in) :: message(1 + SJOB_LEN), stat(MPI_STATUS_SIZE)
+    integer(kind=i4_kind), intent(inout) :: lm_source(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                ::  req
@@ -555,11 +581,15 @@ contains
       call th_mutex_lock( LOCK_NJ)
       count_offers = count_offers + 1
       new_jobs = message(2:)
+      proc_asked_last = -1 ! set back, which proc to wait for
       call th_cond_signal(COND_NJ_UPDATE)
       call th_mutex_unlock( LOCK_NJ)  
 
     case (WORK_REQUEST) ! other proc wants something from my jobs
       count_requests = count_requests + 1
+      ! store the intern message number, needed for knowing at the end the
+      ! status of the last messages on their way
+      lm_source(stat(MPI_SOURCE)+1) = message(2)
 
       call divide_jobs(stat(MPI_SOURCE), requ_m)
 
@@ -663,6 +693,7 @@ contains
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
+    integer :: alloc_stat
     !------------ Executable code --------------------------------
     ! these variables are for the termination algorithm
     terminated = .false.
@@ -670,6 +701,10 @@ contains
     count_messages = 0
     count_offers = 0
     count_requests = 0
+    allocate(count_ask(n_procs), stat = alloc_stat)
+    ASSERT (alloc_stat==0)
+    count_ask = -1
+    proc_asked_last = -1
     ! set starting values for the jobs, needed also in this way for
     ! termination, as they will be stored also in the job_storage
     ! start_job should only be changed if all current jobs are finished

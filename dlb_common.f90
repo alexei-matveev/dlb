@@ -65,8 +65,8 @@ module dlb_common
   integer, parameter, public :: r8_kind = selected_real_kind(15)
 
   integer,  public :: comm_world
-  integer,  public :: comm_world_end
   integer(kind=i4_kind), parameter, public  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 !for distingishuing the messages
+  integer(kind=i4_kind), parameter, public  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
   integer(kind=i4_kind), parameter, public  :: SJOB_LEN = 3 ! Length of a single job in interface
   integer(kind=i4_kind), parameter, public  :: L_JOB = 2  ! Length of job to give back from interface
   integer(kind=i4_kind), parameter, public  :: NRANK = 3 ! Number in job, where rank of origin proc is stored
@@ -143,8 +143,6 @@ contains
     integer :: ierr, alloc_stat
     call MPI_COMM_DUP(MPI_COMM_WORLD, comm_world, ierr)
     ASSERT(ierr==0)
-    call MPI_COMM_DUP(MPI_COMM_WORLD, comm_world_end, ierr)
-    ASSERT(ierr==0)
     call MPI_COMM_RANK( comm_world, my_rank, ierr )
     ASSERT(ierr==MPI_SUCCESS)
     call MPI_COMM_SIZE(comm_world, n_procs, ierr)
@@ -166,8 +164,10 @@ contains
     endif
     call MPI_COMM_FREE( comm_world, ierr)
     ASSERT(ierr==0)
-    call MPI_COMM_FREE( comm_world_end, ierr)
-    ASSERT(ierr==0)
+    if (comm_world .ne. MPI_COMM_NULL) then
+      print *, my_rank, "MPI communicator was not freed correctly"
+      call abort()
+    endif
   end subroutine
 
   subroutine dlb_common_setup(resp)
@@ -475,7 +475,9 @@ contains
 
   subroutine end_requests(requ)
     ! Purpose: end all of the stored requests in requ
-    !          no matter if the corresponding message has arived
+    !          at this point all the communication has to be
+    !          ended already! After terminated = .True. for
+    !          rma variant, and after clear_up of threads
     !
     ! Context for 3Threads: mailbox thread, control thread.
     !             2 Threads: secretary thread
@@ -490,8 +492,6 @@ contains
     !------------ Executable code --------------------------------
     if (allocated(requ)) then
       do i = 1, size(requ,1)
-        call MPI_CANCEL(requ(i), ierr)
-        ASSERT(ierr==MPI_SUCCESS)
         call MPI_WAIT(requ(i),stat, ierr)
         ASSERT(ierr==MPI_SUCCESS)
       enddo
@@ -517,9 +517,6 @@ contains
     do i = 1, size(message_on_way)
       if (message_on_way(i)) then
         ! the messages DONE_JOB should be all finshed already
-        ! so using MPI_CANCEL is just for being completly certain
-        !call MPI_CANCEL(req_dj(i), ierr)
-        ASSERT(ierr==MPI_SUCCESS)
         call MPI_WAIT(req_dj(i),stat, ierr)
         ASSERT(ierr==MPI_SUCCESS)
       endif
@@ -531,10 +528,70 @@ contains
     ASSERT(alloc_stat==0)
   end subroutine end_communication
 
-  subroutine clear_up()
-    integer(kind=i4_kind) :: ierr
-    call  MPI_BARRIER(comm_world_end, ierr)
+  subroutine clear_up(my_last, last_proc, arrived, requ)
+    ! Purpose: clear_up will finish the still outstanding communications of the
+    !          thread variants, after the flag termination was set. The most computational
+    !          costy part of this is a MPI_ALLGATHER.
+    !          Each proc tells threre from which proc he waits for an answer and gives the
+    !          number of his message counter to this proc. This number tells the other proc,
+    !          if he has already answered, but the answer has not yet arrived, or if he has
+    !          to really wait for the message. If every proc now on how many messages he has to
+    !          wait, he does so (responds if neccessary) and finishes.
+    !          A MPI_barrier in the main code ensures, that he won't get messges belonging to the
+    !          next mpi cycle.
+    ! Context for 3Threads: mailbox thread.
+    !             2 Threads: secretary thread
+    !------------ Modules used ------------------- ---------------
+    implicit none
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
+    integer, allocatable  :: requ(:)
+    integer(kind=i4_kind), intent(in) :: my_last(:), arrived(:), last_proc
+    integer(kind=i4_kind) :: ierr, i, count_req, req
+    integer(kind=i4_kind) :: rec_buff(n_procs * 2)
+    integer(kind=i4_kind)                :: stat(MPI_STATUS_SIZE)
+    integer(kind=i4_kind)                :: message_s(1 + SJOB_LEN), message_r(1 + SJOB_LEN)
+    !------------ Executable code --------------------------------
+
+    rec_buff = 0
+    rec_buff(2 * my_rank + 1) = last_proc ! Last I sended to or -1
+    rec_buff(2 * my_rank+2) = my_last(last_proc + 1) ! the request number I sended to him
+    call MPI_ALLGATHER(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rec_buff, 2, MPI_INTEGER4, comm_world, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+    count_req = 0
+    message_s = 0
+    message_s(1) = WORK_DONAT
+
+    ! If I'm waiting for a job donation also
+    if (last_proc > -1) count_req = 1
+
+    do i = 1, n_procs
+      if (rec_buff(2*i-1) == my_rank) then
+         ! This one sended it last message to me
+         ! now check if it has already arrived (answerded)
+         if (rec_buff(2*i) .NE. arrived(i)) count_req = count_req + 1
+      endif
+    enddo
+
+    ! Cycle over all left messages, blocking MPI_RECV, as there is nothing else to do
+    if (count_req > 0) then
+      do i =1, count_req
+        call MPI_RECV(message_r, 1+SJOB_LEN, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
+        select case(message_r(1))
+        case (WORK_DONAT)
+          cycle
+        case (WORK_REQUEST)
+           call MPI_ISEND(message_s, 1+SJOB_LEN, MPI_INTEGER4, stat(MPI_SOURCE), MSGTAG, comm_world, req, ierr)
+           ASSERT(ierr==MPI_SUCCESS)
+           call add_request(req, requ)
+        case default
+          print *, my_rank, "got Message", message_r, ", which I wasn't waiting for"
+          stop "got unexpected message"
+        end select
+      enddo
+    endif
+    ! Now all request are finished and could be ended
+    call end_requests(requ)
   end subroutine clear_up
 
 

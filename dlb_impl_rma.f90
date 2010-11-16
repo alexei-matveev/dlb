@@ -87,7 +87,7 @@ module dlb_impl
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: decrease_resp
-  use dlb_common, only: end_communication, clear_up
+  use dlb_common, only: end_communication
   implicit none
   save            ! save all variables defined in this module
   private         ! by default, all names are private
@@ -208,7 +208,7 @@ contains
     integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: v
+    integer(kind=i4_kind)                :: v, ierr
     logical                              :: term
     integer(i4_kind), target             :: jobs(SJOB_LEN)
     !------------ Executable code --------------------------------
@@ -256,9 +256,8 @@ contains
     if (jobs(J_STP) >= jobs(J_EP)) then
        print *, my_rank, "tried", many_searches, "for new jobs and stealing", many_tries
        print *, my_rank, "was locked", many_locked, "got zero", many_zeros
-       !print *, my_rank, "tried", many_searches, "times to get new jobs, by trying to steal", many_tries
-       !print *, my_rank, "done", my_resp_self, "of my own, gave away", my_resp_start - my_resp_self, "and stole", your_resp
-       call clear_up()
+       call MPI_BARRIER(comm_world, ierr)
+       ASSERT(ierr==MPI_SUCCESS)
     endif
     call time_stamp("dlb_give_more: exit",3)
   end subroutine dlb_give_more

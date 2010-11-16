@@ -91,11 +91,13 @@ module dlb_impl
   use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
   use dlb_common, only: add_request, test_requests, end_requests, send_resp_done, report_job_done
   use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, SJOB_LEN, L_JOB, NRANK, J_STP, J_EP, MSGTAG
+  use dlb_common, only: WORK_DONAT, WORK_REQUEST
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: dlb_common_setup
   use dlb_common, only: masterserver
   use dlb_common, only: decrease_resp
   use dlb_common, only: end_communication
+  use dlb_common, only: clear_up
   use iso_c_binding
   use thread_handle
   USE_MPI
@@ -259,7 +261,12 @@ contains
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind),allocatable    :: requ_m(:) !requests storages for MAILBOX
+    integer(kind=i4_kind),allocatable    :: requ_m(:) !requests storages for SECRETARY
+    integer(kind=i4_kind)                :: lm_source(n_procs) ! remember which job request
+                                               ! I got
+    integer(kind=i4_kind)                :: count_ask(n_procs), proc_asked_last ! remember
+                                          ! which job request I send (and to whom the last)
+    integer(kind=i4_kind)                :: ierr
     logical :: has_jr_on
     !------------ Executable code --------------------------------
     count_messages = 0
@@ -272,20 +279,24 @@ contains
     your_resp = 0
     timemax = 0.0
     has_jr_on = .false.
-
-    call task_messages(has_jr_on, requ_m)
-    if (.not. has_jr_on) call task_local_storage(has_jr_on, requ_m)
+    count_ask = -1
+    lm_source = -1
+    call task_messages(has_jr_on, requ_m, lm_source,count_ask, proc_asked_last)
+    if (.not. has_jr_on) call task_local_storage(has_jr_on, requ_m, count_ask, proc_asked_last)
     do while (.not. termination())
       call c_sleep(1000) !microseconds
       ! check for any message with messagetag dlb
-      call task_messages(has_jr_on, requ_m)
+      call task_messages(has_jr_on, requ_m, lm_source, count_ask, proc_asked_last)
       call test_requests(requ_m)
-      if (.not. has_jr_on) call task_local_storage(has_jr_on, requ_m)
+      if (.not. has_jr_on) call task_local_storage(has_jr_on, requ_m, count_ask, proc_asked_last)
     enddo
 
     ! now finish all messges still available, no matter if they have been received
-    call end_requests(requ_m)
+    call clear_up(count_ask, proc_asked_last, lm_source, requ_m)
     call end_communication()
+    ! To ensure that no processor has already started with the next dlb iteration
+    call MPI_BARRIER(comm_world, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
 
     call th_mutex_lock( LOCK_JS)
     call th_cond_signal(COND_JS2_UPDATE)
@@ -303,7 +314,7 @@ contains
   subroutine thread_control() bind(C)
   end subroutine thread_control
 
-  subroutine task_messages(wait_answer, requ)
+  subroutine task_messages(wait_answer, requ, lm_source, count_ask, proc_asked_last)
     !  Purpose: checks if any message has arrived, check_message will
     !           then select the response to the content
     !           if no more messages are found it will finish the task
@@ -312,6 +323,7 @@ contains
     !------------ Declaration of formal parameters ---------------
     logical, intent(inout)               :: wait_answer
     integer(kind=i4_kind),allocatable    :: requ(:)
+    integer(kind=i4_kind), intent(inout) :: lm_source(:), proc_asked_last, count_ask(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)
@@ -325,13 +337,14 @@ contains
       call time_stamp("got message", 4)
       count_messages = count_messages + 1
       call MPI_RECV(message, 1+SJOB_LEN, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
-      call check_messages(requ, message, stat, wait_answer)
+      !print *, my_rank, "received ",stat(MPI_SOURCE),"'s message", message
+      call check_messages(requ, message, stat, wait_answer, lm_source, count_ask, proc_asked_last )
       call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
       ASSERT(ierr==MPI_SUCCESS)
     enddo
   end subroutine task_messages
 
-  subroutine task_local_storage(wait_answer, requ)
+  subroutine task_local_storage(wait_answer, requ, count_ask, proc_asked_last)
     !  Purpose: checks if there are still jobs in the local storage
     !          if not send a message to another proc asking for jobs
     !          and remember that there is already one on its way
@@ -341,6 +354,8 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     logical, intent(out)               :: wait_answer
+    integer(kind=i4_kind), intent(inout) :: count_ask(:)
+    integer(kind=i4_kind), intent(out) :: proc_asked_last
     integer(kind=i4_kind),allocatable    :: requ(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
@@ -355,12 +370,12 @@ contains
       if (.not. masterserver) then ! masterserver has different termination algorithm
         call report_or_store(requ)
       endif
-      call send_request(requ)
+      call send_request(requ, count_ask, proc_asked_last)
     endif
     call th_mutex_unlock(LOCK_JS)
   end subroutine task_local_storage
 
-  subroutine send_request(requ)
+  subroutine send_request(requ, count_ask, proc_asked_last)
     !  Purpose: send job request to another proc
     !           victim is choosen by the routine select_victim
     !------------ Modules used ------------------- ---------------
@@ -369,6 +384,8 @@ contains
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
     integer(kind=i4_kind),allocatable    :: requ(:)
+    integer(kind=i4_kind),intent(inout)     :: count_ask(:)
+    integer(kind=i4_kind),intent(out)     :: proc_asked_last
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: i, v, ierr, stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind), save          :: message(1 + SJOB_LEN) ! is made save to ensure
@@ -387,13 +404,28 @@ contains
          ! victim
       v = select_victim(my_rank, n_procs)
     endif
+
+    ! store informations on the last proc we have asked:
+    ! first his number
+    proc_asked_last = v
+    ! then the request-message counter for the proc, we
+    ! want to send to (consider overflow of integer)
+    if (count_ask(v+1) < 1e9) then
+      count_ask(v+1) = count_ask(v+1) + 1
+    else
+      count_ask(v+1) = 0
+    endif
+    ! send along the request-messge counter to identify the last received
+    ! message of each proc in the termination phase
+    message(2) = count_ask(v+1)
+
     call time_stamp("SECRETARY sends message",5)
     call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, v, MSGTAG, comm_world, requ_wr, ierr)
     ASSERT(ierr==MPI_SUCCESS)
     call add_request(requ_wr, requ)
   end subroutine send_request
 
-  subroutine check_messages(requ_m, message, stat, wait_answer)
+  subroutine check_messages(requ_m, message, stat, wait_answer, lm_source,count_ask, proc_asked_last)
     !  Purpose: checks which message has arrived, checks for messages:
     !          Someone finished stolen job slice
     !          Someone has finished its responsibility (only termination_master)
@@ -413,6 +445,8 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer, allocatable :: requ_m(:)
     logical, intent(inout) :: wait_answer
+    integer(kind=i4_kind), intent(inout) :: lm_source(:)
+    integer(kind=i4_kind), intent(inout) :: count_ask(:), proc_asked_last
     integer, intent(in) :: message(1 + SJOB_LEN), stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind)                :: my_jobs(SJOB_LEN)
     !** End of interface *****************************************
@@ -455,9 +489,10 @@ contains
       count_offers = count_offers + 1
       my_jobs = message(2:)
       if ((my_jobs(J_STP) >= my_jobs(J_EP)) .and. .not. termination()) then
-        call send_request(requ_m)
+        call send_request(requ_m, count_ask, proc_asked_last)
       else
         wait_answer = .false.
+        proc_asked_last = -1  ! set back, which proc to wait for
         call th_mutex_lock( LOCK_JS)
         job_storage(:SJOB_LEN) = my_jobs
         start_job = my_jobs
@@ -467,7 +502,9 @@ contains
 
     case (WORK_REQUEST) ! other proc wants something from my jobs
       count_requests = count_requests + 1
-
+      ! store the intern message number, needed for knowing at the end the
+      ! status of the last messages on their way
+      lm_source(stat(MPI_SOURCE)+1) = message(2)
       call divide_jobs(stat(MPI_SOURCE), requ_m)
 
     case default
