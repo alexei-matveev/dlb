@@ -1,7 +1,7 @@
 module thread_handle
 # include "dlb.h"
   use iso_c_binding
-  use dlb_common, only: dlb_common_init, dlb_common_finalize
+  use dlb_common, only: dlb_common_init
   use dlb_common, only: i4_kind, r8_kind, comm_world, n_procs, termination_master
   use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
   use dlb_common, only: SJOB_LEN, J_EP, J_STP, MSGTAG, NO_WORK_LEFT
@@ -180,7 +180,7 @@ module thread_handle
       job_storage(J_EP) = g_jobs(J_STP)
     endif
     message(2:) = g_jobs
-    call time_stamp("chare jobs with other",5)
+    call time_stamp("share jobs with other",5)
     call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, partner, MSGTAG, comm_world, req, ierr)
     ASSERT(ierr==MPI_SUCCESS)
     call add_request(req, requ)

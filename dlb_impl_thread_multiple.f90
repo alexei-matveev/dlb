@@ -482,7 +482,7 @@ contains
           call th_cond_wait(COND_NJ_UPDATE, LOCK_NJ) !while waiting is unlocked for MAILBOX
           timeend = MPI_WTIME()
           if ((timeend - timestart) > timemax) timemax = timeend - timestart
-          call time_stamp("COTNROL got reply", 5)
+          call time_stamp("CONTROL got reply", 5)
             my_jobs = new_jobs
             new_jobs(J_STP) = 0
             new_jobs(J_EP) = 0
