@@ -491,7 +491,7 @@ contains
     endif
   end subroutine report_or_store
 
-  function rmw_tgetm(m, rank, jobs) result(locked)
+  function rmw_tgetm(m, rank, jobs) result(ok)
     !  Purpose: read-modify-write variant fo getting m from another proc
     !           rank, returns true if the other proc has its memory free
     !           false if it is not
@@ -505,18 +505,23 @@ contains
     !           it may change and rewrite it, else only the integer belonging to
     !           the proc may be reset to 0
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: steal_work_for_rma, reserve_workm
+    use dlb_common, only: reserve_workm
     implicit none
     integer(i4_kind), intent(in)  :: m, rank
     integer(i4_kind), intent(out) :: jobs(SJOB_LEN)
-    logical                       :: locked ! result
+    logical                       :: ok ! result
     ! *** end of interface ***
 
-    integer(i4_kind) :: remote_jobs(SJOB_LEN)
     integer(i4_kind) :: stolen_jobs(SJOB_LEN)
-    integer(i4_kind) :: remaining_jobs(SJOB_LEN)
     integer(i4_kind) :: local_jobs(SJOB_LEN)
     integer(i4_kind) :: work
+
+    !
+    ! NOTE: size(jobs) is SJOB_LEN, (jobs(JLEFT), jobs(JRIGHT)] specify
+    ! the interval, the rest is metadata that should be copied
+    ! around.
+    !
+    ASSERT(size(jobs)==SJOB_LEN)
 
     !
     ! remote_jobs are fetched from rank, split into
@@ -526,78 +531,18 @@ contains
     !      a) jobs        --- are output of this sub.
     !      b) local_jobs  --- are stored in local storage
     !
-    ! FIXME: splitting stolen jobs into 2a) and 2b) is beyond the scope
-    !        of read-modify-write and doesn not belong here!
-    !
 
-    !
-    ! NOTE: size(jobs) is SJOB_LEN, (jobs(JLEFT), jobs(JRIGHT)] specify
-    ! the interval, the rest is metadata that should be copied
-    ! around.
-    !
-    ASSERT(size(jobs)==SJOB_LEN)
+    ok = try_stealing(m, rank, stolen_jobs)
 
-    jobs = set_empty_job()
-
-    !
-    ! Try reading job info from "rank", returns false if not successfull:
-    !
-    locked = try_lock_and_read(rank, remote_jobs)
-
-    ! Return if locking failed:
-    if ( .not. locked ) RETURN
-
-    ! how much of the work should be stolen
-    work = steal_work_for_rma(m, remote_jobs) ! expects remote_jobs(1:2)
-    !
-    ! FIXME: stealing could be realized as splitting the interval/slice:
-    !
-    !        split_job_slice(orig, left, right)
-    !
-    ! See redundant error-prone code below.
-    !
-
-    ! Unlock and return if nothing to steal
-    if ( work == 0 ) then
-        !
-        ! Nothing can be stolen --- skip "modify-write" in "read-modify-write",
-        ! only do unlock:
-        !
-        call unlock(rank)
+    if ( .not. ok ) then
+        jobs = set_empty_job()
         RETURN
     endif
 
     !
-    ! Stealing is implemented as splitting the interval
-    !
-    !     (A, B] = remote_jobs(1:2)
-    !
-    ! at the point
-    !
-    !     C = B - work
-    !
-    ! into
-    !
-    !     remote_jobs(1:2) = (A, C] and jobs(1:2) = (C, B]
-    !
-    call split_at(remote_jobs(JRIGHT) - work, remote_jobs, remaining_jobs, stolen_jobs)
-
-    !
-    ! The rest is for reseting the single job run, needed for termination
+    ! FIXME: Modifying global data structure here:
     !
     start_job = stolen_jobs
-    ! FIXME: Why secretly modifying global data structures?
-    !        Does it need to be protected by lock/unlock or why?
-
-    !
-    ! Write back remote_jobs(1:2) and release the lock:
-    !
-    call write_and_unlock(rank, remaining_jobs)
-
-    !
-    ! FIXME: why the following code is put here is not quite clear,
-    !        maybe it does not belong into "rmw"?
-    !
 
     !
     ! "Stealing" from myself is implemented as splitting the interval
@@ -620,7 +565,7 @@ contains
     call split_at(jobs(JLEFT) + work, stolen_jobs, jobs, local_jobs)
 
     !
-    ! This stores the rest for later in the OWN job-storage
+    ! This stores the rest for later delivery in the OWN job-storage
     !
     call write_unsafe(my_rank, local_jobs)
     ! This stores the new jobs (minus the ones for direct use)
@@ -645,7 +590,96 @@ contains
     ! A better solution is welcome.
   end function rmw_tgetm
 
-  function try_lock_and_read(rank, jobs) result(locked)
+  function try_stealing(m, rank, jobs) result(ok)
+    !  Purpose: read-modify-write variant fo getting m from another proc
+    !           rank, returns true if the other proc has its memory free
+    !           false if it is not
+    !           if the memory can be accessed, take some jobs from him,
+    !           store those, which are more than m in own local storage
+    !           read-modify-write is implemented with an integer for each
+    !           proc, which is 0, if this proc does not wants to access the
+    !           memory and 1 else; before changing or using the informations
+    !           gotten with MPI_GET, each proc tests if the sum fo this integer
+    !           is 0, if it is, this proc is the first to access the memory,
+    !           it may change and rewrite it, else only the integer belonging to
+    !           the proc may be reset to 0
+    !------------ Modules used ------------------- ---------------
+    use dlb_common, only: steal_work_for_rma
+    implicit none
+    integer(i4_kind), intent(in)  :: m, rank
+    integer(i4_kind), intent(out) :: jobs(SJOB_LEN)
+    logical                       :: ok ! result
+    ! *** end of interface ***
+
+    integer(i4_kind) :: remote_jobs(SJOB_LEN)
+    integer(i4_kind) :: remaining_jobs(SJOB_LEN)
+    integer(i4_kind) :: work
+
+    !
+    ! remote_jobs are fetched from rank, split into
+    !   1) remaining_jobs --- are returned back to rank
+    !   2) jobs           --- for local processing,
+
+    !
+    ! NOTE: size(jobs) is SJOB_LEN, (jobs(JLEFT), jobs(JRIGHT)] specify
+    ! the interval, the rest is metadata that should be copied
+    ! around.
+    !
+    ASSERT(size(jobs)==SJOB_LEN)
+
+    jobs = set_empty_job()
+
+    !
+    ! Try reading job info from "rank", returns false if not successfull:
+    !
+    ok = try_lock_and_read(rank, remote_jobs)
+
+    ! Return if locking failed:
+    if ( .not. ok ) RETURN
+
+    ! how much of the work should be stolen
+    work = steal_work_for_rma(m, remote_jobs) ! expects remote_jobs(1:2)
+    !
+    ! FIXME: stealing could be realized as splitting the interval/slice:
+    !
+    !        split_job_slice(orig, left, right)
+    !
+    ! See redundant error-prone code below.
+    !
+
+    ! Unlock and return if nothing to steal
+    if ( work == 0 ) then
+        !
+        ! Nothing can be stolen --- skip "modify-write" in "read-modify-write",
+        ! only do unlock:
+        !
+        ok = .false.
+        call unlock(rank)
+        RETURN
+    endif
+
+    !
+    ! Stealing is implemented as splitting the interval
+    !
+    !     (A, B] = remote_jobs(1:2)
+    !
+    ! at the point
+    !
+    !     C = B - work
+    !
+    ! into
+    !
+    !     remaining_jobs(1:2) = (A, C] and jobs(1:2) = (C, B]
+    !
+    call split_at(remote_jobs(JRIGHT) - work, remote_jobs, remaining_jobs, jobs)
+
+    !
+    ! Write back remaining_jobs(1:2) and release the lock:
+    !
+    call write_and_unlock(rank, remaining_jobs)
+  end function try_stealing
+
+  function try_lock_and_read(rank, jobs) result(ok)
     !
     ! Try getting a lock indexed by rank and if that succeeds,
     ! read data into jobs(1:2)
@@ -655,7 +689,7 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer(i4_kind), intent(in)  :: rank
     integer(i4_kind), intent(out) :: jobs(:) ! (SJOB_LEN)
-    logical                       :: locked ! result
+    logical                       :: ok ! result
     ! *** end of interface ***
 
     integer(i4_kind)          :: ierr
@@ -665,7 +699,7 @@ contains
 
     ASSERT(size(jobs)==SJOB_LEN)
 
-    locked = .false.
+    ok = .false.
     jobs = -1 ! junk
 
     ! First GET-PUT round, MPI only ensures taht after MPI_UNLOCK the
@@ -699,7 +733,7 @@ contains
     ! Check if there are any procs, saying that they want to acces the memory
     !
     if ( sum(win_data(SJOB_LEN+1:)) == 0 ) then
-        locked = .true.
+        ok = .true.
         jobs(:) = win_data(1:SJOB_LEN)
     else
         ! Do nothing. Dont even try to undo our attempt to acquire the lock
