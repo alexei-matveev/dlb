@@ -194,6 +194,10 @@ contains
 
     CALL MPI_FREE_MEM(job_storage, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+
+    !
+    ! FIXME: why second time?
+    !
     call MPI_WIN_FENCE(0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
@@ -366,7 +370,7 @@ contains
       call time_stamp("TERMINATING!", 1)
     endif
   end function check_messages
-  
+
   subroutine check_termination(proc)
     !  Purpose: only on termination_master, checks if all procs
     !           have reported termination
@@ -541,8 +545,9 @@ contains
     sap = sum(jobs_infom(SJOB_LEN+1:))
 
     if (sap > 0) then ! this one is not the first, thus leave the memory to the others
-      call time_stamp("blocked on lock contension rmw",2)
       rmw_tgetm = .false.
+
+      call time_stamp("blocked on lock contension rmw",2)
       many_locked = many_locked + 1
 
     else ! is the first one, therefor do what you want with it
