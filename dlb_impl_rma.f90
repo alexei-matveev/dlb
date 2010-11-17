@@ -587,7 +587,7 @@ contains
 
     remote_jobs(1) = remote_jobs(1)        ! A, redundant assignment
     remote_jobs(2) = remote_jobs(2) - work ! C, here actual "m" of "rmw"
-    remote_jobs(3) = remote_jobs(3) - work ! ???
+    remote_jobs(3) = remote_jobs(3)        ! ???
 
     !
     ! The rest is for reseting the single job run, needed for termination
@@ -648,7 +648,7 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(i4_kind), intent(in)  :: rank
-    integer(i4_kind), intent(out) :: jobs(SJOB_LEN) ! (2)
+    integer(i4_kind), intent(out) :: jobs(:) ! (SJOB_LEN)
     logical                       :: locked ! result
     ! *** end of interface ***
 
@@ -656,7 +656,6 @@ contains
     integer(i4_kind), target  :: win_data(jobs_len) ! FIXME: why target?
     integer(MPI_ADDRESS_KIND) :: displacement
     integer(MPI_ADDRESS_KIND), parameter :: zero = 0
-    !------------ Executable code --------------------------------
 
     ASSERT(size(jobs)==SJOB_LEN)
 
@@ -674,7 +673,7 @@ contains
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    call MPI_GET(win_data, jobs_len, MPI_INTEGER4, rank, zero, jobs_len, MPI_INTEGER4, win, ierr)
+    call MPI_GET(win_data, size(win_data), MPI_INTEGER4, rank, zero, size(win_data), MPI_INTEGER4, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
     displacement = my_rank + SJOB_LEN ! for getting it in the correct kind
@@ -712,11 +711,12 @@ contains
     integer(i4_kind), intent(in) :: rank
     ! *** end of interface ***
 
-    integer(i4_kind)          :: ierr
-    integer(i4_kind), target  :: zeros(n_procs) ! FIXME: why target?
+    integer(i4_kind) :: ierr
+    integer(i4_kind), target :: zeros(n_procs) ! FIXME: why target?
     integer(MPI_ADDRESS_KIND), parameter :: displacement = SJOB_LEN ! long int
     integer(MPI_ADDRESS_KIND), parameter :: zero = 0
-    !------------ Executable code --------------------------------
+
+    zeros(:) = 0
 
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
