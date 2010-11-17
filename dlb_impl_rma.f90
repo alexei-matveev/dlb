@@ -251,10 +251,10 @@ contains
     enddo
     call time_stamp("finished local search",3)
 
-    if (jobs(JLEFT) >= jobs(JRIGHT)) many_searches = many_searches + 1 ! just for debugging
+    if ( empty(jobs) ) many_searches = many_searches + 1 ! just for debugging
 
     ! if local storage only gives empty job:
-    do while ((jobs(JLEFT) >= jobs(JRIGHT)) .and. .not. check_messages())
+    do while ( empty(jobs) .and. .not. check_messages())
 
       ! check like above but also for termination message from termination master
       v = select_victim(my_rank, n_procs)
@@ -276,7 +276,7 @@ contains
     ! they should be terminated, they could steal jobs setup by already terminated
     ! processors
     !if (terminated) call dlb_setup(setup_jobs)
-    if (jobs(JLEFT) >= jobs(JRIGHT)) then
+    if ( empty(jobs) ) then
        print *, my_rank, "tried", many_searches, "for new jobs and stealing", many_tries
        print *, my_rank, "was locked", many_locked, "got zero", many_zeros
        call MPI_BARRIER(comm_world, ierr)
@@ -425,7 +425,7 @@ contains
     if (sap > 0) then
       call time_stamp("blocked by lock contension",2)
       ! find out if it makes sense to wait:
-      if (my_jobs(JLEFT) >= my_jobs(JRIGHT)) then
+      if ( empty(my_jobs) ) then
          local_tgetm = .true.
          call time_stamp("blocked, but empty",2)
          call report_or_store(my_jobs)
@@ -913,5 +913,15 @@ contains
     call MPI_WIN_FENCE(0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine dlb_setup
+
+  logical function empty(jobs)
+    implicit none
+    integer(i4_kind), intent(in) :: jobs(:)
+    ! *** end of interface ***
+
+    ASSERT(size(jobs)==JLENGTH)
+
+    empty = jobs(JLEFT) >= jobs(JRIGHT)
+  end function empty
 
 end module dlb_impl
