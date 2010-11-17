@@ -515,9 +515,10 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, sap, w
     integer(i4_kind), target             :: jobs_infom(jobs_len)
-    integer(kind=MPI_ADDRESS_KIND)      :: displacement, zero
+    integer(kind=MPI_ADDRESS_KIND)       :: displacement
+    integer(kind=MPI_ADDRESS_KIND), parameter :: zero = 0
     !------------ Executable code --------------------------------
-    zero = 0
+
     my_jobs = set_empty_job()
 
     ! First GET-PUT round, MPI only ensures taht after MPI_UNLOCK the
