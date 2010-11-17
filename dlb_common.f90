@@ -143,14 +143,24 @@ contains
   subroutine dlb_common_init()
     ! Intialization of common stuff, needed by all routines
     implicit none
+    ! *** end of interface ***
+
     integer :: ierr, alloc_stat
+
     call MPI_COMM_DUP(MPI_COMM_WORLD, comm_world, ierr)
     ASSERT(ierr==0)
+
     call MPI_COMM_RANK( comm_world, my_rank, ierr )
     ASSERT(ierr==MPI_SUCCESS)
+
     call MPI_COMM_SIZE(comm_world, n_procs, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+
+    !
+    ! FIXME: This is just a choice, not a requirement, right?
+    !
     termination_master = n_procs - 1
+
     if (my_rank == termination_master) then
       allocate(all_done(n_procs), stat = alloc_stat)
       ASSERT(alloc_stat==0)
@@ -160,13 +170,18 @@ contains
   subroutine dlb_common_finalize()
     ! shut down the common stuff, as needed
     implicit none
+    ! *** end of interface ***
+
     integer :: ierr, alloc_stat
+
     if (allocated(all_done)) then
       deallocate(all_done, stat=alloc_stat)
       ASSERT(alloc_stat==0)
     endif
-    call MPI_COMM_FREE( comm_world, ierr)
+
+    call MPI_COMM_FREE(comm_world, ierr)
     ASSERT(ierr==0)
+
     if (comm_world .ne. MPI_COMM_NULL) then
       print *, my_rank, "MPI communicator was not freed correctly"
       call abort()
@@ -177,18 +192,26 @@ contains
     ! Termination master start of a new dlb run
     implicit none
     integer(kind=i4_kind), intent(in   ) :: resp
+    ! *** end of interface ***
+
     integer ::  alloc_stat
+
     if (allocated(all_done)) all_done  = .false.
+
     ! if there is any exchange of jobs, the following things are needed
     ! (they will help to get the DONE_JOB messages on their way)
     allocate(messages(SJOB_LEN + 1, n_procs), stat = alloc_stat)
     ASSERT(alloc_stat==0)
+
     allocate(message_on_way(n_procs), stat = alloc_stat)
     ASSERT(alloc_stat==0)
+
     allocate(req_dj(n_procs), stat = alloc_stat)
     ASSERT(alloc_stat==0)
+
     allocate(my_resp(n_procs), stat = alloc_stat)
     ASSERT(alloc_stat==0)
+
     ! Here they are initalizied, at the beginning none message has been
     ! put on its way, from the messages we know everything except the
     ! second entry which will be the number of jobs done
@@ -212,8 +235,12 @@ contains
   function set_start_job(job)
     !Purpose: gives a complete starting job description
     !         after gotten just the job range
+    implicit none
     integer(kind=i4_kind), intent(in) :: job(L_JOB)
+    ! *** end of interface ***
+
     integer(kind=i4_kind) :: set_start_job(SJOB_LEN)
+
     set_start_job(:L_JOB) = job
     set_start_job(NRANK) = my_rank
   end function set_start_job
@@ -221,7 +248,11 @@ contains
   function set_empty_job()
     !Purpose: gives a complete starting job description
     !         after gotten just the job range
+    implicit none
+    ! *** end of interface ***
+
     integer(kind=i4_kind) :: set_empty_job(SJOB_LEN)
+
     set_empty_job(J_EP) = 0
     set_empty_job(J_STP) = 0
     set_empty_job(NRANK) = -1
@@ -295,8 +326,6 @@ contains
      integer(i4_kind)             :: victim
      ! *** end of interface ***
 
-     integer(i8_kind), parameter :: a = 134775813, b = 1 ! see Virtual Pascal/Borland Delphi
-     integer(i8_kind), parameter :: m = 2_i8_kind**32
      integer(i8_kind), save :: seed = -1
      integer(i8_kind) :: np8
 
