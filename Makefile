@@ -27,6 +27,7 @@ ifeq ($(DLB_EXTERNAL), 0)
 include ../machine.inc
 else
 FC = mpif90
+FFLAGS =  -g -O2
 CC = mpicc
 AR = ar
 RANLIB = ranlib

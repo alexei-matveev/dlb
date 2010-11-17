@@ -673,6 +673,8 @@ contains
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind)                :: source
     !------------ Executable code --------------------------------
+    if (num_jobs_done < 1) RETURN
+
     source = source2 + 1
     ! We need the messages and req_dj entry of source in any case
     ! thus if there is still a message pending delete it

@@ -474,8 +474,9 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, sap, w
     integer(i4_kind), target             :: jobs_infom(jobs_len)
-    integer(kind=MPI_ADDRESS_KIND)      :: displacement
+    integer(kind=MPI_ADDRESS_KIND)      :: displacement, zero
     !------------ Executable code --------------------------------
+    zero = 0
     my_jobs = set_empty_job()
 
     ! First GET-PUT round, MPI only ensures taht after MPI_UNLOCK the
@@ -485,7 +486,7 @@ contains
 
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
-    call MPI_GET(jobs_infom, jobs_len, MPI_INTEGER4, source, 0, jobs_len, MPI_INTEGER4, win, ierr)
+    call MPI_GET(jobs_infom, jobs_len, MPI_INTEGER4, source, zero, jobs_len, MPI_INTEGER4, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
     displacement = my_rank + SJOB_LEN !for getting it in the correct kind
     call MPI_PUT(ON,1,MPI_INTEGER4, source, displacement, 1, MPI_INTEGER4, win, ierr)
@@ -522,8 +523,8 @@ contains
         !
         call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
         ASSERT(ierr==MPI_SUCCESS)
-
-        call MPI_PUT(jobs_infom(SJOB_LEN+1:), n_procs, MPI_INTEGER4, source, 0, n_procs, MPI_INTEGER4, win, ierr)
+        displacement = SJOB_LEN
+        call MPI_PUT(jobs_infom(SJOB_LEN+1:), n_procs, MPI_INTEGER4, source, displacement, n_procs, MPI_INTEGER4, win, ierr)
         ASSERT(ierr==MPI_SUCCESS)
 
         call MPI_WIN_UNLOCK(source, win, ierr)
@@ -541,7 +542,7 @@ contains
         call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
         ASSERT(ierr==MPI_SUCCESS)
 
-        call MPI_PUT(jobs_infom, jobs_len, MPI_INTEGER4, source, 0, jobs_len, MPI_INTEGER4, win, ierr)
+        call MPI_PUT(jobs_infom, jobs_len, MPI_INTEGER4, source, zero, jobs_len, MPI_INTEGER4, win, ierr)
         ASSERT(ierr==MPI_SUCCESS)
 
         call MPI_WIN_UNLOCK(source, win, ierr)

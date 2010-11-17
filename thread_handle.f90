@@ -8,7 +8,6 @@ module thread_handle
   use dlb_common, only: has_last_done, set_empty_job, add_request, send_termination
   use dlb_common, only: masterserver
   use dlb_common, only: WORK_DONAT, WORK_REQUEST
-  USE_MPI
   implicit none
 
   interface
@@ -149,6 +148,7 @@ module thread_handle
     !
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: divide_work, divide_work_master
+    USE_MPI
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: partner
