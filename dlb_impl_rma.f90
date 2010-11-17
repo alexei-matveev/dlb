@@ -513,17 +513,20 @@ contains
     ! *** end of interface ***
 
     integer(i4_kind) :: remote_jobs(SJOB_LEN)
+    integer(i4_kind) :: stolen_jobs(SJOB_LEN)
+    integer(i4_kind) :: remaining_jobs(SJOB_LEN)
     integer(i4_kind) :: local_jobs(SJOB_LEN)
     integer(i4_kind) :: work
 
     !
     ! remote_jobs are fetched from rank, split into
+    !   1) remaining_jobs --- are returned back to rank
+    !   2) stolen_jobs    --- for local processing,
+    !      these are further split into
+    !      a) jobs        --- are output of this sub.
+    !      b) local_jobs  --- are stored in local storage
     !
-    !   a) remote_jobs' --- are returned back to rank
-    !   b) jobs         --- are output of this sub.
-    !   c) local_jobs   --- are stored in local storage
-    !
-    ! FIXME: splitting stolen jobs into b) and c) is beyond the scope
+    ! FIXME: splitting stolen jobs into 2a) and 2b) is beyond the scope
     !        of read-modify-write and doesn not belong here!
     !
 
@@ -577,17 +580,7 @@ contains
     !
     !     remote_jobs(1:2) = (A, C] and jobs(1:2) = (C, B]
     !
-    ASSERT(1==J_STP)
-    ASSERT(2==J_EP)
-    ASSERT(SJOB_LEN==3)
-
-    jobs(1) = remote_jobs(2) - work ! C
-    jobs(2) = remote_jobs(2)        ! B
-    jobs(3) = remote_jobs(3)        ! ???
-
-    remote_jobs(1) = remote_jobs(1)        ! A, redundant assignment
-    remote_jobs(2) = remote_jobs(2) - work ! C, here actual "m" of "rmw"
-    remote_jobs(3) = remote_jobs(3)        ! ???
+    call split_at(remote_jobs(2) - work, remote_jobs, remaining_jobs, stolen_jobs)
 
     !
     ! The rest is for reseting the single job run, needed for termination
@@ -599,7 +592,7 @@ contains
     !
     ! Write back remote_jobs(1:2) and release the lock:
     !
-    call write_and_unlock(rank, remote_jobs)
+    call write_and_unlock(rank, remaining_jobs)
 
     !
     ! FIXME: why the following code is put here is not quite clear,
@@ -609,7 +602,7 @@ contains
     !
     ! "Stealing" from myself is implemented as splitting the interval
     !
-    !     (A, B] = jobs(1:2)
+    !     (A, B] = stolen_jobs(1:2)
     !
     ! at the point
     !
@@ -624,14 +617,7 @@ contains
     ! divide the jobs
     work = reserve_workm(m, jobs) ! expects jobs(1:2)
 
-    local_jobs(1) = jobs(1) + work ! C
-    local_jobs(2) = jobs(2)        ! B
-    local_jobs(3) = jobs(3)        ! ???
-
-    ! these are for direct use
-    jobs(1)  = jobs(1)        ! A
-    jobs(2)  = jobs(1) + work ! C
-    jobs(3)  = jobs(3)        ! ???
+    call split_at(jobs(1) + work, stolen_jobs, jobs, local_jobs)
 
     !
     ! This stores the rest for later in the OWN job-storage
@@ -815,6 +801,31 @@ contains
     call MPI_WIN_UNLOCK(rank, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine write_unsafe
+
+  subroutine split_at(C, AB, AC, CB)
+    !
+    ! Split (A, B] into (A, C] and (C, B]
+    !
+    implicit none
+    integer(i4_kind), intent(in)  :: C, AB(:)
+    integer(i4_kind), intent(out) :: AC(size(AB)), CB(size(AB))
+    ! *** end of interface ***
+
+    ASSERT(size(AB)>=2)
+
+    ASSERT(C>AB(1))
+    ASSERT(C<=AB(2))
+
+    AC(1) = AB(1)
+    AC(2) = C
+
+    CB(1) = C
+    CB(2) = AB(2)
+
+    ! copy trailing posiitons, if any:
+    AC(3:) = AB(3:)
+    CB(3:) = AB(3:)
+  end subroutine split_at
 
   subroutine dlb_setup(job)
     !  Purpose: initialization of a dlb run, each proc should call
