@@ -585,7 +585,7 @@ contains
     !
     ! The rest is for reseting the single job run, needed for termination
     !
-    start_job = jobs
+    start_job = stolen_jobs
     ! FIXME: Why secretly modifying global data structures?
     !        Does it need to be protected by lock/unlock or why?
 
