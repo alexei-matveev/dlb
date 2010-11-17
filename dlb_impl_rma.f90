@@ -246,7 +246,7 @@ contains
 
     ! First try to get job from local storage (loop because some one lese may
     ! try to read from there (then local_tgetm = false)
-    do while (.not. local_tgetm(n, jobs))
+    do while ( .not. local_tgetm(n, jobs) )
        call time_stamp("waiting for time to acces my own memory",2)
     enddo
     call time_stamp("finished local search",3)
@@ -394,7 +394,7 @@ contains
     call end_communication()
   end subroutine check_termination
 
-  logical function local_tgetm(m, my_jobs)
+  logical function local_tgetm(m, jobs)
     !  Purpose: returns true if could acces the global memory with
     !            the local jobs of the machine, false if there is already
     !            someone else working,
@@ -407,49 +407,105 @@ contains
     use dlb_common, only: reserve_workm
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: m
-    integer(kind=i4_kind), intent(out  ) :: my_jobs(JLENGTH)
+    integer(i4_kind), intent(in)  :: m
+    integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, sap, w
-    !------------ Executable code --------------------------------
 
+    integer(i4_kind) :: ierr, locked
+
+    integer(i4_kind) :: local(JLENGTH)
+    integer(i4_kind) :: remaining(JLENGTH)
+
+    ASSERT(size(jobs)==JLENGTH)
+
+    jobs = set_empty_job()
+
+    !
+    ! Acquire MPI-lock on local storage:
+    !
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
     ! each proc which ones to acces the memory, sets his point to 1
     ! (else they are all 0), so if the sum is more than 0, at least one
-    ! proc tries to get the memory, the one, who got sap = 0 has the right
+    ! proc tries to get the memory, the one, who got locked = 0 has the right
     ! to work
-    my_jobs = job_storage(:JLENGTH) ! first JLENGTH hold the job (furter the sap
+    local(:) = job_storage(:JLENGTH) ! first JLENGTH hold the job
 
-    sap = sum(job_storage(JLENGTH+1:))
-    if (sap > 0) then
-      call time_stamp("blocked by lock contension",2)
-      ! find out if it makes sense to wait:
-      if ( empty(my_jobs) ) then
-         local_tgetm = .true.
-         call time_stamp("blocked, but empty",2)
-         call report_or_store(my_jobs)
-      else
-         local_tgetm = .false.
-         my_jobs(JRIGHT) = my_jobs(JLEFT) ! non actuell informations, make them invalid
-      endif
-    else ! nobody is on the memory right now
-      call time_stamp("free",2)
-      local_tgetm = .true.
-      ! check for thieves (to know when to wait for back reports)
-      if (.not. job_storage(JRIGHT)== start_job(JRIGHT)) had_thief = .true.
-      w = reserve_workm(m, job_storage) ! how many jobs to get
-      if (w == 0) then ! no more jobs
-        call report_or_store(my_jobs)
-      else ! take my part of the jobs (divide jobs of storage)
-            ! take from start beginning
-        my_jobs(JRIGHT)  = my_jobs(JLEFT) + w
-        job_storage(JLEFT) = my_jobs(JRIGHT)
-      endif
-      job_storage(JLENGTH+1:) = 0
+    !
+    ! See if someone else holding the user-lock:
+    !
+    locked = sum(job_storage(JLENGTH+1:))
+
+    !
+    ! Below are 2x2 = 4 branches roughly corresponding to the
+    ! four possible cases of (locked, empty(local)) tuple.
+    !
+    ! FIXME: too difficult to reason about this code.
+    !
+    if ( locked > 0 ) then
+        !
+        ! Someone else is holding user-lock on local storage:
+        !
+        call time_stamp("blocked by lock contension",2)
+
+        ! find out if it makes sense to wait:
+        if ( empty(local) ) then
+            local_tgetm = .true.
+            call time_stamp("blocked, but empty",2)
+
+            !
+            ! FIXME: I dont get it! True means "got jobs!" Something is seriousely
+            ! broken here!
+            !
+
+            !
+            ! FIXME: isnt "local" always empty here? Why is it passed then?
+            !
+            call report_or_store(local)
+        else
+            local_tgetm = .false.
+            jobs(JRIGHT) = jobs(JLEFT) ! non actuell informations, make them invalid
+        endif
+
+    else
+        !
+        ! Acquired user-lock on local storage:
+        !
+        local_tgetm = .true.
+        call time_stamp("free",2)
+
+        !
+        ! FIXME: is there a better place for this hack?
+        !
+        ! check for thieves (to know when to wait for back reports)
+        if ( .not. job_storage(JRIGHT) == start_job(JRIGHT) ) had_thief = .true.
+
+        !
+        ! Try taking a slice from (a copy of) the local storage:
+        !
+        if ( steal_local(m, local, remaining, jobs) ) then
+            !
+            ! Store remaining jobs:
+            !
+            job_storage(:JLENGTH) = remaining(:)
+        else
+            ! no more jobs!
+            ASSERT(empty(local))
+            !
+            ! FIXME: isnt "local" always empty here? Why is it passed then?
+            !
+            call report_or_store(local)
+        endif
+
+        !
+        ! Release user-lock:
+        !
+        job_storage(JLENGTH+1:) = 0
     endif
+    !
+    ! Release MPI-lock:
+    !
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
     call time_stamp("release",3)
     ASSERT(ierr==MPI_SUCCESS)
