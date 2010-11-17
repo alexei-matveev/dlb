@@ -207,7 +207,7 @@ contains
     call dlb_common_finalize()
   end subroutine dlb_finalize
 
-  subroutine dlb_give_more(n, my_job)
+  subroutine dlb_give_more(n, slice)
     !  Purpose: Returns next bunch of up to n jobs, if jobs(JRIGHT)<=
     !  jobs(JLEFT) there are no more jobs there, else returns the jobs
     !  done by the procs should be jobs(JLEFT) + 1 to jobs(JRIGHT) in
@@ -220,8 +220,8 @@ contains
     use dlb_common, only: select_victim
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: n
-    integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB)
+    integer(i4_kind), intent(in)  :: n
+    integer(i4_kind), intent(out) :: slice(2)
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
@@ -238,8 +238,8 @@ contains
 
 ! This seems to be there with our local network, trying to avoid as much lock/unlocks as possible
 !   if (term) then
-!     my_job = start_job(:L_JOB)
-!     my_job(JLEFT) = my_job(JRIGHT)
+!     slice = start_job(:L_JOB)
+!     slice(JLEFT) = slice(JRIGHT)
 !     call time_stamp("dlb_give_more: exit on TERMINATION flag", 1)
 !     return
 !   endif
@@ -269,8 +269,10 @@ contains
     enddo
     call time_stamp("finished stealing",3)
 
-    ! only the start and endpoint of job slice is needed external
-    my_job = jobs(:L_JOB)
+    ! NOTE: named constants are now known outside.
+    ! Return only the start and endpoint of the job slice:
+    slice(1) = jobs(JLEFT)
+    slice(2) = jobs(JRIGHT)
 
     ! this would not work: no ensurance that the others already know that
     ! they should be terminated, they could steal jobs setup by already terminated
