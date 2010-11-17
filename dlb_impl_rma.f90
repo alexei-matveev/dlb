@@ -510,7 +510,7 @@ contains
     use dlb_common, only: reserve_workm
     implicit none
     integer(i4_kind), intent(in)  :: m, rank
-    integer(i4_kind), intent(out) :: jobs(JLENGTH)
+    integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
     logical                       :: ok ! result
     ! *** end of interface ***
 
@@ -534,7 +534,7 @@ contains
     !      b) local_jobs  --- are stored in local storage
     !
 
-    ok = try_stealing(m, rank, stolen_jobs)
+    ok = try_read_modify_write(rank, legacy_share, m, stolen_jobs)
 
     if ( .not. ok ) then
         jobs = set_empty_job()
@@ -592,35 +592,41 @@ contains
     ! A better solution is welcome.
   end function rmw_tgetm
 
-  function try_stealing(m, rank, jobs) result(ok)
-    !  Purpose: read-modify-write variant fo getting m from another proc
-    !           rank, returns true if the other proc has its memory free
-    !           false if it is not
-    !           if the memory can be accessed, take some jobs from him,
-    !           store those, which are more than m in own local storage
-    !           read-modify-write is implemented with an integer for each
-    !           proc, which is 0, if this proc does not wants to access the
-    !           memory and 1 else; before changing or using the informations
-    !           gotten with MPI_GET, each proc tests if the sum fo this integer
-    !           is 0, if it is, this proc is the first to access the memory,
-    !           it may change and rewrite it, else only the integer belonging to
-    !           the proc may be reset to 0
-    !------------ Modules used ------------------- ---------------
-    use dlb_common, only: steal_work_for_rma
+  function try_read_modify_write(rank, modify, iarg, jobs) result(ok)
+    !
+    ! Performe read-modify-write variant sequence
+    !
     implicit none
-    integer(i4_kind), intent(in)  :: m, rank
-    integer(i4_kind), intent(out) :: jobs(JLENGTH)
+    integer(i4_kind), intent(in)  :: rank, iarg
+    integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
     logical                       :: ok ! result
+    !
+    ! Input argument "modify(...)" is a procedure that takes an integer argument
+    ! "iarg", a jobs descriptor "orig" and produces two job descriptors
+    ! "left" and "right" of which one is written back in a "write_and_unloc"
+    ! step and the other is returned as the result of "try_read_modify_write".
+    ! If the (logical) return status of "modify(...)" is false, the
+    ! "write" step of "read-modify-write" is aborted:
+    !
+    interface
+        logical function modify(iarg, orig, left, right)
+            use dlb_common, only: i4_kind
+            implicit none
+            integer(i4_kind), intent(in)  :: iarg
+            integer(i4_kind), intent(in)  :: orig(:) ! (JLENGTH)
+            integer(i4_kind), intent(out) :: left(:) ! (JLENGTH)
+            integer(i4_kind), intent(out) :: right(:) ! (JLENGTH)
+        end function modify
+    end interface
     ! *** end of interface ***
 
-    integer(i4_kind) :: remote_jobs(JLENGTH)
-    integer(i4_kind) :: remaining_jobs(JLENGTH)
-    integer(i4_kind) :: work
+    integer(i4_kind) :: orig(JLENGTH)
+    integer(i4_kind) :: left(JLENGTH)
 
     !
-    ! remote_jobs are fetched from rank, split into
-    !   1) remaining_jobs --- are returned back to rank
-    !   2) jobs           --- for local processing,
+    ! "orig" job descriptor is fetched from "rank", split into
+    !   1) "left"  --- are written back to "rank"
+    !   2) "right" --- to be returned in "jobs"
 
     !
     ! NOTE: size(jobs) is JLENGTH, (jobs(JLEFT), jobs(JRIGHT)] specify
@@ -632,54 +638,91 @@ contains
     jobs = set_empty_job()
 
     !
-    ! Try reading job info from "rank", returns false if not successfull:
+    ! Try reading job info from "rank" into "orig" job descriptor, returns false
+    ! if not successfull:
     !
-    ok = try_lock_and_read(rank, remote_jobs)
+    ok = try_lock_and_read(rank, orig)
 
     ! Return if locking failed:
     if ( .not. ok ) RETURN
 
-    ! how much of the work should be stolen
-    work = steal_work_for_rma(m, remote_jobs) ! expects remote_jobs(1:2)
-    !
-    ! FIXME: stealing could be realized as splitting the interval/slice:
-    !
-    !        split_job_slice(orig, left, right)
-    !
-    ! See redundant error-prone code below.
-    !
+    ! Modify step:
+    ok = modify(iarg, orig, left, jobs)
 
-    ! Unlock and return if nothing to steal
-    if ( work == 0 ) then
-        !
-        ! Nothing can be stolen --- skip "modify-write" in "read-modify-write",
-        ! only do unlock:
-        !
-        ok = .false.
+    !
+    ! If "modify" step failed then skip "modify-write" in "read-modify-write",
+    ! only do unlock:
+    !
+    if ( .not. ok ) then
         call unlock(rank)
         RETURN
     endif
 
     !
+    ! Write back and release the lock:
+    !
+    call write_and_unlock(rank, left)
+
+    !
+    ! ... and return "jobs".
+    !
+  end function try_read_modify_write
+
+  function legacy_share(m, remote, remaining, stolen) result(ok)
+    !
     ! Stealing is implemented as splitting the interval
     !
-    !     (A, B] = remote_jobs(1:2)
+    !     (A, B] = remote(1:2)
     !
-    ! at the point
+    ! at the point computed the legacy function "steal_work_for_rma(...)"
     !
-    !     C = B - work
+    !     C = B - steal_work_for_rma(m, remote)
     !
     ! into
     !
-    !     remaining_jobs(1:2) = (A, C] and jobs(1:2) = (C, B]
+    !     remaining(1:2) = (A, C] and stolen(1:2) = (C, B]
     !
-    call split_at(remote_jobs(JRIGHT) - work, remote_jobs, remaining_jobs, jobs)
+    ! FIXME: the role of parameter "m" is not clear!
+    !
+    use dlb_common, only: i4_kind, JLENGTH, steal_work_for_rma
+    implicit none
+    integer(i4_kind), intent(in)  :: m
+    integer(i4_kind), intent(in)  :: remote(:) ! (JLENGTH)
+    integer(i4_kind), intent(out) :: remaining(:) ! (JLENGTH)
+    integer(i4_kind), intent(out) :: stolen(:) ! (JLENGTH)
+    logical                       :: ok ! result
+    ! *** end of interface ***
+
+    integer(i4_kind) :: work, c
+
+    ASSERT(size(remote)==JLENGTH)
+    ASSERT(size(remaining)==JLENGTH)
+    ASSERT(size(stolen)==JLENGTH)
+
+    ok = .false. ! failure
+    remaining = -1 ! junk
+    stolen = -1 ! junk
+
+    ! how much of the work should be stolen
+    work = steal_work_for_rma(m, remote)
+
+    ! FIXME: steal_work_for_rma(...) expects remote(1:2), we
+    ! provide remote(1:JLENGTH)
 
     !
-    ! Write back remaining_jobs(1:2) and release the lock:
+    ! We were told that nothing can be stolen --- report failure:
     !
-    call write_and_unlock(rank, remaining_jobs)
-  end function try_stealing
+    if ( work == 0 ) RETURN
+
+    !
+    ! Split the interval here:
+    !
+    c = remote(JRIGHT) - work
+
+    call split_at(c, remote, remaining, stolen)
+
+    ok = .true.
+  end function legacy_share
 
   function try_lock_and_read(rank, jobs) result(ok)
     !
@@ -844,10 +887,12 @@ contains
     !
     implicit none
     integer(i4_kind), intent(in)  :: C, AB(:)
-    integer(i4_kind), intent(out) :: AC(size(AB)), CB(size(AB))
+    integer(i4_kind), intent(out) :: AC(:), CB(:)
     ! *** end of interface ***
 
     ASSERT(size(AB)==JLENGTH)
+    ASSERT(size(AC)==JLENGTH)
+    ASSERT(size(CB)==JLENGTH)
 
     ASSERT(C>AB(JLEFT))
     ASSERT(C<=AB(JRIGHT))
