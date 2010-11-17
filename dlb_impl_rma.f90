@@ -491,9 +491,9 @@ contains
     endif
   end subroutine report_or_store
 
-  logical function rmw_tgetm(m, source, my_jobs)
+  function rmw_tgetm(m, rank, jobs) result(locked)
     !  Purpose: read-modify-write variant fo getting m from another proc
-    !           source, returns true if the other proc has its memory free
+    !           rank, returns true if the other proc has its memory free
     !           false if it is not
     !           if the memory can be accessed, take some jobs from him,
     !           store those, which are more than m in own local storage
@@ -507,123 +507,273 @@ contains
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: steal_work_for_rma, reserve_workm
     implicit none
-    !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: m, source
-    integer(kind=i4_kind), intent(out  ) :: my_jobs(SJOB_LEN)
-    !** End of interface *****************************************
+    integer(i4_kind), intent(in)  :: m, rank
+    integer(i4_kind), intent(out) :: jobs(SJOB_LEN)
+    logical                       :: locked ! result
+    ! *** end of interface ***
 
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, sap, w
-    integer(i4_kind), target             :: jobs_infom(jobs_len)
-    integer(kind=MPI_ADDRESS_KIND)       :: displacement
-    integer(kind=MPI_ADDRESS_KIND), parameter :: zero = 0
+    integer(i4_kind) :: remote_jobs(SJOB_LEN)
+    integer(i4_kind) :: local_jobs(SJOB_LEN)
+    integer(i4_kind) :: work
+
+    !
+    ! remote_jobs are fetched from rank, split into
+    !
+    !   a) remote_jobs' --- are returned back to rank
+    !   b) jobs         --- are output of this sub.
+    !   c) local_jobs   --- are stored in local storage
+    !
+    ! FIXME: splitting stolen jobs into b) and c) is beyond the scope
+    !        of read-modify-write and doesn not belong here!
+    !
+
+    !
+    ! FIXME: for some reason size(jobs) that is provided by this sub is 3:
+    !
+    ASSERT(SJOB_LEN==3)
+    ! ASSERT(size(jobs)==2)
+    ASSERT(size(jobs)==3)
+
+    jobs = set_empty_job()
+
+    !
+    ! Try reading job info from "rank", returns false if not successfull:
+    !
+    locked = try_lock_and_read(rank, remote_jobs)
+
+    ! Return if locking failed:
+    if ( .not. locked ) RETURN
+
+    ! how much of the work should be stolen
+    work = steal_work_for_rma(m, remote_jobs) ! expects remote_jobs(1:2)
+    !
+    ! FIXME: stealing could be realized as splitting the interval/slice:
+    !
+    !        split_job_slice(orig, left, right)
+    !
+    ! See redundant error-prone code below.
+    !
+
+    ! Unlock and return if nothing to steal
+    if ( work == 0 ) then
+        !
+        ! Nothing can be stolen --- skip "modify-write" in "read-modify-write",
+        ! only do unlock:
+        !
+        call unlock(rank)
+        RETURN
+    endif
+
+    !
+    ! Stealing is implemented as splitting the interval
+    !
+    !     (A, B] = remote_jobs(1:2)
+    !
+    ! at the point
+    !
+    !     C = B - work
+    !
+    ! into
+    !
+    !     remote_jobs(1:2) = (A, C] and jobs(1:2) = (C, B]
+    !
+    ASSERT(1==J_STP)
+    ASSERT(2==J_EP)
+    ASSERT(SJOB_LEN==3)
+
+    jobs(1) = remote_jobs(2) - work ! C
+    jobs(2) = remote_jobs(2)        ! B
+    jobs(3) = remote_jobs(3)        ! ???
+
+    remote_jobs(1) = remote_jobs(1)        ! A, redundant assignment
+    remote_jobs(2) = remote_jobs(2) - work ! C, here actual "m" of "rmw"
+    remote_jobs(3) = remote_jobs(3) - work ! ???
+
+    !
+    ! The rest is for reseting the single job run, needed for termination
+    !
+    start_job = jobs
+    ! FIXME: Why secretly modifying global data structures?
+    !        Does it need to be protected by lock/unlock or why?
+
+    !
+    ! Write back remote_jobs(1:2) and release the lock:
+    !
+    call write_and_unlock(rank, remote_jobs)
+
+    !
+    ! FIXME: why the following code is put here is not quite clear,
+    !        maybe it does not belong into "rmw"?
+    !
+
+    !
+    ! "Stealing" from myself is implemented as splitting the interval
+    !
+    !     (A, B] = jobs(1:2)
+    !
+    ! at the point
+    !
+    !     C = A + work
+    !
+    ! into
+    !
+    !     jobs(1:2) = (A, C] and local_jobs(1:2) = (C, B]
+    !
+
+    ! The give_grid function needs only up to m' jobs at once, thus
+    ! divide the jobs
+    work = reserve_workm(m, jobs) ! expects jobs(1:2)
+
+    local_jobs(1) = jobs(1) + work ! C
+    local_jobs(2) = jobs(2)        ! B
+    local_jobs(3) = jobs(3)        ! ???
+
+    ! these are for direct use
+    jobs(1)  = jobs(1)        ! A
+    jobs(2)  = jobs(1) + work ! C
+    jobs(3)  = jobs(3)        ! ???
+
+    !
+    ! This stores the rest for later in the OWN job-storage
+    !
+    call write_unsafe(my_rank, local_jobs)
+  end function rmw_tgetm
+
+  function try_lock_and_read(rank, jobs) result(locked)
+    !
+    ! Try getting a lock indexed by rank and if that succeeds,
+    ! read data into jobs(1:2)
+    !
+    use dlb_common, only: my_rank, n_procs
+    implicit none
+    !------------ Declaration of formal parameters ---------------
+    integer(i4_kind), intent(in)  :: rank
+    integer(i4_kind), intent(out) :: jobs(SJOB_LEN) ! (2)
+    logical                       :: locked ! result
+    ! *** end of interface ***
+
+    integer(i4_kind)          :: ierr
+    integer(i4_kind), target  :: win_data(jobs_len) ! FIXME: why target?
+    integer(MPI_ADDRESS_KIND) :: displacement
+    integer(MPI_ADDRESS_KIND), parameter :: zero = 0
     !------------ Executable code --------------------------------
 
-    my_jobs = set_empty_job()
+    ASSERT(size(jobs)==SJOB_LEN)
+
+    locked = .false.
+    jobs = -1 ! junk
 
     ! First GET-PUT round, MPI only ensures taht after MPI_UNLOCK the
     ! MPI-RMA accesses are finished, thus modify has to be done out of this lock
     ! There are two function calls inside: one to get the data and check if it may be accessed
     ! second one to show to other procs, that this one is interested in modifing the data
 
-    call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
+    !
+    ! FIXME: GET/PUT of the same data item in a single epoch is illegal:
+    !
+    call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    call MPI_GET(jobs_infom, jobs_len, MPI_INTEGER4, source, zero, jobs_len, MPI_INTEGER4, win, ierr)
+    call MPI_GET(win_data, jobs_len, MPI_INTEGER4, rank, zero, jobs_len, MPI_INTEGER4, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    displacement = my_rank + SJOB_LEN !for getting it in the correct kind
+    displacement = my_rank + SJOB_LEN ! for getting it in the correct kind
 
-    call MPI_PUT(ON,1,MPI_INTEGER4, source, displacement, 1, MPI_INTEGER4, win, ierr)
+    call MPI_PUT(ON, 1, MPI_INTEGER4, rank, displacement, 1, MPI_INTEGER4, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    call MPI_WIN_UNLOCK(source, win, ierr)
+    call MPI_WIN_UNLOCK(rank, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    jobs_infom(my_rank+1+SJOB_LEN) = 0
+    !
+    ! FIXME: this is the data item that was GET/PUT in the same epoch:
+    !
+    win_data(my_rank + 1 + SJOB_LEN) = 0
 
-    ! check if there are any procs, saying that they want to acces the memory
-    sap = sum(jobs_infom(SJOB_LEN+1:))
-
-    if (sap > 0) then ! this one is not the first, thus leave the memory to the others
-      rmw_tgetm = .false.
-
-      call time_stamp("blocked on lock contension rmw",2)
-      many_locked = many_locked + 1
-
-    else ! is the first one, therefor do what you want with it
-      rmw_tgetm = .true.
-
-      ! how much of the work should be stolen
-      w = steal_work_for_rma(m, jobs_infom)
-
-      call time_stamp("free",4)
-
-      my_jobs = jobs_infom(:SJOB_LEN)
-
-      ! after setting back, there is a new chance to access the memory for the others
-      jobs_infom(SJOB_LEN+1:) = 0
-
-      if (w == 0) then ! nothing to steal, set default
-        my_jobs = set_empty_job()
-        many_zeros = many_zeros + 1
-        !
-        ! Final lock of this memory, to free the
-        ! user setted outer lock for the others
-        ! there were no jobs to steal, for ensure the
-        ! progress, the proc may reset only the outer lock
-        ! writing back the empty job is illegal, as there may
-        ! be new ones comming, see store_new_work function
-        !
-        call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
-        ASSERT(ierr==MPI_SUCCESS)
-
-        displacement = SJOB_LEN
-        call MPI_PUT(jobs_infom(SJOB_LEN+1:), n_procs, MPI_INTEGER4, source, displacement, n_procs, MPI_INTEGER4, win, ierr)
-        ASSERT(ierr==MPI_SUCCESS)
-
-        call MPI_WIN_UNLOCK(source, win, ierr)
-        ASSERT(ierr==MPI_SUCCESS)
-
-      else ! take the last w jobs of the job-storage
-
-        my_jobs(J_STP)  = my_jobs(J_EP) - w
-        jobs_infom(J_EP) = my_jobs(J_STP)
-
-        ! the rest is for reseting the single job run, needed for termination
-        start_job = my_jobs
-        !
-        ! Final lock of this memory, to give back unstolen jobs and to free the
-        ! user setted outer lock for the others
-        !
-        call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
-        ASSERT(ierr==MPI_SUCCESS)
-
-        call MPI_PUT(jobs_infom, jobs_len, MPI_INTEGER4, source, zero, jobs_len, MPI_INTEGER4, win, ierr)
-        ASSERT(ierr==MPI_SUCCESS)
-
-        call MPI_WIN_UNLOCK(source, win, ierr)
-        ASSERT(ierr==MPI_SUCCESS)
-      endif
-
-      ! The give_grid function needs only up to m' jobs at once, thus
-      ! divide the jobs
-      if (w /= 0) then
-        jobs_infom(:SJOB_LEN) = my_jobs
-
-        w = reserve_workm(m,jobs_infom)
-
-        ! these are for direct use
-        my_jobs(J_EP)  = my_jobs(J_STP) + w
-        jobs_infom(J_STP) = my_jobs(J_EP)
-
-        ! this stores the rest for later in the own job-storage
-        call store_new_work(jobs_infom)
-      endif
+    !
+    ! Check if there are any procs, saying that they want to acces the memory
+    !
+    if ( sum(win_data(SJOB_LEN+1:)) == 0 ) then
+        locked = .true.
+        jobs(:) = win_data(1:SJOB_LEN)
+    else
+        ! Do nothing. Dont even try to undo our attempt to acquire the lock
+        ! as the one that is holding the lock will overwrite the lock
+        ! data structure when finished. See unlock/write_and_unlock below.
     endif
-  end function rmw_tgetm
+  end function try_lock_and_read
 
-  subroutine store_new_work(my_jobs)
+  subroutine unlock(rank)
+    !
+    ! Release previousely acquired lock indexed by rank.
+    !
+    use dlb_common, only: n_procs
+    implicit none
+    integer(i4_kind), intent(in) :: rank
+    ! *** end of interface ***
+
+    integer(i4_kind)          :: ierr
+    integer(i4_kind), target  :: zeros(n_procs) ! FIXME: why target?
+    integer(MPI_ADDRESS_KIND), parameter :: displacement = SJOB_LEN ! long int
+    integer(MPI_ADDRESS_KIND), parameter :: zero = 0
+    !------------ Executable code --------------------------------
+
+    call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+
+    call MPI_PUT(zeros, size(zeros), MPI_INTEGER4, rank, displacement, size(zeros), MPI_INTEGER4, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+
+    call MPI_WIN_UNLOCK(rank, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+  end subroutine unlock
+
+  subroutine write_and_unlock(rank, jobs)
+    !
+    ! Update job range description and release previousely acquired lock.
+    !
+    use dlb_common, only: steal_work_for_rma, reserve_workm
+    implicit none
+    integer(i4_kind), intent(in) :: rank
+    integer(i4_kind), intent(in) :: jobs(:)
+    ! *** end of interface ***
+
+    integer(i4_kind)          :: ierr
+    integer(i4_kind), target  :: win_data(jobs_len) ! FIXME: why target?
+    integer(MPI_ADDRESS_KIND), parameter :: zero = 0
+    !------------ Executable code --------------------------------
+
+    ASSERT(size(jobs)==SJOB_LEN)
+    ASSERT(SJOB_LEN+n_procs==jobs_len)
+
+    !
+    ! Real data:
+    !
+    win_data(1:SJOB_LEN) = jobs(:)
+
+    !
+    ! Zero fields responsible for locking:
+    !
+    win_data(SJOB_LEN+1:) = 0
+
+    !
+    ! PUT data and overwrite lock data structure with zeros in one epoch:
+    !
+    call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+
+    call MPI_PUT(win_data, size(win_data), MPI_INTEGER4, rank, zero, size(win_data), MPI_INTEGER4, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+
+    call MPI_WIN_UNLOCK(rank, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+  end subroutine write_and_unlock
+
+  subroutine write_unsafe(rank, jobs)
+    !
+    ! Owerwrite jobs data structure without acquiring user-level lock
+    ! as done in try_read_lock()/write_unlock()
+    !
     !  Purpose: stores the new jobs (minus the ones for direct use)
     !           in the storage, as soon as there a no more other procs
     !           trying to do something
@@ -643,33 +793,28 @@ contains
     !              In this case stealing procs, which find empty storage
     !              are allowed only to reset the lock relevant part of the storage
     !              A better solution is welcome.
-    !------------ Modules used ------------------- ---------------
+    !
+    use dlb_common, only: my_rank
     implicit none
-    !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in  ) :: my_jobs(jobs_len)
-    !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-   integer(kind=i4_kind)                :: ierr
-   !integer(kind=i4_kind)                :: sap
-    !------------ Executable code --------------------------------
-   ! check not for lock, ensure progress
-   !sap = 1
-   !ASSERT(sum(my_jobs(SJOB_LEN+1:))==0)
-   !do while (sap > 0 )
-     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
-     ASSERT(ierr==MPI_SUCCESS)
-   !  ! Test if there are more procs doing something on the storage
-   !  ! (They may give back something wrong) if yes cycle, else store
-   !  sap = sum(job_storage(SJOB_LEN+1:))
-   !  if (sap > 0) then
-   !    call time_stamp("I'm blocked on lock contension",2)
-   !  else
-      job_storage(:SJOB_LEN) = my_jobs(:SJOB_LEN)
-   !  endif
-     call MPI_WIN_UNLOCK(my_rank, win, ierr)
-     ASSERT(ierr==MPI_SUCCESS)
-   !enddo
-  end subroutine store_new_work
+    integer(i4_kind), intent(in) :: rank, jobs(:)
+    ! *** end of interface ***
+
+    integer(i4_kind) :: ierr
+
+    !
+    ! FIXME: so far only used to store into the local datastructure:
+    !
+    ASSERT(rank==my_rank)
+    ASSERT(size(jobs)==SJOB_LEN)
+
+    call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+
+    job_storage(:SJOB_LEN) = jobs(:)
+
+    call MPI_WIN_UNLOCK(rank, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+  end subroutine write_unsafe
 
   subroutine dlb_setup(job)
     !  Purpose: initialization of a dlb run, each proc should call
