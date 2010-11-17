@@ -867,15 +867,15 @@ contains
     my_resp_start = start_job(J_EP) - start_job(J_STP)
 
     ! Job storage holds all the jobs currently in use
-    call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
+    call write_and_unlock(my_rank, start_job)
+    ! FIXME: this abuses MPI_PUT to store to the local storage,
+    !        specialize write_and_unlock(...) it desired.
 
-    job_storage(:SJOB_LEN) = start_job
-    job_storage(SJOB_LEN+1:) = 0
-
-    call MPI_WIN_UNLOCK(my_rank, win, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
-
+    !
+    ! FIXME: this is a collective operation, it will prevent
+    !        workers from starting asyncronousely with their
+    !        workshares!
+    !
     call MPI_WIN_FENCE(0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine dlb_setup
