@@ -64,7 +64,8 @@ module dlb_common
   ! real with 8 bytes, precision 15 decimal digits
   integer, parameter, public :: r8_kind = selected_real_kind(15)
 
-  integer,  public :: comm_world
+  integer,  public, protected :: comm_world
+
   integer(kind=i4_kind), parameter, public  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 !for distingishuing the messages
   integer(kind=i4_kind), parameter, public  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
   integer(kind=i4_kind), parameter, public  :: SJOB_LEN = 3 ! Length of a single job in interface
@@ -80,20 +81,22 @@ module dlb_common
     logical, parameter, public :: masterserver = .false. ! changes to different variant (master slave concept for comparision)
 #endif
 
-  integer(kind=i4_kind), public       :: my_rank, n_procs ! some synonyms, They will be initialized once and afterwards
+  integer(kind=i4_kind), public, protected :: my_rank, n_procs ! some synonyms, They will be initialized once and afterwards
                                         ! be read only
-  integer(kind=i4_kind), public             ::  termination_master ! the one who gathers the finished my_resp's
+  integer(kind=i4_kind), public, protected ::  termination_master ! the one who gathers the finished my_resp's
                                          ! and who tells all, when it is complety finished
                                          ! in case of the variant with master as server of jobs, its also the master
+
+  !================================================================
+  ! End of public interface of module
+  !================================================================
+
   integer(kind=i4_kind), allocatable :: my_resp(:)
   integer(kind=i4_kind), allocatable :: messages(:,:), req_dj(:) !need to store the messages for DONE_JOB,
                      ! as they may still be not finished, when the subroutine for generating them is finshed.
                      ! There may be a lot of them, message_on_way keeps track, to whom they are already on their way
                      ! the requests are handeled also separately, as it is needed to know, which one has finsished:
   logical, allocatable :: message_on_way(:) ! which messages are already sended
-  !================================================================
-  ! End of public interface of module
-  !================================================================
 
   !------------ Declaration of types ------------------------------
 
