@@ -623,6 +623,26 @@ contains
     ! This stores the rest for later in the OWN job-storage
     !
     call write_unsafe(my_rank, local_jobs)
+    ! This stores the new jobs (minus the ones for direct use)
+    ! in the storage, as soon as there a no more other procs
+    ! trying to do something
+    !
+    ! FIXME: (already addressed?)
+    ! The while loop may be go on for ever: because it
+    ! is nowere ensured that the current processor will
+    ! find its memory unlocked of the user lock by the others
+    ! some times. If all other procs have finished and this
+    ! one wants to write the additional jobs in its own storage
+    ! it may find each time it gets the win_lock a user lock
+    ! by someone else. This has already happend if some procs
+    ! were trying to get their local_tgetm when all were
+    ! finished. In this case a checking for termination stuff
+    ! already im the local loop helped.
+    ! Here the solution is that the proc writes the additional
+    ! information in the storage, that is empty, anyhow.
+    ! In this case stealing procs, which find empty storage
+    ! are allowed only to reset the lock relevant part of the storage
+    ! A better solution is welcome.
   end function rmw_tgetm
 
   function try_lock_and_read(rank, jobs) result(locked)
@@ -759,26 +779,6 @@ contains
     !
     ! Owerwrite jobs data structure without acquiring user-level lock
     ! as done in try_read_lock()/write_unlock()
-    !
-    !  Purpose: stores the new jobs (minus the ones for direct use)
-    !           in the storage, as soon as there a no more other procs
-    !           trying to do something
-    !
-    !       fixed:the while loop may be go on for ever: because it
-    !              is nowere ensured that the current processor will
-    !              find its memory unlocked of the user lock by the others
-    !              some times. If all other procs have finished and this
-    !              one wants to write the additional jobs in its own storage
-    !              it may find each time it gets the win_lock a user lock
-    !              by someone else. This has already happend if some procs
-    !              were trying to get their local_tgetm when all were
-    !              finished. In this case a checking for termination stuff
-    !              already im the local loop helped.
-    !              Here the solution is that the proc writes the additional
-    !              information in the storage, that is empty, anyhow.
-    !              In this case stealing procs, which find empty storage
-    !              are allowed only to reset the lock relevant part of the storage
-    !              A better solution is welcome.
     !
     use dlb_common, only: my_rank
     implicit none
