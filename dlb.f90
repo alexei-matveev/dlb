@@ -79,7 +79,7 @@ module dlb
 
 # include "dlb.h"
 ! Need here some stuff, that is already defined elsewere
-use dlb_common, only: J_STP, J_EP, L_JOB
+use dlb_common, only: JLEFT, JRIGHT, L_JOB
 use dlb_common, only: i4_kind
 implicit none
 save            ! save all variables defined in this module
@@ -192,9 +192,9 @@ contains
   end subroutine dlb_setup_color
 
   logical function dlb_give_more(n, my_job)
-    !  Purpose: Returns next bunch of up to n jobs, if jobs(J_EP)<=
-    !  jobs(J_STP) there are no more jobs there, else returns the jobs
-    !  done by the procs should be jobs(J_STP) + 1 to jobs(J_EP) in
+    !  Purpose: Returns next bunch of up to n jobs, if jobs(JRIGHT)<=
+    !  jobs(JLEFT) there are no more jobs there, else returns the jobs
+    !  done by the procs should be jobs(JLEFT) + 1 to jobs(JRIGHT) in
     !  the related job list
     !------------ Modules used ------------------- ---------------
     use dlb_impl, only: dlb_impl_give_more => dlb_give_more
@@ -205,13 +205,13 @@ contains
     !** End of interface *****************************************
 
     call dlb_impl_give_more(n, my_job)
-    dlb_give_more = (my_job(J_STP) < my_job(J_EP))
+    dlb_give_more = (my_job(JLEFT) < my_job(JRIGHT))
   end function dlb_give_more
 
   function dlb_give_more_color(n, color, my_job) result(more)
-    !  Purpose: Returns next bunch of up to n jobs, if jobs(J_EP)<=
-    !  jobs(J_STP) there are no more jobs there, else returns the jobs
-    !  done by the procs should be jobs(J_STP) + 1 to jobs(J_EP) in
+    !  Purpose: Returns next bunch of up to n jobs, if jobs(JRIGHT)<=
+    !  jobs(JLEFT) there are no more jobs there, else returns the jobs
+    !  done by the procs should be jobs(JLEFT) + 1 to jobs(JRIGHT) in
     !  the related job list
     !  this version gives also back the color of the jobs and ensures
     !  that the jobs given back all have the same color
@@ -227,7 +227,7 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: i,  w, jobs_all, jobs_color, ierr
 
-    if (current_jobs(J_STP) < current_jobs(J_EP)) then
+    if (current_jobs(JLEFT) < current_jobs(JRIGHT)) then
         ! some are left over from the last time:
         more = .true.
     else
@@ -255,21 +255,21 @@ contains
     ! Find out which color the first current job has:
     !
     do i = 2, size(start_color)
-      if (start_color(i) > current_jobs(J_STP)) then
+      if (start_color(i) > current_jobs(JLEFT)) then
         color = i - 1
         exit
       endif
     enddo
 
     ! will want
-    jobs_all = current_jobs(J_EP) - current_jobs(J_STP) ! how many jobs do I have
-    jobs_color = start_color(color + 1) - current_jobs(J_STP) ! how many jobs are there left
+    jobs_all = current_jobs(JRIGHT) - current_jobs(JLEFT) ! how many jobs do I have
+    jobs_color = start_color(color + 1) - current_jobs(JLEFT) ! how many jobs are there left
     ! of the color
     w = min(jobs_all, jobs_color)
     ! now share the own storage with the calling program
-    my_job(J_STP) = current_jobs(J_STP) - start_color(color)
-    my_job(J_EP) = my_job(J_STP) + w
-    current_jobs(J_STP) = current_jobs(J_STP) + w
+    my_job(JLEFT) = current_jobs(JLEFT) - start_color(color)
+    my_job(JRIGHT) = my_job(JLEFT) + w
+    current_jobs(JLEFT) = current_jobs(JLEFT) + w
   end function dlb_give_more_color
 
 end module dlb

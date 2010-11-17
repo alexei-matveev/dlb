@@ -82,7 +82,7 @@ module dlb_impl
   use iso_c_binding
   use dlb_common, only: i4_kind, r8_kind, comm_world
   use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
-  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, SJOB_LEN, L_JOB, NRANK, J_STP, J_EP, MSGTAG
+  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, SJOB_LEN, L_JOB, JOWNER, JLEFT, JRIGHT, MSGTAG
   use dlb_common, only: add_request, test_requests, end_requests, send_resp_done, report_job_done
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
@@ -208,9 +208,9 @@ contains
   end subroutine dlb_finalize
 
   subroutine dlb_give_more(n, my_job)
-    !  Purpose: Returns next bunch of up to n jobs, if jobs(J_EP)<=
-    !  jobs(J_STP) there are no more jobs there, else returns the jobs
-    !  done by the procs should be jobs(J_STP) + 1 to jobs(J_EP) in
+    !  Purpose: Returns next bunch of up to n jobs, if jobs(JRIGHT)<=
+    !  jobs(JLEFT) there are no more jobs there, else returns the jobs
+    !  done by the procs should be jobs(JLEFT) + 1 to jobs(JRIGHT) in
     !  the related job list
     !  first the jobs are tried to get from the local storage of the
     !  current proc, if there are no more, it will try to steal some
@@ -239,7 +239,7 @@ contains
 ! This seems to be there with our local network, trying to avoid as much lock/unlocks as possible
 !   if (term) then
 !     my_job = start_job(:L_JOB)
-!     my_job(J_STP) = my_job(J_EP)
+!     my_job(JLEFT) = my_job(JRIGHT)
 !     call time_stamp("dlb_give_more: exit on TERMINATION flag", 1)
 !     return
 !   endif
@@ -251,10 +251,10 @@ contains
     enddo
     call time_stamp("finished local search",3)
 
-    if (jobs(J_STP) >= jobs(J_EP)) many_searches = many_searches + 1 ! just for debugging
+    if (jobs(JLEFT) >= jobs(JRIGHT)) many_searches = many_searches + 1 ! just for debugging
 
     ! if local storage only gives empty job:
-    do while ((jobs(J_STP) >= jobs(J_EP)) .and. .not. check_messages())
+    do while ((jobs(JLEFT) >= jobs(JRIGHT)) .and. .not. check_messages())
 
       ! check like above but also for termination message from termination master
       v = select_victim(my_rank, n_procs)
@@ -276,7 +276,7 @@ contains
     ! they should be terminated, they could steal jobs setup by already terminated
     ! processors
     !if (terminated) call dlb_setup(setup_jobs)
-    if (jobs(J_STP) >= jobs(J_EP)) then
+    if (jobs(JLEFT) >= jobs(JRIGHT)) then
        print *, my_rank, "tried", many_searches, "for new jobs and stealing", many_tries
        print *, my_rank, "was locked", many_locked, "got zero", many_zeros
        call MPI_BARRIER(comm_world, ierr)
@@ -425,26 +425,26 @@ contains
     if (sap > 0) then
       call time_stamp("blocked by lock contension",2)
       ! find out if it makes sense to wait:
-      if (my_jobs(J_STP) >= my_jobs(J_EP)) then
+      if (my_jobs(JLEFT) >= my_jobs(JRIGHT)) then
          local_tgetm = .true.
          call time_stamp("blocked, but empty",2)
          call report_or_store(my_jobs)
       else
          local_tgetm = .false.
-         my_jobs(J_EP) = my_jobs(J_STP) ! non actuell informations, make them invalid
+         my_jobs(JRIGHT) = my_jobs(JLEFT) ! non actuell informations, make them invalid
       endif
     else ! nobody is on the memory right now
       call time_stamp("free",2)
       local_tgetm = .true.
       ! check for thieves (to know when to wait for back reports)
-      if (.not. job_storage(J_EP)== start_job(J_EP)) had_thief = .true.
+      if (.not. job_storage(JRIGHT)== start_job(JRIGHT)) had_thief = .true.
       w = reserve_workm(m, job_storage) ! how many jobs to get
       if (w == 0) then ! no more jobs
         call report_or_store(my_jobs)
       else ! take my part of the jobs (divide jobs of storage)
             ! take from start beginning
-        my_jobs(J_EP)  = my_jobs(J_STP) + w
-        job_storage(J_STP) = my_jobs(J_EP)
+        my_jobs(JRIGHT)  = my_jobs(JLEFT) + w
+        job_storage(JLEFT) = my_jobs(JRIGHT)
       endif
       job_storage(SJOB_LEN+1:) = 0
     endif
@@ -472,11 +472,11 @@ contains
     ! my_jobs hold recent last point, as proc started from beginning and
     ! steal from the back, this means that from the initial starting point on
     ! (stored in start_job) to this one, all jobs were done
-    ! if my_jobs(J_EP)/= start-job(J_EP) someone has stolen jobs
-    num_jobs_done = my_jobs(J_EP) - start_job(J_STP)
+    ! if my_jobs(JRIGHT)/= start-job(JRIGHT) someone has stolen jobs
+    num_jobs_done = my_jobs(JRIGHT) - start_job(JLEFT)
     !if (num_jobs_done == 0) return ! there is non job, thus why care
 
-    if (start_job(NRANK) == my_rank) then
+    if (start_job(JOWNER) == my_rank) then
       my_resp_self = my_resp_self + num_jobs_done
       if (decrease_resp(num_jobs_done, my_rank)== 0) then
         if (my_rank == termination_master) then
@@ -487,7 +487,7 @@ contains
       endif
     else
       your_resp = your_resp + num_jobs_done
-      call report_job_done(num_jobs_done, start_job(NRANK))
+      call report_job_done(num_jobs_done, start_job(JOWNER))
     endif
   end subroutine report_or_store
 
@@ -854,7 +854,7 @@ contains
     ! and there is a try to steal new ones
     start_job = set_start_job(job)
 
-    call dlb_common_setup(start_job(J_EP) - start_job(J_STP))
+    call dlb_common_setup(start_job(JRIGHT) - start_job(JLEFT))
 
     many_tries = 0
     many_searches = 0
@@ -864,7 +864,7 @@ contains
     your_resp = 0
 
     ! needed for termination
-    my_resp_start = start_job(J_EP) - start_job(J_STP)
+    my_resp_start = start_job(JRIGHT) - start_job(JLEFT)
 
     ! Job storage holds all the jobs currently in use
     call write_and_unlock(my_rank, start_job)

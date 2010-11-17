@@ -65,8 +65,8 @@ double precision :: time_offset = -1.0
 
  integer(kind=i4_kind), parameter  :: L_JOB = 2  ! Length of job to give back from interface
  integer(kind=i4_kind), parameter  :: SJOB_LEN = L_JOB ! Length of a single job in interface
- integer(kind=i4_kind), parameter  :: J_STP = 1 ! Number in job, where stp (start point) is stored
- integer(kind=i4_kind), parameter  :: J_EP = 2 ! Number in job, where ep (end point) is stored
+ integer(kind=i4_kind), parameter  :: JLEFT = 1 ! Number in job, where stp (start point) is stored
+ integer(kind=i4_kind), parameter  :: JRIGHT = 2 ! Number in job, where ep (end point) is stored
  integer(kind=i4_kind), parameter  :: JOBS_LEN = SJOB_LEN  ! Length of complete jobs storage
  integer(kind=i4_kind)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
 
@@ -89,9 +89,9 @@ contains
   end subroutine dlb_finalize
   !*************************************************************
   subroutine dlb_give_more(n, my_job)
-    !  Purpose: Returns next bunch of up to n jobs, if jobs(J_EP)<=
-    !  jobs(J_STP) there are no more jobs there, else returns the jobs
-    !  done by the procs should be jobs(J_STP) + 1 to jobs(J_EP) in
+    !  Purpose: Returns next bunch of up to n jobs, if jobs(JRIGHT)<=
+    !  jobs(JLEFT) there are no more jobs there, else returns the jobs
+    !  done by the procs should be jobs(JLEFT) + 1 to jobs(JRIGHT) in
     !  the related job list
     !------------ Modules used ------------------- ---------------
     implicit none
@@ -104,11 +104,11 @@ contains
     integer(i4_kind), target             :: jobs(SJOB_LEN)
 !   !------------ Executable code --------------------------------
     ! First try to get a job from local storage
-    w = min(job_storage(J_EP) - job_storage(J_STP), n)
+    w = min(job_storage(JRIGHT) - job_storage(JLEFT), n)
     w = max(w, 0)
     jobs = job_storage(:SJOB_LEN) ! first SJOB_LEN hold the job
-    jobs(J_EP)  = jobs(J_STP) + w
-    job_storage(J_STP) = jobs(J_EP)
+    jobs(JRIGHT)  = jobs(JLEFT) + w
+    job_storage(JLEFT) = jobs(JRIGHT)
     my_job = jobs(:L_JOB)
   end subroutine dlb_give_more
   !*************************************************************

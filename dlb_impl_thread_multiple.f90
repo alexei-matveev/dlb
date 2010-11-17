@@ -93,7 +93,7 @@ module dlb_impl
   use dlb_common, only: i4_kind, r8_kind, comm_world
   use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
   use dlb_common, only: add_request, test_requests, end_requests, send_resp_done, report_job_done
-  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, SJOB_LEN, L_JOB, NRANK, J_STP, J_EP, MSGTAG
+  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, SJOB_LEN, L_JOB, JOWNER, JLEFT, JRIGHT, MSGTAG
   use dlb_common, only: WORK_DONAT, WORK_REQUEST
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
@@ -239,15 +239,15 @@ contains
   end subroutine dlb_finalize
 
   subroutine dlb_give_more(n, my_job)
-    !  Purpose: Returns next bunch of up to n jobs, if jobs(J_EP)<=
-    !  jobs(J_STP) there are no more jobs there, else returns the jobs
-    !  done by the procs should be jobs(J_STP) + 1 to jobs(J_EP) in
+    !  Purpose: Returns next bunch of up to n jobs, if jobs(JRIGHT)<=
+    !  jobs(JLEFT) there are no more jobs there, else returns the jobs
+    !  done by the procs should be jobs(JLEFT) + 1 to jobs(JRIGHT) in
     !  the related job list
     !  first the jobs are tried to get from the local storage of the
     !  current proc
     !  if there are not enough it will wait for either new ones to arrive
     !  or termination, the return value of my_jobs should only contain
-    !  my_jobs(J_STP) == my_jobs(J_EP) if all procs are terminated
+    !  my_jobs(JLEFT) == my_jobs(JRIGHT) if all procs are terminated
     !
     ! Context: main thread.
     !
@@ -266,9 +266,9 @@ contains
     call th_mutex_unlock(LOCK_JS)
     call time_stamp("finished first local search",3)
     ! if local storage only gives empty job: cycle under checking for termination
-    ! only try new job from local_storage after J_STP told that there are any
+    ! only try new job from local_storage after JLEFT told that there are any
     call th_mutex_lock(LOCK_JS)
-    do while (jobs(J_STP) >= jobs(J_EP) .and. .not. termination())
+    do while (jobs(JLEFT) >= jobs(JRIGHT) .and. .not. termination())
        ! found no job in first try, now wait for change before doing anything
        ! CONTROL will make a wake up
        call th_cond_signal(COND_JS_UPDATE)
@@ -283,7 +283,7 @@ contains
     ! here we should have a valid job slice with at least one valid job
     ! or a terminated algorithm
     ! only the start and endpoint of job slice is needed external
-    if (jobs(J_STP) >= jobs(J_EP)) then
+    if (jobs(JLEFT) >= jobs(JRIGHT)) then
        call th_join_all()
        ! now only one thread left, thus all variables belong him:
        print *, my_rank, "C: tried", many_searches, "for new jobs andstealing", many_tries
@@ -435,7 +435,7 @@ contains
       !endif
 
       ! verify that CONTROL woke up correctly
-      if (job_storage(J_STP) >= job_storage(J_EP)) then !point where CONTROL actually has something to do
+      if (job_storage(JLEFT) >= job_storage(JRIGHT)) then !point where CONTROL actually has something to do
         call time_stamp("COTNROL starts working", 4)
         many_searches = many_searches + 1 ! just for debugging
 
@@ -449,7 +449,7 @@ contains
         call th_mutex_unlock(LOCK_JS)
 
         call th_mutex_lock(LOCK_NJ) ! LOCKED NJ but unlocked LOCK_JS
-        do while (.not. termination() .and. (my_jobs(J_STP) >= my_jobs(J_EP))) ! two points to stop: if there are again new jobs
+        do while (.not. termination() .and. (my_jobs(JLEFT) >= my_jobs(JRIGHT))) ! two points to stop: if there are again new jobs
                                                                                ! or if all is finished
           many_tries = many_tries + 1 ! just for debugging
 
@@ -484,15 +484,15 @@ contains
           if ((timeend - timestart) > timemax) timemax = timeend - timestart
           call time_stamp("CONTROL got reply", 5)
             my_jobs = new_jobs
-            new_jobs(J_STP) = 0
-            new_jobs(J_EP) = 0
+            new_jobs(JLEFT) = 0
+            new_jobs(JRIGHT) = 0
 
           ! at this point message should have been arrived (there is an answer back!)
           ! but it may also be that the answer message is from termination master
           ! the message will be answered any how, so just wait
           call MPI_WAIT(requ_wr, stat, ierr)
           ASSERT(ierr==MPI_SUCCESS)
-          if (my_jobs(J_STP) >= my_jobs(J_EP)) many_zeros = many_zeros + 1
+          if (my_jobs(JLEFT) >= my_jobs(JRIGHT)) many_zeros = many_zeros + 1
         enddo
         call th_mutex_unlock(LOCK_NJ) ! unlock LOCK_NJ
 
@@ -624,9 +624,9 @@ contains
     !------------ Executable code --------------------------------
     w = reserve_workm(m, job_storage) ! how many jobs to get
     my_jobs = job_storage(:SJOB_LEN) ! first SJOB_LEN hold the job
-    my_jobs(J_EP)  = my_jobs(J_STP) + w
-    job_storage(J_STP) = my_jobs(J_EP)
-    if (job_storage(J_STP) >= job_storage(J_EP)) then
+    my_jobs(JRIGHT)  = my_jobs(JLEFT) + w
+    job_storage(JLEFT) = my_jobs(JRIGHT)
+    if (job_storage(JLEFT) >= job_storage(JRIGHT)) then
       call time_stamp("MAIN wakes CONTROL",3)
       call th_cond_signal(COND_JS_UPDATE)
     endif
@@ -659,10 +659,10 @@ contains
     ! my_jobs hold recent last point, as proc started from beginning and
     ! steal from the back, this means that from the initial starting point on
     ! (stored in start_job) to this one, all jobs were done
-    ! if my_jobs(J_EP)/= start_job(J_EP) someone has stolen jobs
-    num_jobs_done = my_jobs(J_EP) - start_job(J_STP)
+    ! if my_jobs(JRIGHT)/= start_job(JRIGHT) someone has stolen jobs
+    num_jobs_done = my_jobs(JRIGHT) - start_job(JLEFT)
     !if (num_jobs_done == 0) return ! there is non job, thus why care
-    if (start_job(NRANK) == my_rank) then
+    if (start_job(JOWNER) == my_rank) then
       my_resp_self = my_resp_self + num_jobs_done
       if(decrease_resp_locked(num_jobs_done, my_rank)== 0) then ! if all my jobs are done
          call send_resp_done(requ)
@@ -671,7 +671,7 @@ contains
       your_resp = your_resp + num_jobs_done
       ! As all isends have to be closed sometimes, storage of
       ! the request handlers is needed
-      call report_job_done(num_jobs_done, start_job(NRANK))
+      call report_job_done(num_jobs_done, start_job(JOWNER))
     endif
   end subroutine report_or_store
 
@@ -708,9 +708,9 @@ contains
     ! termination, as they will be stored also in the job_storage
     ! start_job should only be changed if all current jobs are finished
     start_job = set_start_job(job)
-    call dlb_common_setup(start_job(J_EP) - start_job(J_STP))
+    call dlb_common_setup(start_job(JRIGHT) - start_job(JLEFT))
     ! only for debugging:
-    my_resp_start = start_job(J_EP) - start_job(J_STP)
+    my_resp_start = start_job(JRIGHT) - start_job(JLEFT)
     ! Job storage holds all the jobs currently in use
     job_storage(:SJOB_LEN) = start_job
     ! from now on, there are several threads, so shared objects have to

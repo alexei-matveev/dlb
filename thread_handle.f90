@@ -4,7 +4,7 @@ module thread_handle
   use dlb_common, only: dlb_common_init
   use dlb_common, only: i4_kind, r8_kind, comm_world, n_procs, termination_master
   use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
-  use dlb_common, only: SJOB_LEN, J_EP, J_STP, MSGTAG, NO_WORK_LEFT
+  use dlb_common, only: SJOB_LEN, JRIGHT, JLEFT, MSGTAG, NO_WORK_LEFT
   use dlb_common, only: has_last_done, set_empty_job, add_request, send_termination
   use dlb_common, only: masterserver
   use dlb_common, only: WORK_DONAT, WORK_REQUEST
@@ -189,8 +189,8 @@ module thread_handle
 
       g_jobs = set_empty_job()
     else ! take the last w jobs of the job-storage
-      g_jobs(J_STP)  = g_jobs(J_EP) - w
-      job_storage(J_EP) = g_jobs(J_STP)
+      g_jobs(JLEFT)  = g_jobs(JRIGHT) - w
+      job_storage(JRIGHT) = g_jobs(JLEFT)
     endif
     messagesJA(2:,partner+1) = g_jobs
     call time_stamp("share jobs with other",5)

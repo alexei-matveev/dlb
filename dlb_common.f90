@@ -70,9 +70,9 @@ module dlb_common
   integer(kind=i4_kind), parameter, public  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
   integer(kind=i4_kind), parameter, public  :: SJOB_LEN = 3 ! Length of a single job in interface
   integer(kind=i4_kind), parameter, public  :: L_JOB = 2  ! Length of job to give back from interface
-  integer(kind=i4_kind), parameter, public  :: NRANK = 3 ! Number in job, where rank of origin proc is stored
-  integer(kind=i4_kind), parameter, public  :: J_STP = 1 ! Number in job, where stp (start point) is stored
-  integer(kind=i4_kind), parameter, public  :: J_EP = 2 ! Number in job, where ep (end point) is stored
+  integer(kind=i4_kind), parameter, public  :: JOWNER = 3 ! Number in job, where rank of origin proc is stored
+  integer(kind=i4_kind), parameter, public  :: JLEFT = 1 ! Number in job, where stp (start point) is stored
+  integer(kind=i4_kind), parameter, public  :: JRIGHT = 2 ! Number in job, where ep (end point) is stored
   integer(kind=i4_kind), parameter, public  ::  MSGTAG = 166 ! message tag for all MPI communication
 
 #ifdef DLB_MASTER_SERVER
@@ -241,7 +241,7 @@ contains
     ! *** end of interface ***
 
     job_data(:L_JOB) = job
-    job_data(NRANK) = my_rank
+    job_data(JOWNER) = my_rank
   end function set_start_job
 
   function set_empty_job() result(job_data)
@@ -251,9 +251,9 @@ contains
     integer(i4_kind) :: job_data(SJOB_LEN)
     ! *** end of interface ***
 
-    job_data(J_EP) = 0
-    job_data(J_STP) = 0
-    job_data(NRANK) = -1
+    job_data(JRIGHT) = 0
+    job_data(JLEFT) = 0
+    job_data(JOWNER) = -1
   end function set_empty_job
 
   function select_victim(rank, np) result(victim)
@@ -799,12 +799,12 @@ contains
     integer(kind=i4_kind) :: jobs_per_proc, rest
 
     jobs_per_proc = N / n_procs * 7 / 10
-    my_jobs(J_STP) = jobs_per_proc * my_rank
+    my_jobs(JLEFT) = jobs_per_proc * my_rank
     ! if it is not dividable, distribute the rest
     ! this will shift the start point of each (but the first) proc
-    my_jobs(J_EP) = my_jobs(J_STP) + jobs_per_proc
+    my_jobs(JRIGHT) = my_jobs(JLEFT) + jobs_per_proc
     if (my_rank == termination_master) then
-      my_jobs(J_EP) = N
+      my_jobs(JRIGHT) = N
     endif
   end function distribute_jobs
 #else
@@ -826,19 +826,19 @@ contains
     integer(kind=i4_kind) :: jobs_per_proc, rest
 
     jobs_per_proc = N / n_procs
-    my_jobs(J_STP) = jobs_per_proc * my_rank
+    my_jobs(JLEFT) = jobs_per_proc * my_rank
     ! if it is not dividable, distribute the rest
     ! this will shift the start point of each (but the first) proc
     rest = N - jobs_per_proc * n_procs
     if (my_rank < rest) then
-       my_jobs(J_STP) = my_jobs(J_STP) + my_rank
+       my_jobs(JLEFT) = my_jobs(JLEFT) + my_rank
     else
-       my_jobs(J_STP) = my_jobs(J_STP) + rest
+       my_jobs(JLEFT) = my_jobs(JLEFT) + rest
     endif
 
     ! if this proc has to do one more job tell him so
     if (my_rank < rest) jobs_per_proc = jobs_per_proc + 1
-    my_jobs(J_EP) = my_jobs(J_STP) + jobs_per_proc
+    my_jobs(JRIGHT) = my_jobs(JLEFT) + jobs_per_proc
   end function distribute_jobs
 #endif
 
