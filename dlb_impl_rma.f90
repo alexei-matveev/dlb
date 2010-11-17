@@ -305,8 +305,13 @@ contains
       call MPI_RECV(message, 1+SJOB_LEN, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG,comm_world, stat,ierr)
       !print *, time_stamp_prefix(MPI_Wtime()), "got message from", stat(MPI_SOURCE), "with", message
       ASSERT(ierr==MPI_SUCCESS)
-      if (message(1) == DONE_JOB) then ! someone finished stolen job slice
+
+      select case ( message(1) )
+
+      case ( DONE_JOB )
+         ! someone finished stolen job slice
          ASSERT(message(2)>0)
+
          if (decrease_resp(message(2), stat(MPI_SOURCE)) == 0) then
            if (my_rank == termination_master) then
              call check_termination(my_rank)
@@ -315,7 +320,10 @@ contains
            endif
            call time_stamp("send my_resp done", 2)
          endif
-      elseif (message(1) == RESP_DONE) then ! finished responsibility
+
+      case ( RESP_DONE )
+         ! finished responsibility
+
          if (my_rank == termination_master) then
            call check_termination(message(2))
          else ! give only warning, some other part of the code my use this message (but SHOULD NOT)
@@ -326,7 +334,9 @@ contains
            print *, "or change parameter MSGTAG in this module to an unused value"
            call abort()
          endif
-      elseif (message(1) == NO_WORK_LEFT) then ! termination message from termination master
+
+      case ( NO_WORK_LEFT )
+         ! termination message from termination master
          ASSERT(message(2)==0)
 
          if( stat(MPI_SOURCE) /= termination_master )then
@@ -337,17 +347,18 @@ contains
          ! NOW all my messages HAVE to be complete, so close (without delay)
          call end_requests(requ2)
          call end_communication()
-      else
+
+      case default
         ! This message makes no sense in this context, thus give warning
         ! and continue (maybe the actual calculation has used it)
         print *, time_stamp_prefix(MPI_Wtime()), "ERROR: got message with unexpected content:", message
         print *, "Please make sure, that message tag",MSGTAG, "is not used by the rest of the program"
         print *, "or change parameter MSGTAG in this module to an unused value"
         call abort()
-      endif
+      end select
 
-    call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
+      call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world, flag, stat, ierr)
+      ASSERT(ierr==MPI_SUCCESS)
     enddo
     check_messages = terminated
 
