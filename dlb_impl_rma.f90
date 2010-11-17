@@ -534,7 +534,7 @@ contains
     !      b) local_jobs  --- are stored in local storage
     !
 
-    ok = try_read_modify_write(rank, legacy_share, m, stolen_jobs)
+    ok = try_read_modify_write(rank, steal_remote, m, stolen_jobs)
 
     if ( .not. ok ) then
         jobs = set_empty_job()
@@ -625,8 +625,8 @@ contains
 
     !
     ! "orig" job descriptor is fetched from "rank", split into
-    !   1) "left"  --- are written back to "rank"
-    !   2) "right" --- to be returned in "jobs"
+    !   1) "left"  --- which written back to "rank"
+    !   2) "right" --- that is to be returned in "jobs"
 
     !
     ! NOTE: size(jobs) is JLENGTH, (jobs(JLEFT), jobs(JRIGHT)] specify
@@ -668,19 +668,20 @@ contains
     !
   end function try_read_modify_write
 
-  function legacy_share(m, remote, remaining, stolen) result(ok)
+  function steal_remote(m, remote, remaining, stolen) result(ok)
     !
     ! Stealing is implemented as splitting the interval
     !
     !     (A, B] = remote(1:2)
     !
-    ! at the point computed the legacy function "steal_work_for_rma(...)"
-    !
-    !     C = B - steal_work_for_rma(m, remote)
-    !
     ! into
     !
     !     remaining(1:2) = (A, C] and stolen(1:2) = (C, B]
+    !
+    ! at the point C computed with the help of the legacy function
+    ! "steal_work_for_rma(...)" as
+    !
+    !     C = B - steal_work_for_rma(m, remote)
     !
     ! FIXME: the role of parameter "m" is not clear!
     !
@@ -722,7 +723,7 @@ contains
     call split_at(c, remote, remaining, stolen)
 
     ok = .true.
-  end function legacy_share
+  end function steal_remote
 
   function try_lock_and_read(rank, jobs) result(ok)
     !
