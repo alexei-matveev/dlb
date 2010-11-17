@@ -64,10 +64,10 @@ double precision :: time_offset = -1.0
 ! END ONLY FOR DEBUGGING
 
  integer(kind=i4_kind), parameter  :: L_JOB = 2  ! Length of job to give back from interface
- integer(kind=i4_kind), parameter  :: SJOB_LEN = L_JOB ! Length of a single job in interface
+ integer(kind=i4_kind), parameter  :: JLENGTH = L_JOB ! Length of a single job in interface
  integer(kind=i4_kind), parameter  :: JLEFT = 1 ! Number in job, where stp (start point) is stored
  integer(kind=i4_kind), parameter  :: JRIGHT = 2 ! Number in job, where ep (end point) is stored
- integer(kind=i4_kind), parameter  :: JOBS_LEN = SJOB_LEN  ! Length of complete jobs storage
+ integer(kind=i4_kind), parameter  :: JOBS_LEN = JLENGTH  ! Length of complete jobs storage
  integer(kind=i4_kind)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
 
 public dlb_init, dlb_finalize, dlb_setup, dlb_give_more !for using the module
@@ -101,12 +101,12 @@ contains
 !   !** End of interface *****************************************
 !   !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: w
-    integer(i4_kind), target             :: jobs(SJOB_LEN)
+    integer(i4_kind), target             :: jobs(JLENGTH)
 !   !------------ Executable code --------------------------------
     ! First try to get a job from local storage
     w = min(job_storage(JRIGHT) - job_storage(JLEFT), n)
     w = max(w, 0)
-    jobs = job_storage(:SJOB_LEN) ! first SJOB_LEN hold the job
+    jobs = job_storage(:JLENGTH) ! first JLENGTH hold the job
     jobs(JRIGHT)  = jobs(JLEFT) + w
     job_storage(JLEFT) = jobs(JRIGHT)
     my_job = jobs(:L_JOB)

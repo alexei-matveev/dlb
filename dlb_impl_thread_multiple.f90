@@ -93,7 +93,7 @@ module dlb_impl
   use dlb_common, only: i4_kind, r8_kind, comm_world
   use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
   use dlb_common, only: add_request, test_requests, end_requests, send_resp_done, report_job_done
-  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, SJOB_LEN, L_JOB, JOWNER, JLEFT, JRIGHT, MSGTAG
+  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT, MSGTAG
   use dlb_common, only: WORK_DONAT, WORK_REQUEST
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
@@ -143,8 +143,8 @@ module dlb_impl
    integer(kind=i4_kind),allocatable    :: count_ask(:)
    integer(kind=i4_kind)                :: proc_asked_last
 
-  integer(kind=i4_kind)             :: new_jobs(SJOB_LEN) ! stores new job, just arrived from other proc
-  integer(kind=i4_kind)             :: start_job(SJOB_LEN) ! job_storage is changed a lot, backup for
+  integer(kind=i4_kind)             :: new_jobs(JLENGTH) ! stores new job, just arrived from other proc
+  integer(kind=i4_kind)             :: start_job(JLENGTH) ! job_storage is changed a lot, backup for
                                      ! finding out, if someone has stolen something, or how many jobs one
                                      ! has done, after initalization only used by CONTROL
                                               ! in setup
@@ -258,7 +258,7 @@ contains
     integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(i4_kind), target             :: jobs(SJOB_LEN)
+    integer(i4_kind), target             :: jobs(JLENGTH)
     !------------ Executable code --------------------------------
     ! First try to get a job from local storage
     call th_mutex_lock(LOCK_JS)
@@ -337,7 +337,7 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind)                :: ierr, alloc_stat
-    integer(kind=i4_kind)                :: message(1 + SJOB_LEN)
+    integer(kind=i4_kind)                :: message(1 + JLENGTH)
     integer(kind=i4_kind),allocatable    :: requ_m(:) !requests storages for MAILBOX
     integer(kind=i4_kind)                :: lm_source(n_procs) ! remember which job request
                                                    ! I got
@@ -346,7 +346,7 @@ contains
     lm_source = -1
     do while (.not. termination())
       ! check and wait for any message with messagetag dlb
-      call MPI_RECV(message, 1+SJOB_LEN, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
+      call MPI_RECV(message, 1+JLENGTH, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
       ASSERT(ierr==MPI_SUCCESS)
 
       !print *, my_rank, "got message", message, "from", stat(MPI_SOURCE)
@@ -407,10 +407,10 @@ contains
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: v, ierr, stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind)                :: message(1 + SJOB_LEN) ! there will be always
+    integer(kind=i4_kind)                :: message(1 + JLENGTH) ! there will be always
                                                  ! only one job request around, thus saved
     integer(kind=i4_kind)                :: requ_wr
-    integer(kind=i4_kind)                :: my_jobs(SJOB_LEN)
+    integer(kind=i4_kind)                :: my_jobs(JLENGTH)
     integer(kind=i4_kind),allocatable    :: requ_c(:) !requests storages for CONTROL
     double precision :: timestart, timeend
     !------------ Executable code --------------------------------
@@ -442,10 +442,10 @@ contains
         ! not if masterserver is wanted, then there is no need for the termination algorithm, master knows
         ! where are all jobs by its own
         if (.not. masterserver) then
-           call report_or_store(job_storage(:SJOB_LEN), requ_c)
+           call report_or_store(job_storage(:JLENGTH), requ_c)
         endif
 
-        my_jobs = job_storage(:SJOB_LEN)
+        my_jobs = job_storage(:JLENGTH)
         call th_mutex_unlock(LOCK_JS)
 
         call th_mutex_lock(LOCK_NJ) ! LOCKED NJ but unlocked LOCK_JS
@@ -475,7 +475,7 @@ contains
 
           timestart = MPI_WTIME()
           call time_stamp("CONTROL sends message",5)
-          call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, v, MSGTAG, comm_world, requ_wr, ierr)
+          call MPI_ISEND(message, 1+JLENGTH, MPI_INTEGER4, v, MSGTAG, comm_world, requ_wr, ierr)
           ASSERT(ierr==MPI_SUCCESS)
           call test_requests(requ_c)
           call time_stamp("CONTROL waits for reply", 5)
@@ -497,7 +497,7 @@ contains
         call th_mutex_unlock(LOCK_NJ) ! unlock LOCK_NJ
 
         call th_mutex_lock(LOCK_JS)
-        job_storage(:SJOB_LEN) = my_jobs
+        job_storage(:JLENGTH) = my_jobs
         start_job = my_jobs
       endif
 
@@ -544,7 +544,7 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer, allocatable :: requ_m(:)
-    integer, intent(in) :: message(1 + SJOB_LEN), stat(MPI_STATUS_SIZE)
+    integer, intent(in) :: message(1 + JLENGTH), stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind), intent(inout) :: lm_source(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
@@ -617,13 +617,13 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: m
-    integer(kind=i4_kind), intent(out  ) :: my_jobs(SJOB_LEN)
+    integer(kind=i4_kind), intent(out  ) :: my_jobs(JLENGTH)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: w
     !------------ Executable code --------------------------------
     w = reserve_workm(m, job_storage) ! how many jobs to get
-    my_jobs = job_storage(:SJOB_LEN) ! first SJOB_LEN hold the job
+    my_jobs = job_storage(:JLENGTH) ! first JLENGTH hold the job
     my_jobs(JRIGHT)  = my_jobs(JLEFT) + w
     job_storage(JLEFT) = my_jobs(JRIGHT)
     if (job_storage(JLEFT) >= job_storage(JRIGHT)) then
@@ -649,7 +649,7 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in  ) :: my_jobs(SJOB_LEN)
+    integer(kind=i4_kind), intent(in  ) :: my_jobs(JLENGTH)
     integer(kind=i4_kind), allocatable  :: requ(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
@@ -712,7 +712,7 @@ contains
     ! only for debugging:
     my_resp_start = start_job(JRIGHT) - start_job(JLEFT)
     ! Job storage holds all the jobs currently in use
-    job_storage(:SJOB_LEN) = start_job
+    job_storage(:JLENGTH) = start_job
     ! from now on, there are several threads, so shared objects have to
     ! be locked/unlocked in order to use them!!
     call thread_setup()

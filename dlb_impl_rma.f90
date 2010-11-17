@@ -82,7 +82,7 @@ module dlb_impl
   use iso_c_binding
   use dlb_common, only: i4_kind, r8_kind, comm_world
   use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
-  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, SJOB_LEN, L_JOB, JOWNER, JLEFT, JRIGHT, MSGTAG
+  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT, MSGTAG
   use dlb_common, only: add_request, test_requests, end_requests, send_resp_done, report_job_done
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
@@ -108,7 +108,7 @@ module dlb_impl
   integer(kind=i4_kind)            :: win ! for the RMA object
   type(c_ptr)  :: c_job_pointer     ! needed for MPI RMA handling (for c pseudo pointer)
   integer(kind=i4_kind), pointer    :: job_storage(:) ! store all the jobs, belonging to this processor
-  integer(kind=i4_kind)             :: start_job(SJOB_LEN) ! job_storage is changed a lot, backup for
+  integer(kind=i4_kind)             :: start_job(JLENGTH) ! job_storage is changed a lot, backup for
                                      ! finding out, if someone has stolen something, or how many jobs one
                                      ! has done, when job_storage hold no more jobs
                                               ! in setup
@@ -147,7 +147,7 @@ contains
     ! find out, how much there is to store and allocate (with MPI) the memory
     call MPI_TYPE_EXTENT(MPI_INTEGER4, sizeofint, ierr)
 
-    jobs_len = SJOB_LEN + n_procs
+    jobs_len = JLENGTH + n_procs
     size_alloc = jobs_len * sizeofint
 
     call MPI_ALLOC_MEM(size_alloc, MPI_INFO_NULL, c_job_pointer, ierr)
@@ -227,7 +227,7 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: v, ierr
     logical                              :: term
-    integer(i4_kind), target             :: jobs(SJOB_LEN)
+    integer(i4_kind), target             :: jobs(JLENGTH)
     !------------ Executable code --------------------------------
 
     ! check for (termination) messages, if: have to gather the my_resp = 0
@@ -297,7 +297,7 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)
     logical                              :: flag
-    integer(kind=i4_kind)                :: message(1 + SJOB_LEN)
+    integer(kind=i4_kind)                :: message(1 + JLENGTH)
     !------------ Executable code --------------------------------
 
     ! check for any message
@@ -306,7 +306,7 @@ contains
 
     do while (flag) !got a message
 
-      call MPI_RECV(message, 1+SJOB_LEN, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG,comm_world, stat,ierr)
+      call MPI_RECV(message, 1+JLENGTH, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG,comm_world, stat,ierr)
       !print *, time_stamp_prefix(MPI_Wtime()), "got message from", stat(MPI_SOURCE), "with", message
       ASSERT(ierr==MPI_SUCCESS)
 
@@ -406,7 +406,7 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: m
-    integer(kind=i4_kind), intent(out  ) :: my_jobs(SJOB_LEN)
+    integer(kind=i4_kind), intent(out  ) :: my_jobs(JLENGTH)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, sap, w
@@ -419,9 +419,9 @@ contains
     ! (else they are all 0), so if the sum is more than 0, at least one
     ! proc tries to get the memory, the one, who got sap = 0 has the right
     ! to work
-    my_jobs = job_storage(:SJOB_LEN) ! first SJOB_LEN hold the job (furter the sap
+    my_jobs = job_storage(:JLENGTH) ! first JLENGTH hold the job (furter the sap
 
-    sap = sum(job_storage(SJOB_LEN+1:))
+    sap = sum(job_storage(JLENGTH+1:))
     if (sap > 0) then
       call time_stamp("blocked by lock contension",2)
       ! find out if it makes sense to wait:
@@ -446,7 +446,7 @@ contains
         my_jobs(JRIGHT)  = my_jobs(JLEFT) + w
         job_storage(JLEFT) = my_jobs(JRIGHT)
       endif
-      job_storage(SJOB_LEN+1:) = 0
+      job_storage(JLENGTH+1:) = 0
     endif
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
     call time_stamp("release",3)
@@ -463,7 +463,7 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in  ) :: my_jobs(SJOB_LEN)
+    integer(kind=i4_kind), intent(in  ) :: my_jobs(JLENGTH)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: num_jobs_done
@@ -508,20 +508,20 @@ contains
     use dlb_common, only: reserve_workm
     implicit none
     integer(i4_kind), intent(in)  :: m, rank
-    integer(i4_kind), intent(out) :: jobs(SJOB_LEN)
+    integer(i4_kind), intent(out) :: jobs(JLENGTH)
     logical                       :: ok ! result
     ! *** end of interface ***
 
-    integer(i4_kind) :: stolen_jobs(SJOB_LEN)
-    integer(i4_kind) :: local_jobs(SJOB_LEN)
+    integer(i4_kind) :: stolen_jobs(JLENGTH)
+    integer(i4_kind) :: local_jobs(JLENGTH)
     integer(i4_kind) :: work
 
     !
-    ! NOTE: size(jobs) is SJOB_LEN, (jobs(JLEFT), jobs(JRIGHT)] specify
+    ! NOTE: size(jobs) is JLENGTH, (jobs(JLEFT), jobs(JRIGHT)] specify
     ! the interval, the rest is metadata that should be copied
     ! around.
     !
-    ASSERT(size(jobs)==SJOB_LEN)
+    ASSERT(size(jobs)==JLENGTH)
 
     !
     ! remote_jobs are fetched from rank, split into
@@ -607,12 +607,12 @@ contains
     use dlb_common, only: steal_work_for_rma
     implicit none
     integer(i4_kind), intent(in)  :: m, rank
-    integer(i4_kind), intent(out) :: jobs(SJOB_LEN)
+    integer(i4_kind), intent(out) :: jobs(JLENGTH)
     logical                       :: ok ! result
     ! *** end of interface ***
 
-    integer(i4_kind) :: remote_jobs(SJOB_LEN)
-    integer(i4_kind) :: remaining_jobs(SJOB_LEN)
+    integer(i4_kind) :: remote_jobs(JLENGTH)
+    integer(i4_kind) :: remaining_jobs(JLENGTH)
     integer(i4_kind) :: work
 
     !
@@ -621,11 +621,11 @@ contains
     !   2) jobs           --- for local processing,
 
     !
-    ! NOTE: size(jobs) is SJOB_LEN, (jobs(JLEFT), jobs(JRIGHT)] specify
+    ! NOTE: size(jobs) is JLENGTH, (jobs(JLEFT), jobs(JRIGHT)] specify
     ! the interval, the rest is metadata that should be copied
     ! around.
     !
-    ASSERT(size(jobs)==SJOB_LEN)
+    ASSERT(size(jobs)==JLENGTH)
 
     jobs = set_empty_job()
 
@@ -688,7 +688,7 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(i4_kind), intent(in)  :: rank
-    integer(i4_kind), intent(out) :: jobs(:) ! (SJOB_LEN)
+    integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
     logical                       :: ok ! result
     ! *** end of interface ***
 
@@ -697,7 +697,7 @@ contains
     integer(MPI_ADDRESS_KIND) :: displacement
     integer(MPI_ADDRESS_KIND), parameter :: zero = 0
 
-    ASSERT(size(jobs)==SJOB_LEN)
+    ASSERT(size(jobs)==JLENGTH)
 
     ok = .false.
     jobs = -1 ! junk
@@ -716,7 +716,7 @@ contains
     call MPI_GET(win_data, size(win_data), MPI_INTEGER4, rank, zero, size(win_data), MPI_INTEGER4, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    displacement = my_rank + SJOB_LEN ! for getting it in the correct kind
+    displacement = my_rank + JLENGTH ! for getting it in the correct kind
 
     call MPI_PUT(ON, 1, MPI_INTEGER4, rank, displacement, 1, MPI_INTEGER4, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
@@ -727,14 +727,14 @@ contains
     !
     ! FIXME: this is the data item that was GET/PUT in the same epoch:
     !
-    win_data(my_rank + 1 + SJOB_LEN) = 0
+    win_data(my_rank + 1 + JLENGTH) = 0
 
     !
     ! Check if there are any procs, saying that they want to acces the memory
     !
-    if ( sum(win_data(SJOB_LEN+1:)) == 0 ) then
+    if ( sum(win_data(JLENGTH+1:)) == 0 ) then
         ok = .true.
-        jobs(:) = win_data(1:SJOB_LEN)
+        jobs(:) = win_data(1:JLENGTH)
     else
         ! Do nothing. Dont even try to undo our attempt to acquire the lock
         ! as the one that is holding the lock will overwrite the lock
@@ -753,7 +753,7 @@ contains
 
     integer(i4_kind) :: ierr
     integer(i4_kind), target :: zeros(n_procs) ! FIXME: why target?
-    integer(MPI_ADDRESS_KIND), parameter :: displacement = SJOB_LEN ! long int
+    integer(MPI_ADDRESS_KIND), parameter :: displacement = JLENGTH ! long int
     integer(MPI_ADDRESS_KIND), parameter :: zero = 0
 
     zeros(:) = 0
@@ -783,18 +783,18 @@ contains
     integer(MPI_ADDRESS_KIND), parameter :: zero = 0
     !------------ Executable code --------------------------------
 
-    ASSERT(size(jobs)==SJOB_LEN)
-    ASSERT(SJOB_LEN+n_procs==jobs_len)
+    ASSERT(size(jobs)==JLENGTH)
+    ASSERT(JLENGTH+n_procs==jobs_len)
 
     !
     ! Real data:
     !
-    win_data(1:SJOB_LEN) = jobs(:)
+    win_data(1:JLENGTH) = jobs(:)
 
     !
     ! Zero fields responsible for locking:
     !
-    win_data(SJOB_LEN+1:) = 0
+    win_data(JLENGTH+1:) = 0
 
     !
     ! PUT data and overwrite lock data structure with zeros in one epoch:
@@ -825,12 +825,12 @@ contains
     ! FIXME: so far only used to store into the local datastructure:
     !
     ASSERT(rank==my_rank)
-    ASSERT(size(jobs)==SJOB_LEN)
+    ASSERT(size(jobs)==JLENGTH)
 
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    job_storage(:SJOB_LEN) = jobs(:)
+    job_storage(:JLENGTH) = jobs(:)
 
     call MPI_WIN_UNLOCK(rank, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
@@ -845,7 +845,7 @@ contains
     integer(i4_kind), intent(out) :: AC(size(AB)), CB(size(AB))
     ! *** end of interface ***
 
-    ASSERT(size(AB)==SJOB_LEN)
+    ASSERT(size(AB)==JLENGTH)
 
     ASSERT(C>AB(JLEFT))
     ASSERT(C<=AB(JRIGHT))

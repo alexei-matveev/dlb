@@ -90,7 +90,7 @@ module dlb_impl
   use dlb_common, only: i4_kind, r8_kind, comm_world
   use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
   use dlb_common, only: add_request, test_requests, end_requests, send_resp_done, report_job_done
-  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, SJOB_LEN, L_JOB, JOWNER, JLEFT, JRIGHT, MSGTAG
+  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT, MSGTAG
   use dlb_common, only: WORK_DONAT, WORK_REQUEST
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: dlb_common_setup
@@ -125,7 +125,7 @@ module dlb_impl
   !------------ Declaration of constants and variables ----
   ! these variables are also needed but stored in thread_handle, to avoid cyclic binding:
   !integer(kind=i4_kind), parameter  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
-  !integer(kind=i4_kind), parameter  :: JOBS_LEN = SJOB_LEN  ! Length of complete jobs storage
+  !integer(kind=i4_kind), parameter  :: JOBS_LEN = JLENGTH  ! Length of complete jobs storage
 
   ! IDs of mutexes, use base-0 indices:
   !integer(kind=i4_kind), parameter :: LOCK_JS   = 0
@@ -143,7 +143,7 @@ module dlb_impl
 
 
 
-  integer(kind=i4_kind)             :: start_job(SJOB_LEN) ! job_storage is changed a lot, backup for
+  integer(kind=i4_kind)             :: start_job(JLENGTH) ! job_storage is changed a lot, backup for
                                      ! finding out, if someone has stolen something, or how many jobs one
                                      ! has done, after initalization only used by SECRETARY
                                               ! in setup, should only accessed by SECRETARY, but is initalized by MAIN
@@ -209,7 +209,7 @@ contains
     integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(i4_kind), target             :: jobs(SJOB_LEN)
+    integer(i4_kind), target             :: jobs(JLENGTH)
     !------------ Executable code --------------------------------
     ! First try to get a job from local storage
     call th_mutex_lock(LOCK_JS)
@@ -328,7 +328,7 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)
     logical                              :: flag
-    integer(kind=i4_kind)                :: message(1 + SJOB_LEN)
+    integer(kind=i4_kind)                :: message(1 + JLENGTH)
     !------------ Executable code --------------------------------
     ! check for any message
     call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
@@ -336,7 +336,7 @@ contains
     do while (flag)!got a message
       call time_stamp("got message", 4)
       count_messages = count_messages + 1
-      call MPI_RECV(message, 1+SJOB_LEN, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
+      call MPI_RECV(message, 1+JLENGTH, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
       !print *, my_rank, "received ",stat(MPI_SOURCE),"'s message", message
       call check_messages(requ, message, stat, wait_answer, lm_source, count_ask, proc_asked_last )
       call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
@@ -386,7 +386,7 @@ contains
     integer(kind=i4_kind),intent(out)     :: proc_asked_last
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: v, ierr
-    integer(kind=i4_kind), save          :: message(1 + SJOB_LEN) ! is made save to ensure
+    integer(kind=i4_kind), save          :: message(1 + JLENGTH) ! is made save to ensure
                                              ! that it is not overwritten before message arrived
                                              ! there is always only one request sended, thus it will
                                              ! be for sure finished, when it is needed for the next request
@@ -417,7 +417,7 @@ contains
     message(2) = count_ask(v+1)
 
     call time_stamp("SECRETARY sends message",5)
-    call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, v, MSGTAG, comm_world, requ_wr, ierr)
+    call MPI_ISEND(message, 1+JLENGTH, MPI_INTEGER4, v, MSGTAG, comm_world, requ_wr, ierr)
     ASSERT(ierr==MPI_SUCCESS)
     call add_request(requ_wr, requ)
   end subroutine send_request
@@ -444,8 +444,8 @@ contains
     logical, intent(inout) :: wait_answer
     integer(kind=i4_kind), intent(inout) :: lm_source(:)
     integer(kind=i4_kind), intent(inout) :: count_ask(:), proc_asked_last
-    integer, intent(in) :: message(1 + SJOB_LEN), stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind)                :: my_jobs(SJOB_LEN)
+    integer, intent(in) :: message(1 + JLENGTH), stat(MPI_STATUS_SIZE)
+    integer(kind=i4_kind)                :: my_jobs(JLENGTH)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     !------------ Executable code --------------------------------
@@ -490,7 +490,7 @@ contains
         wait_answer = .false.
         proc_asked_last = -1  ! set back, which proc to wait for
         call th_mutex_lock( LOCK_JS)
-        job_storage(:SJOB_LEN) = my_jobs
+        job_storage(:JLENGTH) = my_jobs
         start_job = my_jobs
         call th_cond_signal(COND_JS2_UPDATE)
         call th_mutex_unlock(LOCK_JS)
@@ -570,13 +570,13 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: m
-    integer(kind=i4_kind), intent(out  ) :: my_jobs(SJOB_LEN)
+    integer(kind=i4_kind), intent(out  ) :: my_jobs(JLENGTH)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: w
     !------------ Executable code --------------------------------
     w = reserve_workm(m, job_storage) ! how many jobs to get
-    my_jobs = job_storage(:SJOB_LEN) ! first SJOB_LEN hold the job
+    my_jobs = job_storage(:JLENGTH) ! first JLENGTH hold the job
     my_jobs(JRIGHT)  = my_jobs(JLEFT) + w
     job_storage(JLEFT) = my_jobs(JRIGHT)
   end subroutine local_tgetm
@@ -609,7 +609,7 @@ contains
     ! needed for termination
     my_resp_start = start_job(JRIGHT) - start_job(JLEFT)
     ! Job storage holds all the jobs currently in use
-    job_storage(:SJOB_LEN) = start_job
+    job_storage(:JLENGTH) = start_job
     ! from now on, there are several threads, so chared objects have to
     ! be locked/unlocked in order to use them!!
     call thread_setup()

@@ -68,7 +68,7 @@ module dlb_common
 
   integer(kind=i4_kind), parameter, public  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 !for distingishuing the messages
   integer(kind=i4_kind), parameter, public  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
-  integer(kind=i4_kind), parameter, public  :: SJOB_LEN = 3 ! Length of a single job in interface
+  integer(kind=i4_kind), parameter, public  :: JLENGTH = 3 ! Length of a single job in interface
   integer(kind=i4_kind), parameter, public  :: L_JOB = 2  ! Length of job to give back from interface
   integer(kind=i4_kind), parameter, public  :: JOWNER = 3 ! Number in job, where rank of origin proc is stored
   integer(kind=i4_kind), parameter, public  :: JLEFT = 1 ! Number in job, where stp (start point) is stored
@@ -200,7 +200,7 @@ contains
 
     ! if there is any exchange of jobs, the following things are needed
     ! (they will help to get the DONE_JOB messages on their way)
-    allocate(messages(SJOB_LEN + 1, n_procs), stat = alloc_stat)
+    allocate(messages(JLENGTH + 1, n_procs), stat = alloc_stat)
     ASSERT(alloc_stat==0)
 
     allocate(message_on_way(n_procs), stat = alloc_stat)
@@ -237,7 +237,7 @@ contains
     !         after gotten just the job range
     implicit none
     integer(i4_kind), intent(in) :: job(L_JOB)
-    integer(i4_kind)             :: job_data(SJOB_LEN)
+    integer(i4_kind)             :: job_data(JLENGTH)
     ! *** end of interface ***
 
     job_data(:L_JOB) = job
@@ -248,7 +248,7 @@ contains
     !Purpose: gives a complete starting job description
     !         after gotten just the job range
     implicit none
-    integer(i4_kind) :: job_data(SJOB_LEN)
+    integer(i4_kind) :: job_data(JLENGTH)
     ! *** end of interface ***
 
     job_data(JRIGHT) = 0
@@ -580,7 +580,7 @@ contains
     integer(kind=i4_kind) :: ierr, i, count_req, req
     integer(kind=i4_kind) :: rec_buff(n_procs * 2)
     integer(kind=i4_kind)                :: stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind)                :: message_s(1 + SJOB_LEN), message_r(1 + SJOB_LEN)
+    integer(kind=i4_kind)                :: message_s(1 + JLENGTH), message_r(1 + JLENGTH)
     !------------ Executable code --------------------------------
 
     rec_buff = 0
@@ -606,12 +606,12 @@ contains
     ! Cycle over all left messages, blocking MPI_RECV, as there is nothing else to do
     if (count_req > 0) then
       do i =1, count_req
-        call MPI_RECV(message_r, 1+SJOB_LEN, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
+        call MPI_RECV(message_r, 1+JLENGTH, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
         select case(message_r(1))
         case (WORK_DONAT)
           cycle
         case (WORK_REQUEST)
-           call MPI_ISEND(message_s, 1+SJOB_LEN, MPI_INTEGER4, stat(MPI_SOURCE), MSGTAG, comm_world, req, ierr)
+           call MPI_ISEND(message_s, 1+JLENGTH, MPI_INTEGER4, stat(MPI_SOURCE), MSGTAG, comm_world, req, ierr)
            ASSERT(ierr==MPI_SUCCESS)
            call add_request(req, requ)
         case default
@@ -668,7 +668,7 @@ contains
     integer(kind=i4_kind), allocatable   :: requ(:)
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, req
-    integer(kind=i4_kind), save          :: message(1+SJOB_LEN) ! message may only be
+    integer(kind=i4_kind), save          :: message(1+JLENGTH) ! message may only be
      ! changed or rewritten after communication finished, thus it is saved here in order
      ! to still be present when the subroutine finishes
      ! as this routine is only called once each process in each dlb call
@@ -678,7 +678,7 @@ contains
     message(1) = RESP_DONE
     message(2) = my_rank
     message(3:) = 0
-    call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, termination_master, MSGTAG,comm_world, req, ierr)
+    call MPI_ISEND(message, 1+JLENGTH, MPI_INTEGER4, termination_master, MSGTAG,comm_world, req, ierr)
     ASSERT(ierr==MPI_SUCCESS)
     call add_request(req, requ)
   end subroutine send_resp_done
@@ -720,7 +720,7 @@ contains
     messages(3:, source) = 0
     messages(2, source) = messages(2, source) +  num_jobs_done
     call time_stamp("send message to source", 2)
-    call MPI_ISEND(messages(:,source),1 + SJOB_LEN, MPI_INTEGER4, source2,&
+    call MPI_ISEND(messages(:,source),1 + JLENGTH, MPI_INTEGER4, source2,&
                                 MSGTAG,comm_world, req_dj(source), ierr)
     ASSERT(ierr==MPI_SUCCESS)
     message_on_way(source) = .true.
@@ -759,7 +759,7 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, i, alloc_stat
     integer(kind=i4_kind), allocatable   :: request(:), stats(:,:)
-    integer(kind=i4_kind)                :: receiver, message(1+SJOB_LEN)
+    integer(kind=i4_kind)                :: receiver, message(1+JLENGTH)
     !------------ Executable code --------------------------------
 
     allocate(request(n_procs -1), stats(n_procs -1, MPI_STATUS_SIZE),&
@@ -772,7 +772,7 @@ contains
     ! skip the termination master (itsself)`
     if (i >= termination_master) receiver = i+1
     call time_stamp("send termination", 5)
-    call MPI_ISEND(message, 1+SJOB_LEN, MPI_INTEGER4, receiver, MSGTAG, comm_world ,request(i+1), ierr)
+    call MPI_ISEND(message, 1+JLENGTH, MPI_INTEGER4, receiver, MSGTAG, comm_world ,request(i+1), ierr)
     ASSERT(ierr==MPI_SUCCESS)
     enddo
     call MPI_WAITALL(size(request), request, stats, ierr)
