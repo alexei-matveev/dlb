@@ -507,7 +507,6 @@ contains
     !           it may change and rewrite it, else only the integer belonging to
     !           the proc may be reset to 0
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: reserve_workm
     implicit none
     integer(i4_kind), intent(in)  :: m, rank
     integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
@@ -516,7 +515,6 @@ contains
 
     integer(i4_kind) :: stolen_jobs(JLENGTH)
     integer(i4_kind) :: local_jobs(JLENGTH)
-    integer(i4_kind) :: work
 
     !
     ! NOTE: size(jobs) is JLENGTH, (jobs(JLEFT), jobs(JRIGHT)] specify
@@ -547,24 +545,10 @@ contains
     start_job = stolen_jobs
 
     !
-    ! "Stealing" from myself is implemented as splitting the interval
+    ! "Stealing" from myself:
     !
-    !     (A, B] = stolen_jobs(1:2)
-    !
-    ! at the point
-    !
-    !     C = A + work
-    !
-    ! into
-    !
-    !     jobs(1:2) = (A, C] and local_jobs(1:2) = (C, B]
-    !
-
-    ! The give_grid function needs only up to m' jobs at once, thus
-    ! divide the jobs
-    work = reserve_workm(m, jobs) ! expects jobs(1:2)
-
-    call split_at(jobs(JLEFT) + work, stolen_jobs, jobs, local_jobs)
+    ok = steal_local(m, stolen_jobs, local_jobs, jobs)
+    ASSERT(ok)
 
     !
     ! This stores the rest for later delivery in the OWN job-storage
@@ -722,8 +706,56 @@ contains
 
     call split_at(c, remote, remaining, stolen)
 
-    ok = .true.
+    ok = .not. empty(stolen)
   end function steal_remote
+
+  function steal_local(m, local, remaining, stolen) result(ok)
+    !
+    ! "Stealing" from myself is implemented as splitting the interval
+    !
+    !     (A, B] = local(1:2)
+    !
+    ! into
+    !
+    !     stolen(1:2) = (A, C] and remaining(1:2) = (C, B]
+    !
+    ! at the point
+    !
+    !     C = A + reserve_workm(m, local)
+    !
+    use dlb_common, only: i4_kind, JLENGTH, reserve_workm
+    implicit none
+    integer(i4_kind), intent(in)  :: m
+    integer(i4_kind), intent(in)  :: local(:) ! (JLENGTH)
+    integer(i4_kind), intent(out) :: remaining(:) ! (JLENGTH)
+    integer(i4_kind), intent(out) :: stolen(:) ! (JLENGTH)
+    logical                       :: ok ! result
+    ! *** end of interface ***
+
+    integer(i4_kind) :: work, c
+
+    ASSERT(size(local)==JLENGTH)
+    ASSERT(size(remaining)==JLENGTH)
+    ASSERT(size(stolen)==JLENGTH)
+
+    ! The give_grid function needs only up to m jobs at once, thus
+    ! divide the jobs
+    work = reserve_workm(m, local)
+
+    ! FIXME: reserve_workm(...) expects local(1:2), we
+    ! provide local(1:JLENGTH)
+
+    ! split here:
+    c = local(JLEFT) + work
+
+    !
+    ! Note the order of (stolen, remaining) --- left interval is stolen, right
+    ! interval is remaining:
+    !
+    call split_at(c, local, stolen, remaining)
+
+    ok = .not. empty(stolen)
+  end function steal_local
 
   function try_lock_and_read(rank, jobs) result(ok)
     !
@@ -818,7 +850,6 @@ contains
     !
     ! Update job range description and release previousely acquired lock.
     !
-    use dlb_common, only: steal_work_for_rma, reserve_workm
     implicit none
     integer(i4_kind), intent(in) :: rank
     integer(i4_kind), intent(in) :: jobs(:)
@@ -895,7 +926,7 @@ contains
     ASSERT(size(AC)==JLENGTH)
     ASSERT(size(CB)==JLENGTH)
 
-    ASSERT(C>AB(JLEFT))
+    ASSERT(C>=AB(JLEFT))
     ASSERT(C<=AB(JRIGHT))
 
     ! copy trailing posiitons, if any:
