@@ -140,30 +140,40 @@ contains
     integer(kind=i4_kind)                :: ierr, sizeofint
     integer(kind=MPI_ADDRESS_KIND)       :: size_alloc, size_all
     !------------ Executable code --------------------------------
+
     ! some aliases, highly in use during the whole module
     call dlb_common_init()
+
     ! find out, how much there is to store and allocate (with MPI) the memory
     call MPI_TYPE_EXTENT(MPI_INTEGER4, sizeofint, ierr)
+
     jobs_len = SJOB_LEN + n_procs
     size_alloc = jobs_len * sizeofint
+
     call MPI_ALLOC_MEM(size_alloc, MPI_INFO_NULL, c_job_pointer, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+
     ! this connects a c'like pointer with our job_storage, as MPI can not handle our
     ! pointers as they are
     call c_f_pointer(c_job_pointer, job_storage, [jobs_len])
 
     size_all = jobs_len * sizeofint ! for having it in the correct kind
+
     ! win (an integer) is set up, so that the RMA-processes can call on it
     ! they will then get acces to the local stored job_storage of the corresponding proc
     call MPI_WIN_CREATE(job_storage, size_all, sizeofint, MPI_INFO_NULL, &
                         comm_world, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+
     ! needed to make certain, that in the next steps, all the procs have all the informations
     call MPI_WIN_FENCE(0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+
     ! put the complete storage content to 0
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
+
     job_storage = 0
+
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
   end subroutine dlb_init
 
@@ -181,12 +191,15 @@ contains
 
     call MPI_WIN_FENCE(0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+
     CALL MPI_FREE_MEM(job_storage, ierr)
     ASSERT(ierr==MPI_SUCCESS)
     call MPI_WIN_FENCE(0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+
     CALL MPI_WIN_FREE(win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+
     call dlb_common_finalize()
   end subroutine dlb_finalize
 
@@ -206,6 +219,7 @@ contains
     integer(kind=i4_kind), intent(in   ) :: n
     integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB)
     !** End of interface *****************************************
+
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: v, ierr
     logical                              :: term
@@ -234,20 +248,26 @@ contains
     call time_stamp("finished local search",3)
 
     if (jobs(J_STP) >= jobs(J_EP)) many_searches = many_searches + 1 ! just for debugging
+
     ! if local storage only gives empty job:
     do while ((jobs(J_STP) >= jobs(J_EP)) .and. .not. check_messages())
+
       ! check like above but also for termination message from termination master
       v = select_victim(my_rank, n_procs)
+
       ! try to get job from v, if v's memory occupied by another or contains
       ! nothing to steal, job is st
       many_tries = many_tries + 1 ! just for debugging ill empty
+
       call time_stamp("about to call rmw_tgetm()",4)
       term = rmw_tgetm(n, v, jobs)
       call time_stamp("returned from rmw_tgetm()",4)
     enddo
     call time_stamp("finished stealing",3)
+
     ! only the start and endpoint of job slice is needed external
     my_job = jobs(:L_JOB)
+
     ! this would not work: no ensurance that the others already know that
     ! they should be terminated, they could steal jobs setup by already terminated
     ! processors
@@ -275,10 +295,13 @@ contains
     logical                              :: flag
     integer(kind=i4_kind)                :: message(1 + SJOB_LEN)
     !------------ Executable code --------------------------------
+
     ! check for any message
     call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+
     do while (flag) !got a message
+
       call MPI_RECV(message, 1+SJOB_LEN, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG,comm_world, stat,ierr)
       !print *, time_stamp_prefix(MPI_Wtime()), "got message from", stat(MPI_SOURCE), "with", message
       ASSERT(ierr==MPI_SUCCESS)
@@ -341,8 +364,7 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in)    :: proc
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    !------------ Executable code --------------------------------
+
     if (.not. has_last_done(proc)) RETURN
 
     ! there will be only a send to the other procs, telling them to terminate
@@ -374,13 +396,16 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, sap, w
     !------------ Executable code --------------------------------
+
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+
     ! each proc which ones to acces the memory, sets his point to 1
     ! (else they are all 0), so if the sum is more than 0, at least one
     ! proc tries to get the memory, the one, who got sap = 0 has the right
     ! to work
     my_jobs = job_storage(:SJOB_LEN) ! first SJOB_LEN hold the job (furter the sap
+
     sap = sum(job_storage(SJOB_LEN+1:))
     if (sap > 0) then
       call time_stamp("blocked by lock contension",2)
@@ -451,7 +476,7 @@ contains
     endif
   end subroutine report_or_store
 
-  logical function rmw_tgetm(m,source, my_jobs)
+  logical function rmw_tgetm(m, source, my_jobs)
     !  Purpose: read-modify-write variant fo getting m from another proc
     !           source, returns true if the other proc has its memory free
     !           false if it is not
@@ -471,6 +496,7 @@ contains
     integer(kind=i4_kind), intent(in   ) :: m, source
     integer(kind=i4_kind), intent(out  ) :: my_jobs(SJOB_LEN)
     !** End of interface *****************************************
+
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, sap, w
     integer(i4_kind), target             :: jobs_infom(jobs_len)
@@ -486,15 +512,20 @@ contains
 
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+
     call MPI_GET(jobs_infom, jobs_len, MPI_INTEGER4, source, zero, jobs_len, MPI_INTEGER4, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+
     displacement = my_rank + SJOB_LEN !for getting it in the correct kind
+
     call MPI_PUT(ON,1,MPI_INTEGER4, source, displacement, 1, MPI_INTEGER4, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+
     call MPI_WIN_UNLOCK(source, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
     jobs_infom(my_rank+1+SJOB_LEN) = 0
+
     ! check if there are any procs, saying that they want to acces the memory
     sap = sum(jobs_infom(SJOB_LEN+1:))
 
@@ -502,14 +533,20 @@ contains
       call time_stamp("blocked on lock contension rmw",2)
       rmw_tgetm = .false.
       many_locked = many_locked + 1
+
     else ! is the first one, therefor do what you want with it
       rmw_tgetm = .true.
+
       ! how much of the work should be stolen
-      w = steal_work_for_rma(m,jobs_infom)
+      w = steal_work_for_rma(m, jobs_infom)
+
       call time_stamp("free",4)
+
       my_jobs = jobs_infom(:SJOB_LEN)
+
       ! after setting back, there is a new chance to access the memory for the others
       jobs_infom(SJOB_LEN+1:) = 0
+
       if (w == 0) then ! nothing to steal, set default
         my_jobs = set_empty_job()
         many_zeros = many_zeros + 1
@@ -523,6 +560,7 @@ contains
         !
         call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, source, 0, win, ierr)
         ASSERT(ierr==MPI_SUCCESS)
+
         displacement = SJOB_LEN
         call MPI_PUT(jobs_infom(SJOB_LEN+1:), n_procs, MPI_INTEGER4, source, displacement, n_procs, MPI_INTEGER4, win, ierr)
         ASSERT(ierr==MPI_SUCCESS)
@@ -531,8 +569,10 @@ contains
         ASSERT(ierr==MPI_SUCCESS)
 
       else ! take the last w jobs of the job-storage
+
         my_jobs(J_STP)  = my_jobs(J_EP) - w
         jobs_infom(J_EP) = my_jobs(J_STP)
+
         ! the rest is for reseting the single job run, needed for termination
         start_job = my_jobs
         !
@@ -553,10 +593,13 @@ contains
       ! divide the jobs
       if (w /= 0) then
         jobs_infom(:SJOB_LEN) = my_jobs
+
         w = reserve_workm(m,jobs_infom)
+
         ! these are for direct use
         my_jobs(J_EP)  = my_jobs(J_STP) + w
         jobs_infom(J_STP) = my_jobs(J_EP)
+
         ! this stores the rest for later in the own job-storage
         call store_new_work(jobs_infom)
       endif
@@ -627,30 +670,39 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr
     !------------ Executable code --------------------------------
+
     ! these variables are for the termination algorithm
     had_thief = .false.
     terminated = .false.
+
     ! set starting values for the jobs, needed also in this way for
     ! termination, as they will be stored also in the job_storage
     ! start_job should only be changed if all current jobs are finished
     ! and there is a try to steal new ones
     start_job = set_start_job(job)
+
     call dlb_common_setup(start_job(J_EP) - start_job(J_STP))
+
     many_tries = 0
     many_searches = 0
     many_locked = 0
     many_zeros = 0
     my_resp_self = 0
     your_resp = 0
+
     ! needed for termination
     my_resp_start = start_job(J_EP) - start_job(J_STP)
+
     ! Job storage holds all the jobs currently in use
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+
     job_storage(:SJOB_LEN) = start_job
     job_storage(SJOB_LEN+1:) = 0
+
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+
     call MPI_WIN_FENCE(0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine dlb_setup
