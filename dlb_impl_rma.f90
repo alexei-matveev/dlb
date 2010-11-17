@@ -531,11 +531,11 @@ contains
     !
 
     !
-    ! FIXME: for some reason size(jobs) that is provided by this sub is 3:
+    ! NOTE: size(jobs) is SJOB_LEN, (jobs(JLEFT), jobs(JRIGHT)] specify
+    ! the interval, the rest is metadata that should be copied
+    ! around.
     !
-    ASSERT(SJOB_LEN==3)
-    ! ASSERT(size(jobs)==2)
-    ASSERT(size(jobs)==3)
+    ASSERT(size(jobs)==SJOB_LEN)
 
     jobs = set_empty_job()
 
@@ -580,7 +580,7 @@ contains
     !
     !     remote_jobs(1:2) = (A, C] and jobs(1:2) = (C, B]
     !
-    call split_at(remote_jobs(2) - work, remote_jobs, remaining_jobs, stolen_jobs)
+    call split_at(remote_jobs(JRIGHT) - work, remote_jobs, remaining_jobs, stolen_jobs)
 
     !
     ! The rest is for reseting the single job run, needed for termination
@@ -617,7 +617,7 @@ contains
     ! divide the jobs
     work = reserve_workm(m, jobs) ! expects jobs(1:2)
 
-    call split_at(jobs(1) + work, stolen_jobs, jobs, local_jobs)
+    call split_at(jobs(JLEFT) + work, stolen_jobs, jobs, local_jobs)
 
     !
     ! This stores the rest for later in the OWN job-storage
@@ -811,20 +811,20 @@ contains
     integer(i4_kind), intent(out) :: AC(size(AB)), CB(size(AB))
     ! *** end of interface ***
 
-    ASSERT(size(AB)>=2)
+    ASSERT(size(AB)==SJOB_LEN)
 
-    ASSERT(C>AB(1))
-    ASSERT(C<=AB(2))
-
-    AC(1) = AB(1)
-    AC(2) = C
-
-    CB(1) = C
-    CB(2) = AB(2)
+    ASSERT(C>AB(JLEFT))
+    ASSERT(C<=AB(JRIGHT))
 
     ! copy trailing posiitons, if any:
-    AC(3:) = AB(3:)
-    CB(3:) = AB(3:)
+    AC(:) = AB(:)
+    CB(:) = AB(:)
+
+    AC(JLEFT)  = AB(JLEFT)
+    AC(JRIGHT) = C
+
+    CB(JLEFT)  = C
+    CB(JRIGHT) = AB(JRIGHT)
   end subroutine split_at
 
   subroutine dlb_setup(job)
