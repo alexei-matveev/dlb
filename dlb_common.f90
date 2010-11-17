@@ -232,30 +232,28 @@ contains
   ! (without this two functions, the informations will just copied
   ! and special ones will be changed)
 
-  function set_start_job(job)
+  function set_start_job(job) result(job_data)
     !Purpose: gives a complete starting job description
     !         after gotten just the job range
     implicit none
-    integer(kind=i4_kind), intent(in) :: job(L_JOB)
+    integer(i4_kind), intent(in) :: job(L_JOB)
+    integer(i4_kind)             :: job_data(SJOB_LEN)
     ! *** end of interface ***
 
-    integer(kind=i4_kind) :: set_start_job(SJOB_LEN)
-
-    set_start_job(:L_JOB) = job
-    set_start_job(NRANK) = my_rank
+    job_data(:L_JOB) = job
+    job_data(NRANK) = my_rank
   end function set_start_job
 
-  function set_empty_job()
+  function set_empty_job() result(job_data)
     !Purpose: gives a complete starting job description
     !         after gotten just the job range
     implicit none
+    integer(i4_kind) :: job_data(SJOB_LEN)
     ! *** end of interface ***
 
-    integer(kind=i4_kind) :: set_empty_job(SJOB_LEN)
-
-    set_empty_job(J_EP) = 0
-    set_empty_job(J_STP) = 0
-    set_empty_job(NRANK) = -1
+    job_data(J_EP) = 0
+    job_data(J_STP) = 0
+    job_data(NRANK) = -1
   end function set_empty_job
 
   function select_victim(rank, np) result(victim)
