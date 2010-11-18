@@ -944,10 +944,36 @@ contains
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine write_and_unlock
 
+  subroutine read_unsafe(rank, jobs)
+    !
+    ! Read jobs data structure without acquiring user-level lock
+    !
+    use dlb_common, only: my_rank
+    implicit none
+    integer(i4_kind), intent(in)  :: rank
+    integer(i4_kind), intent(out) :: jobs(JLENGTH)
+    ! *** end of interface ***
+
+    integer(i4_kind) :: ierr
+
+    !
+    ! FIXME: so far only used to store into the local datastructure:
+    !
+    ASSERT(rank==my_rank)
+
+    ! FIXME: less strict locking?
+    call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+
+    jobs(:) = job_storage(:JLENGTH)
+
+    call MPI_WIN_UNLOCK(rank, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+  end subroutine read_unsafe
+
   subroutine write_unsafe(rank, jobs)
     !
     ! Owerwrite jobs data structure without acquiring user-level lock
-    ! as done in try_read_lock()/write_unlock()
     !
     use dlb_common, only: my_rank
     implicit none
@@ -1060,5 +1086,17 @@ contains
 
     empty = jobs(JLEFT) >= jobs(JRIGHT)
   end function empty
+
+  logical function storage_is_empty(rank)
+    implicit none
+    integer(i4_kind), intent(in) :: rank
+    ! *** end of interface ***
+
+    integer(i4_kind) :: jobs(JLENGTH)
+
+    call read_unsafe(rank, jobs)
+
+    storage_is_empty = empty(jobs)
+  end function storage_is_empty
 
 end module dlb_impl
