@@ -4,7 +4,7 @@ module thread_handle
   use dlb_common, only: dlb_common_init
   use dlb_common, only: i4_kind, r8_kind, comm_world, n_procs, termination_master
   use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
-  use dlb_common, only: SJOB_LEN, JRIGHT, JLEFT, MSGTAG, NO_WORK_LEFT
+  use dlb_common, only: JLENGTH, JRIGHT, JLEFT, MSGTAG, NO_WORK_LEFT
   use dlb_common, only: has_last_done, set_empty_job, add_request, send_termination
   use dlb_common, only: masterserver
   use dlb_common, only: WORK_DONAT, WORK_REQUEST
@@ -83,7 +83,7 @@ module thread_handle
   !------------ Declaration of types ------------------------------
 
   !------------ Declaration of constants and variables ----
-  integer(kind=i4_kind), parameter, public  :: JOBS_LEN = SJOB_LEN  ! Length of complete jobs storage
+  integer(kind=i4_kind), parameter, public  :: JOBS_LEN = JLENGTH  ! Length of complete jobs storage
   ! IDs of mutexes, use base-0 indices:
   integer(kind=i4_kind), parameter, public :: LOCK_JS   = 0
   integer(kind=i4_kind)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
@@ -129,7 +129,7 @@ module thread_handle
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer :: alloc_stat
-    allocate(messagesJA(SJOB_LEN + 1,n_procs), stat = alloc_stat)
+    allocate(messagesJA(JLENGTH + 1,n_procs), stat = alloc_stat)
     ASSERT(alloc_stat==0)
 
   end subroutine thread_setup
@@ -156,7 +156,7 @@ module thread_handle
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, w, req
-    integer(kind=i4_kind)                :: g_jobs(SJOB_LEN)
+    integer(kind=i4_kind)                :: g_jobs(JLENGTH)
     !------------ Executable code --------------------------------
     call th_mutex_lock(LOCK_JS)
 
@@ -194,7 +194,7 @@ module thread_handle
     endif
     messagesJA(2:,partner+1) = g_jobs
     call time_stamp("share jobs with other",5)
-    call MPI_ISEND(messagesJA(:,partner+1), 1+SJOB_LEN, MPI_INTEGER4, partner, MSGTAG, comm_world, req, ierr)
+    call MPI_ISEND(messagesJA(:,partner+1), 1+JLENGTH, MPI_INTEGER4, partner, MSGTAG, comm_world, req, ierr)
     ASSERT(ierr==MPI_SUCCESS)
     call add_request(req, requ)
     call th_mutex_unlock(LOCK_JS)
