@@ -636,7 +636,7 @@ contains
 
   function try_read_modify_write(rank, modify, iarg, jobs) result(ok)
     !
-    ! Performe read-modify-write variant sequence
+    ! Perform read-modify-write sequence
     !
     implicit none
     integer(i4_kind), intent(in)  :: rank, iarg
