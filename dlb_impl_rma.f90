@@ -394,7 +394,7 @@ contains
     call end_communication()
   end subroutine check_termination
 
-  logical function local_tgetm(m, jobs)
+  logical function local_tgetm(m, jobs) result(ok)
     !  Purpose: returns true if could acces the global memory with
     !            the local jobs of the machine, false if there is already
     !            someone else working,
@@ -409,6 +409,7 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer(i4_kind), intent(in)  :: m
     integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
+    logical                       :: ok ! result
     !** End of interface *****************************************
 
     integer(i4_kind) :: ierr, locked
@@ -440,6 +441,7 @@ contains
     !
     ! Below are 2x2 = 4 branches roughly corresponding to the
     ! four possible cases of (locked, empty(local)) tuple.
+    ! In three of these cases ok = .true. in one ... (guess what).
     !
     ! FIXME: too difficult to reason about this code.
     !
@@ -451,7 +453,7 @@ contains
 
         ! find out if it makes sense to wait:
         if ( empty(local) ) then
-            local_tgetm = .true.
+            ok = .true.
             call time_stamp("blocked, but empty",2)
 
             !
@@ -464,7 +466,7 @@ contains
             !
             call report_or_store(local)
         else
-            local_tgetm = .false.
+            ok = .false.
             jobs(JRIGHT) = jobs(JLEFT) ! non actuell informations, make them invalid
         endif
 
@@ -472,7 +474,7 @@ contains
         !
         ! Acquired user-lock on local storage:
         !
-        local_tgetm = .true.
+        ok = .true.
         call time_stamp("free",2)
 
         !
