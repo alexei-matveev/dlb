@@ -144,6 +144,8 @@ module dlb_impl
    integer(kind=i4_kind)                :: proc_asked_last
 
   integer(kind=i4_kind)             :: new_jobs(JLENGTH) ! stores new job, just arrived from other proc
+  integer(kind=i4_kind)             :: already_done ! belongs to CONTROL after initalising, stores how
+                                      ! many jobs of the current interval have been already calculated
   integer(kind=i4_kind)             :: start_job(JLENGTH) ! job_storage is changed a lot, backup for
                                      ! finding out, if someone has stolen something, or how many jobs one
                                      ! has done, after initalization only used by CONTROL
@@ -182,6 +184,11 @@ module dlb_impl
   !               write: CONTROL, MAIN
   !               MAIN tells CONTROL, that it is waiting for jobs, thus CONTROL
   !               should better search some and not wait in turn for MAIN to wake it
+  ! * already_done: read: CONTROL, MAIN
+  !                 write: CONTROL, MAIN
+  !                 MAIN stores here how many jobs of the current job interval it has done,
+  !                 CONTROL needs and resets this information when reporting jobs for the
+  !                 termination algorithm
   !
   ! LOCK_NJ:
   ! * new_jobs:   read: CONTROL          locked by LOCK_NJ
@@ -262,7 +269,7 @@ contains
     !------------ Executable code --------------------------------
     ! First try to get a job from local storage
     call th_mutex_lock(LOCK_JS)
-    call local_tgetm(n, jobs)
+    call local_tgetm(n, jobs, already_done)
     call th_mutex_unlock(LOCK_JS)
     call time_stamp("finished first local search",3)
     ! if local storage only gives empty job: cycle under checking for termination
@@ -276,7 +283,7 @@ contains
        i_am_waiting = .true.
        call th_cond_wait(COND_JS2_UPDATE, LOCK_JS)
        i_am_waiting = .false.
-       call local_tgetm(n, jobs)
+       call local_tgetm(n, jobs, already_done)
     enddo
     call th_mutex_unlock(LOCK_JS)
     call time_stamp("finished loop over local search",3)
@@ -442,7 +449,7 @@ contains
         ! not if masterserver is wanted, then there is no need for the termination algorithm, master knows
         ! where are all jobs by its own
         if (.not. masterserver) then
-           call report_or_store(job_storage(:JLENGTH), requ_c)
+           call report_or_store(job_storage(:JLENGTH), requ_c, already_done)
         endif
 
         my_jobs = job_storage(:JLENGTH)
@@ -498,7 +505,8 @@ contains
 
         call th_mutex_lock(LOCK_JS)
         job_storage(:JLENGTH) = my_jobs
-        start_job = my_jobs
+        ! reset for a new interval
+        already_done = 0
       endif
 
       if (i_am_waiting) then
@@ -601,7 +609,7 @@ contains
     end select
   end subroutine check_messages
 
-  subroutine local_tgetm(m, my_jobs)
+  subroutine local_tgetm(m, my_jobs, already_done)
     !  Purpose: takes m jobs from the left from object job_storage
     !           in the first try there is no need to wait for
     !           something going on in the jobs
@@ -619,6 +627,7 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: m
     integer(kind=i4_kind), intent(out  ) :: my_jobs(JLENGTH)
+    integer(kind=i4_kind), intent(inout) :: already_done
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: w, sp
@@ -628,6 +637,7 @@ contains
     sp = job_storage(JLEFT) + w
     call split_at(sp, job_storage, my_jobs, remaining)
     job_storage = remaining
+    already_done = already_done + w
     if (job_storage(JLEFT) >= job_storage(JRIGHT)) then
       call time_stamp("MAIN wakes CONTROL",3)
       call th_cond_signal(COND_JS_UPDATE)
@@ -635,7 +645,7 @@ contains
     !endif
   end subroutine local_tgetm
 
-  subroutine report_or_store(my_jobs, requ)
+  subroutine report_or_store(my_jobs, requ, num_jobs_done)
     !  Purpose: If a job is finished, this cleans up afterwards
     !           Needed for termination algorithm, there are two
     !           cases, it was a job of the own responsibilty or
@@ -655,16 +665,15 @@ contains
     integer(kind=i4_kind), allocatable  :: requ(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: num_jobs_done
+    integer(kind=i4_kind), intent(inout):: num_jobs_done
     !------------ Executable code --------------------------------
     call time_stamp("finished a job",4)
     ! my_jobs hold recent last point, as proc started from beginning and
     ! steal from the back, this means that from the initial starting point on
     ! (stored in start_job) to this one, all jobs were done
     ! if my_jobs(JRIGHT)/= start_job(JRIGHT) someone has stolen jobs
-    num_jobs_done = my_jobs(JRIGHT) - start_job(JLEFT)
     !if (num_jobs_done == 0) return ! there is non job, thus why care
-    if (start_job(JOWNER) == my_rank) then
+    if (my_jobs(JOWNER) == my_rank) then
       my_resp_self = my_resp_self + num_jobs_done
       if(decrease_resp_locked(num_jobs_done, my_rank)== 0) then ! if all my jobs are done
          call send_resp_done(requ)
@@ -673,8 +682,9 @@ contains
       your_resp = your_resp + num_jobs_done
       ! As all isends have to be closed sometimes, storage of
       ! the request handlers is needed
-      call report_job_done(num_jobs_done, start_job(JOWNER))
+      call report_job_done(num_jobs_done, my_jobs(JOWNER))
     endif
+    num_jobs_done = 0
   end subroutine report_or_store
 
   subroutine dlb_setup(job)
