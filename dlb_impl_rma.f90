@@ -236,16 +236,10 @@ contains
     term = .false.
     if(had_thief .or. (my_rank==termination_master)) term = check_messages()
 
-! This seems to be there with our local network, trying to avoid as much lock/unlocks as possible
-!   if (term) then
-!     slice = start_job(:L_JOB)
-!     slice(JLEFT) = slice(JRIGHT)
-!     call time_stamp("dlb_give_more: exit on TERMINATION flag", 1)
-!     return
-!   endif
-
     ! First try to get job from local storage (loop because some one lese may
-    ! try to read from there (then local_tgetm = false)
+    ! try to read from there ( local_tgetm false means, have to try again,
+    ! true means that this proc has gotten all the jobs it may get from its
+    ! local storage in this dlb-loop)
     do while ( .not. local_tgetm(n, jobs) )
        call time_stamp("waiting for time to acces my own memory",2)
     enddo
@@ -260,8 +254,8 @@ contains
       v = select_victim(my_rank, n_procs)
 
       ! try to get job from v, if v's memory occupied by another or contains
-      ! nothing to steal, job is st
-      many_tries = many_tries + 1 ! just for debugging ill empty
+      ! nothing to steal, job is still empty
+      many_tries = many_tries + 1 ! just for debugging
 
       call time_stamp("about to call rmw_tgetm()",4)
       term = rmw_tgetm(n, v, jobs)
@@ -395,9 +389,14 @@ contains
   end subroutine check_termination
 
   logical function local_tgetm(m, jobs) result(ok)
-    !  Purpose: returns true if could acces the global memory with
-    !            the local jobs of the machine, false if there is already
-    !            someone else working,
+    !  Purpose: tries to get m jobs from the local job_storage.
+    !           Returns true if either: it got some jobs
+    !                        or: there are no jobs in the storage
+    !                            as this proc is the only one to put
+    !                            jobs in the storage, there is no use
+    !                            in waiting here
+    !           returns only false if it has been locked by others while
+    !           accessing a non-empty storage.
     !           if true also:
     !           local try for get m jobs, m is number of requested jobs
     !           if there are enough my_jobs will give their number back
@@ -455,14 +454,14 @@ contains
         if ( empty(local) ) then
             ok = .true.
             call time_stamp("blocked, but empty",2)
+            ! True means we got all jobs we can from the storage, there is no need
+            ! to wait for an locked access, as we can see this by are mere read,
+            ! no need for write, thus no need to cycle around
 
             !
-            ! FIXME: I dont get it! True means "got jobs!" Something is seriousely
-            ! broken here!
-            !
-
-            !
-            ! FIXME: isnt "local" always empty here? Why is it passed then?
+            ! Finished a job interval, thus someone (local(JOWNER)) has to recrease
+            ! its my_resp, local(JRIGHT) tells together with start_jobs how many jobs
+            ! have been done
             !
             call report_or_store(local)
         else
@@ -495,7 +494,7 @@ contains
             ! no more jobs!
             ASSERT(empty(local))
             !
-            ! FIXME: isnt "local" always empty here? Why is it passed then?
+            ! see above
             !
             call report_or_store(local)
         endif
@@ -747,10 +746,8 @@ contains
     stolen = -1 ! junk
 
     ! how much of the work should be stolen
-    work = steal_work_for_rma(m, remote)
-
-    ! FIXME: steal_work_for_rma(...) expects remote(1:2), we
-    ! provide remote(1:JLENGTH)
+    ! try to avoid breaking in job intervals smaller than m
+    work = steal_work_for_rma(m, remote(:L_JOB))
 
     !
     ! We were told that nothing can be stolen --- report failure:
@@ -798,10 +795,7 @@ contains
 
     ! The give_grid function needs only up to m jobs at once, thus
     ! divide the jobs
-    work = reserve_workm(m, local)
-
-    ! FIXME: reserve_workm(...) expects local(1:2), we
-    ! provide local(1:JLENGTH)
+    work = reserve_workm(m, local(:L_JOB))
 
     ! split here:
     c = local(JLEFT) + work
@@ -937,8 +931,12 @@ contains
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    call MPI_PUT(win_data, size(win_data), MPI_INTEGER4, rank, zero, size(win_data), MPI_INTEGER4, win, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
+    if (rank == my_rank) then
+      job_storage = win_data
+    else
+      call MPI_PUT(win_data, size(win_data), MPI_INTEGER4, rank, zero, size(win_data), MPI_INTEGER4, win, ierr)
+      ASSERT(ierr==MPI_SUCCESS)
+    endif
 
     call MPI_WIN_UNLOCK(rank, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
@@ -1038,7 +1036,6 @@ contains
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr
     !------------ Executable code --------------------------------
 
     ! these variables are for the termination algorithm
@@ -1064,17 +1061,8 @@ contains
     my_resp_start = start_job(JRIGHT) - start_job(JLEFT)
 
     ! Job storage holds all the jobs currently in use
+    ! direct storage, because in own memory used here
     call write_and_unlock(my_rank, start_job)
-    ! FIXME: this abuses MPI_PUT to store to the local storage,
-    !        specialize write_and_unlock(...) it desired.
-
-    !
-    ! FIXME: this is a collective operation, it will prevent
-    !        workers from starting asyncronousely with their
-    !        workshares!
-    !
-    call MPI_WIN_FENCE(0, win, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
   end subroutine dlb_setup
 
   logical function empty(jobs)
