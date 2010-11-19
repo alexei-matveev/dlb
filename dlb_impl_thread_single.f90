@@ -566,19 +566,20 @@ contains
     ! Locks: complete function is locked by LOCK_JS from outside
     !
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: reserve_workm
+    use dlb_common, only: reserve_workm, split_at
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: m
     integer(kind=i4_kind), intent(out  ) :: my_jobs(JLENGTH)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: w
+    integer(kind=i4_kind)                :: w, sp
+    integer(i4_kind)              :: remaining(JLENGTH)
     !------------ Executable code --------------------------------
     w = reserve_workm(m, job_storage) ! how many jobs to get
-    my_jobs = job_storage(:JLENGTH) ! first JLENGTH hold the job
-    my_jobs(JRIGHT)  = my_jobs(JLEFT) + w
-    job_storage(JLEFT) = my_jobs(JRIGHT)
+    sp = job_storage(JLEFT) + w
+    call split_at(sp, job_storage, my_jobs, remaining)
+    job_storage = remaining
   end subroutine local_tgetm
 
   subroutine dlb_setup(job)

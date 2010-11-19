@@ -88,6 +88,7 @@ module dlb_impl
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: decrease_resp
   use dlb_common, only: end_communication
+  use dlb_common, only: split_at
   implicit none
   save            ! save all variables defined in this module
   private         ! by default, all names are private
@@ -994,33 +995,6 @@ contains
     call MPI_WIN_UNLOCK(rank, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine write_unsafe
-
-  subroutine split_at(C, AB, AC, CB)
-    !
-    ! Split (A, B] into (A, C] and (C, B]
-    !
-    implicit none
-    integer(i4_kind), intent(in)  :: C, AB(:)
-    integer(i4_kind), intent(out) :: AC(:), CB(:)
-    ! *** end of interface ***
-
-    ASSERT(size(AB)==JLENGTH)
-    ASSERT(size(AC)==JLENGTH)
-    ASSERT(size(CB)==JLENGTH)
-
-    ASSERT(C>=AB(JLEFT))
-    ASSERT(C<=AB(JRIGHT))
-
-    ! copy trailing posiitons, if any:
-    AC(:) = AB(:)
-    CB(:) = AB(:)
-
-    AC(JLEFT)  = AB(JLEFT)
-    AC(JRIGHT) = C
-
-    CB(JLEFT)  = C
-    CB(JRIGHT) = AB(JRIGHT)
-  end subroutine split_at
 
   subroutine dlb_setup(job)
     !  Purpose: initialization of a dlb run, each proc should call

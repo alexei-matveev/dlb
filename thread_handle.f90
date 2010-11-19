@@ -148,6 +148,7 @@ module thread_handle
     !
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: divide_work, divide_work_master
+    use dlb_common, only: split_at
     USE_MPI
     implicit none
     !------------ Declaration of formal parameters ---------------
@@ -157,6 +158,7 @@ module thread_handle
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, w, req
     integer(kind=i4_kind)                :: g_jobs(JLENGTH)
+    integer(kind=i4_kind)                :: remaining(JLENGTH)
     !------------ Executable code --------------------------------
     call th_mutex_lock(LOCK_JS)
 
@@ -186,11 +188,10 @@ module thread_handle
          endif
       endif
       !!! end variant with master
-
       g_jobs = set_empty_job()
     else ! take the last w jobs of the job-storage
-      g_jobs(JLEFT)  = g_jobs(JRIGHT) - w
-      job_storage(JRIGHT) = g_jobs(JLEFT)
+      call split_at(job_storage(JRIGHT) - w, job_storage, remaining, g_jobs)
+      job_storage = remaining
     endif
     messagesJA(2:,partner+1) = g_jobs
     call time_stamp("share jobs with other",5)

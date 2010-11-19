@@ -614,18 +614,20 @@ contains
     !              waits on COND_JS2_UPDATE
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: reserve_workm
+    use dlb_common, only: split_at
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: m
     integer(kind=i4_kind), intent(out  ) :: my_jobs(JLENGTH)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: w
+    integer(kind=i4_kind)                :: w, sp
+    integer(i4_kind)              :: remaining(JLENGTH)
     !------------ Executable code --------------------------------
     w = reserve_workm(m, job_storage) ! how many jobs to get
-    my_jobs = job_storage(:JLENGTH) ! first JLENGTH hold the job
-    my_jobs(JRIGHT)  = my_jobs(JLEFT) + w
-    job_storage(JLEFT) = my_jobs(JRIGHT)
+    sp = job_storage(JLEFT) + w
+    call split_at(sp, job_storage, my_jobs, remaining)
+    job_storage = remaining
     if (job_storage(JLEFT) >= job_storage(JRIGHT)) then
       call time_stamp("MAIN wakes CONTROL",3)
       call th_cond_signal(COND_JS_UPDATE)

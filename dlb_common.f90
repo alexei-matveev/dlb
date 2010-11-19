@@ -42,6 +42,7 @@ module dlb_common
   public :: divide_work!(jobs) -> integer n
   public :: divide_work_master!(m, jobs) -> integer n
   public :: steal_work_for_rma!(m, jobs) -> integer n
+  public :: split_at! (C, AB, AC, CB)
 
   public :: irand!(long int) -> long int
 
@@ -401,6 +402,33 @@ contains
     ! but give more, if job numbers not odd
     n =  (jobs(2) - jobs(1)) - n
   end function steal_work_for_rma
+
+  subroutine split_at(C, AB, AC, CB)
+    !
+    ! Split (A, B] into (A, C] and (C, B]
+    !
+    implicit none
+    integer(i4_kind), intent(in)  :: C, AB(:)
+    integer(i4_kind), intent(out) :: AC(:), CB(:)
+    ! *** end of interface ***
+
+    ASSERT(size(AB)==JLENGTH)
+    ASSERT(size(AC)==JLENGTH)
+    ASSERT(size(CB)==JLENGTH)
+
+    ASSERT(C>=AB(JLEFT))
+    ASSERT(C<=AB(JRIGHT))
+
+    ! copy trailing posiitons, if any:
+    AC(:) = AB(:)
+    CB(:) = AB(:)
+
+    AC(JLEFT)  = AB(JLEFT)
+    AC(JRIGHT) = C
+
+    CB(JLEFT)  = C
+    CB(JRIGHT) = AB(JRIGHT)
+  end subroutine split_at
 
   subroutine add_request(req, requ)
     ! Purpose: stores unfinished requests
