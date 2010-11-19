@@ -109,10 +109,9 @@ module dlb_impl
   integer(kind=i4_kind)            :: win ! for the RMA object
   type(c_ptr)  :: c_job_pointer     ! needed for MPI RMA handling (for c pseudo pointer)
   integer(kind=i4_kind), pointer    :: job_storage(:) ! store all the jobs, belonging to this processor
-  integer(kind=i4_kind)             :: start_job(JLENGTH) ! job_storage is changed a lot, backup for
-                                     ! finding out, if someone has stolen something, or how many jobs one
-                                     ! has done, when job_storage hold no more jobs
-                                              ! in setup
+  integer(kind=i4_kind)             :: already_done ! stores how many jobs the proc has done from
+                                      ! the current interval
+  integer(kind=i4_kind)             :: remember_last ! to find out if someone has stolen something
   logical                           :: had_thief ! only check for messages if there is realy a change that there are some
   logical                           :: terminated!, finishedjob ! for termination algorithm
   integer(kind=i4_kind),allocatable :: requ2(:) ! requests of send are stored till relaese
@@ -241,10 +240,12 @@ contains
     ! try to read from there ( local_tgetm false means, have to try again,
     ! true means that this proc has gotten all the jobs it may get from its
     ! local storage in this dlb-loop)
-    do while ( .not. local_tgetm(n, jobs) )
+    do while ( .not. local_tgetm(n, jobs, already_done) )
        call time_stamp("waiting for time to acces my own memory",2)
     enddo
     call time_stamp("finished local search",3)
+    if (jobs(JLEFT) \= remember_last) had_thief = .true.
+    remember_last = jobs(JRIGHT)
 
     if ( empty(jobs) ) many_searches = many_searches + 1 ! just for debugging
 
@@ -259,7 +260,7 @@ contains
       many_tries = many_tries + 1 ! just for debugging
 
       call time_stamp("about to call rmw_tgetm()",4)
-      term = rmw_tgetm(n, v, jobs)
+      term = rmw_tgetm(n, v, jobs, already_done)
       call time_stamp("returned from rmw_tgetm()",4)
     enddo
     call time_stamp("finished stealing",3)
@@ -389,7 +390,7 @@ contains
     call end_communication()
   end subroutine check_termination
 
-  logical function local_tgetm(m, jobs) result(ok)
+  logical function local_tgetm(m, jobs, alraedy_done) result(ok)
     !  Purpose: tries to get m jobs from the local job_storage.
     !           Returns true if either: it got some jobs
     !                        or: there are no jobs in the storage
@@ -408,6 +409,7 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(i4_kind), intent(in)  :: m
+    integer(i4_kind), intent(inout)  :: already_done
     integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
     logical                       :: ok ! result
     !** End of interface *****************************************
@@ -464,7 +466,7 @@ contains
             ! its my_resp, local(JRIGHT) tells together with start_jobs how many jobs
             ! have been done
             !
-            call report_or_store(local)
+            call report_or_store(local, already_done)
         else
             ok = .false.
             jobs(JRIGHT) = jobs(JLEFT) ! non actuell informations, make them invalid
@@ -478,15 +480,9 @@ contains
         call time_stamp("free",2)
 
         !
-        ! FIXME: is there a better place for this hack?
-        !
-        ! check for thieves (to know when to wait for back reports)
-        if ( .not. job_storage(JRIGHT) == start_job(JRIGHT) ) had_thief = .true.
-
-        !
         ! Try taking a slice from (a copy of) the local storage:
         !
-        if ( steal_local(m, local, remaining, jobs) ) then
+        if ( steal_local(m, local, remaining, jobs, already_done) ) then
             !
             ! Store remaining jobs:
             !
@@ -497,7 +493,7 @@ contains
             !
             ! see above
             !
-            call report_or_store(local)
+            call report_or_store(local, already_done)
         endif
 
         !
@@ -533,10 +529,8 @@ contains
     ! steal from the back, this means that from the initial starting point on
     ! (stored in start_job) to this one, all jobs were done
     ! if my_jobs(JRIGHT)/= start-job(JRIGHT) someone has stolen jobs
-    num_jobs_done = my_jobs(JRIGHT) - start_job(JLEFT)
-    !if (num_jobs_done == 0) return ! there is non job, thus why care
-
-    if (start_job(JOWNER) == my_rank) then
+    num_jobs_done = already_done
+    if (my_jobs(JOWNER) == my_rank) then
       my_resp_self = my_resp_self + num_jobs_done
       if (decrease_resp(num_jobs_done, my_rank)== 0) then
         if (my_rank == termination_master) then
@@ -547,11 +541,11 @@ contains
       endif
     else
       your_resp = your_resp + num_jobs_done
-      call report_job_done(num_jobs_done, start_job(JOWNER))
+      call report_job_done(num_jobs_done, my_jobs(JOWNER))
     endif
   end subroutine report_or_store
 
-  function rmw_tgetm(m, rank, jobs) result(ok)
+  function rmw_tgetm(m, rank, jobs, already_done) result(ok)
     !  Purpose: read-modify-write variant fo getting m from another proc
     !           rank, returns true if the other proc has its memory free
     !           false if it is not
@@ -567,6 +561,7 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     integer(i4_kind), intent(in)  :: m, rank
+    integer(i4_kind), intent(inout)  :: already_done
     integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
     logical                       :: ok ! result
     ! *** end of interface ***
@@ -597,15 +592,11 @@ contains
         RETURN
     endif
 
-    !
-    ! FIXME: Modifying global data structure here:
-    !
-    start_job = stolen_jobs
-
+    already_done = 0
     !
     ! "Stealing" from myself:
     !
-    ok = steal_local(m, stolen_jobs, local_jobs, jobs)
+    ok = steal_local(m, stolen_jobs, local_jobs, jobs, already_done)
     ASSERT(ok)
 
     !
@@ -765,7 +756,7 @@ contains
     ok = .not. empty(stolen)
   end function steal_remote
 
-  function steal_local(m, local, remaining, stolen) result(ok)
+  function steal_local(m, local, remaining, stolen, already_done) result(ok)
     !
     ! "Stealing" from myself is implemented as splitting the interval
     !
@@ -782,6 +773,7 @@ contains
     use dlb_common, only: i4_kind, JLENGTH, reserve_workm
     implicit none
     integer(i4_kind), intent(in)  :: m
+    integer(i4_kind), intent(inout)  :: already_done
     integer(i4_kind), intent(in)  :: local(:) ! (JLENGTH)
     integer(i4_kind), intent(out) :: remaining(:) ! (JLENGTH)
     integer(i4_kind), intent(out) :: stolen(:) ! (JLENGTH)
@@ -806,6 +798,7 @@ contains
     ! interval is remaining:
     !
     call split_at(c, local, stolen, remaining)
+    already_done = already_done + work
 
     ok = .not. empty(stolen)
   end function steal_local
@@ -1010,6 +1003,7 @@ contains
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
+    integer(kind=i4_kind)                :: start_job(JLENGTH)
     !------------ Executable code --------------------------------
 
     ! these variables are for the termination algorithm
@@ -1030,6 +1024,8 @@ contains
     many_zeros = 0
     my_resp_self = 0
     your_resp = 0
+    already_done = 0
+    remember_last = start_job(JLEFT)
 
     ! needed for termination
     my_resp_start = start_job(JRIGHT) - start_job(JLEFT)
