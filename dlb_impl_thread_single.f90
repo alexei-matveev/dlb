@@ -142,12 +142,9 @@ module dlb_impl
 
 
 
-
-  integer(kind=i4_kind)             :: start_job(JLENGTH) ! job_storage is changed a lot, backup for
-                                     ! finding out, if someone has stolen something, or how many jobs one
-                                     ! has done, after initalization only used by SECRETARY
-                                              ! in setup, should only accessed by SECRETARY, but is initalized by MAIN
-                                              ! in a one-thread environment
+  integer(kind=i4_kind)             :: already_done ! stores how many jobs of the current interval have
+                                      ! been already calculated, needed for the termination algorithm
+                                      ! after initalizing should be only used by the SECRETARY
 
   ! there are two  variables shared between the two threads
   ! terminated is blocked by a global data lock rwlock ("BIG KERNEL LOCK"), only SECRETARY will also write to it
@@ -365,8 +362,10 @@ contains
     if (job_storage(JLEFT) >= job_storage(JRIGHT)) then
       wait_answer = .true.
       many_searches = many_searches + 1 !global debug tool
-      if (.not. masterserver) then ! masterserver has different termination algorithm
-        call report_or_store(requ)
+      if (.not. masterserver .and. already_done > 0) then
+        ! masterserver has different termination algorithm
+        ! only report finished jobs, when there are still any
+        call report_or_store(requ,already_done, job_storage(JOWNER))
       endif
       call send_request(requ, count_ask, proc_asked_last)
     endif
@@ -491,7 +490,7 @@ contains
         proc_asked_last = -1  ! set back, which proc to wait for
         call th_mutex_lock( LOCK_JS)
         job_storage(:JLENGTH) = my_jobs
-        start_job = my_jobs
+        already_done = 0
         call th_cond_signal(COND_JS2_UPDATE)
         call th_mutex_unlock(LOCK_JS)
       endif
@@ -512,7 +511,7 @@ contains
     end select
   end subroutine check_messages
 
-  subroutine report_or_store(requ)
+  subroutine report_or_store(requ, num_jobs_done, rank)
     !  Purpose: If a job is finished, this cleans up afterwards
     !           Needed for termination algorithm, there are two
     !           cases, it was a job of the own responsibilty or
@@ -528,17 +527,17 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), allocatable  :: requ(:)
+    integer(kind=i4_kind), intent(inout):: num_jobs_done
+    integer(kind=i4_kind), intent(in)   :: rank
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: num_jobs_done
     !------------ Executable code --------------------------------
     call time_stamp("finished a job",4)
     ! my_jobs hold recent last point, as proc started from beginning and
     ! steal from the back, this means that from the initial starting point on
     ! (stored in start_job) to this one, all jobs were done
     ! if my_jobs(JRIGHT)/= start_job(JRIGHT) someone has stolen jobs
-    num_jobs_done = job_storage(JRIGHT) - start_job(JLEFT)
-    if (start_job(JOWNER) == my_rank) then
+    if (rank == my_rank) then
       my_resp_self = my_resp_self + num_jobs_done
       if(decrease_resp(num_jobs_done, my_rank)== 0) then ! if all my jobs are done
         if (my_rank == termination_master) then
@@ -551,8 +550,9 @@ contains
       your_resp = your_resp + num_jobs_done
       ! As all isends have to be closed sometimes, storage of
       ! the request handlers is needed
-      call report_job_done(num_jobs_done, start_job(JOWNER))
+      call report_job_done(num_jobs_done, rank)
     endif
+    num_jobs_done = 0
   end subroutine report_or_store
 
 
@@ -580,6 +580,7 @@ contains
     sp = job_storage(JLEFT) + w
     call split_at(sp, job_storage, my_jobs, remaining)
     job_storage = remaining
+    already_done = already_done + w
   end subroutine local_tgetm
 
   subroutine dlb_setup(job)
@@ -599,13 +600,14 @@ contains
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
+    integer(kind=i4_kind)                :: start_job(JLENGTH)
     !------------ Executable code --------------------------------
     ! these variables are for the termination algorithm
     terminated = .false.
-    ! set starting values for the jobs, needed also in this way for
-    ! termination, as they will be stored also in the job_storage
-    ! start_job should only be changed if all current jobs are finished
+    ! set starting values for the jobs
     start_job = set_start_job(job)
+    ! already done should contain how many of the jobs have been done already
+    already_done = 0
     call dlb_common_setup(start_job(JRIGHT) - start_job(JLEFT)) ! sets none finished on termination_master
     ! needed for termination
     my_resp_start = start_job(JRIGHT) - start_job(JLEFT)
