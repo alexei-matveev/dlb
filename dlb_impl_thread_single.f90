@@ -144,7 +144,9 @@ module dlb_impl
 
   integer(kind=i4_kind)             :: already_done ! stores how many jobs of the current interval have
                                       ! been already calculated, needed for the termination algorithm
-                                      ! after initalizing should be only used by the SECRETARY
+                                      ! after initalizing should be only used with LOCK_JS
+                                      ! MAIN stores here how many jobs it has already done, SECRETARY uses
+                                      ! it for reporting the finished job to their owner
 
   ! there are two  variables shared between the two threads
   ! terminated is blocked by a global data lock rwlock ("BIG KERNEL LOCK"), only SECRETARY will also write to it
