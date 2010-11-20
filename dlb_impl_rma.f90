@@ -482,7 +482,11 @@ contains
         !
         ! Try taking a slice from (a copy of) the local storage:
         !
-        if ( steal_local(m, local, remaining, jobs, already_done) ) then
+        if ( steal_local(m, local, remaining, jobs) ) then
+            !
+            ! This shoul be better done at a single place:
+            !
+            already_done = already_done + length(jobs)
             !
             ! Store remaining jobs:
             !
@@ -596,8 +600,13 @@ contains
     !
     ! "Stealing" from myself:
     !
-    ok = steal_local(m, stolen_jobs, local_jobs, jobs, already_done)
+    ok = steal_local(m, stolen_jobs, local_jobs, jobs)
     ASSERT(ok)
+
+    !
+    ! This shoul be better done at a single place:
+    !
+    already_done = already_done + length(jobs)
 
     !
     ! This stores the rest for later delivery in the OWN job-storage
@@ -716,6 +725,9 @@ contains
     !
     !     C = B - steal_work_for_rma(m, remote)
     !
+    ! NOTE: This function has to adhere to the interface of modify(...)
+    ! argument in try_read_modify_write(...)
+    !
     ! FIXME: the role of parameter "m" is not clear!
     !
     use dlb_common, only: i4_kind, JLENGTH, steal_work_for_rma
@@ -756,7 +768,7 @@ contains
     ok = .not. empty(stolen)
   end function steal_remote
 
-  function steal_local(m, local, remaining, stolen, already_done) result(ok)
+  function steal_local(m, local, remaining, stolen) result(ok)
     !
     ! "Stealing" from myself is implemented as splitting the interval
     !
@@ -770,10 +782,12 @@ contains
     !
     !     C = A + reserve_workm(m, local)
     !
+    ! NOTE: This function has to adhere to the interface of modify(...)
+    ! argument in try_read_modify_write(...)
+    !
     use dlb_common, only: i4_kind, JLENGTH, reserve_workm
     implicit none
     integer(i4_kind), intent(in)  :: m
-    integer(i4_kind), intent(inout)  :: already_done
     integer(i4_kind), intent(in)  :: local(:) ! (JLENGTH)
     integer(i4_kind), intent(out) :: remaining(:) ! (JLENGTH)
     integer(i4_kind), intent(out) :: stolen(:) ! (JLENGTH)
@@ -798,7 +812,6 @@ contains
     ! interval is remaining:
     !
     call split_at(c, local, stolen, remaining)
-    already_done = already_done + work
 
     ok = .not. empty(stolen)
   end function steal_local
@@ -1040,10 +1053,19 @@ contains
     integer(i4_kind), intent(in) :: jobs(:)
     ! *** end of interface ***
 
+    empty = length(jobs) > 0
+  end function empty
+
+  function length(jobs) result(n)
+    implicit none
+    integer(i4_kind), intent(in) :: jobs(:)
+    integer(i4_kind)             :: n ! result
+    ! *** end of interface ***
+
     ASSERT(size(jobs)==JLENGTH)
 
-    empty = jobs(JLEFT) >= jobs(JRIGHT)
-  end function empty
+    n = max(jobs(JRIGHT) - jobs(JLEFT), 0)
+  end function length
 
   logical function storage_is_empty(rank)
     implicit none
