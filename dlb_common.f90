@@ -816,7 +816,6 @@ contains
     !           masterserver variant, 70% are distributed beforehand
     !           the rest is on the master
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: masterserver, termination_master
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: N, n_procs, my_rank
