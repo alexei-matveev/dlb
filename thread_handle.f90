@@ -190,7 +190,7 @@ module thread_handle
       !!! end variant with master
       g_jobs = set_empty_job()
     else ! take the last w jobs of the job-storage
-      call split_at(job_storage(JRIGHT) - w, job_storage, remaining, g_jobs)
+      call split_at(job_storage(JLEFT) + w, job_storage, g_jobs, remaining)
       job_storage = remaining
     endif
     messagesJA(2:,partner+1) = g_jobs
