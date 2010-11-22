@@ -762,9 +762,10 @@ contains
     !
     ! Split the interval here:
     !
-    c = remote(JRIGHT) - work
 
-    call split_at(c, remote, remaining, stolen)
+    c = remote(JLEFT) + work
+
+    call split_at(c, remote, stolen, remaining)
 
     ok = .not. empty(stolen)
   end function steal_remote
