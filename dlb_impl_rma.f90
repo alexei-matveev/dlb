@@ -1055,7 +1055,7 @@ contains
     integer(i4_kind), intent(in) :: jobs(:)
     ! *** end of interface ***
 
-    empty = length(jobs) > 0
+    empty = length(jobs) == 0
   end function empty
 
   function length(jobs) result(n)
