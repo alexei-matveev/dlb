@@ -390,7 +390,7 @@ contains
     call end_communication()
   end subroutine check_termination
 
-  logical function local_tgetm(m, jobs, already_done) result(ok)
+  function local_tgetm(m, jobs, already_done) result(ok)
     !  Purpose: tries to get m jobs from the local job_storage.
     !           Returns true if either: it got some jobs
     !                        or: there are no jobs in the storage
