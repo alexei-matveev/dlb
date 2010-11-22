@@ -244,7 +244,7 @@ contains
        call time_stamp("waiting for time to acces my own memory",2)
     enddo
     call time_stamp("finished local search",3)
-    if (jobs(JLEFT) \= remember_last) had_thief = .true.
+    if (jobs(JLEFT) .NE. remember_last) had_thief = .true.
     remember_last = jobs(JRIGHT)
 
     if ( empty(jobs) ) many_searches = many_searches + 1 ! just for debugging
@@ -390,7 +390,7 @@ contains
     call end_communication()
   end subroutine check_termination
 
-  logical function local_tgetm(m, jobs, alraedy_done) result(ok)
+  logical function local_tgetm(m, jobs, already_done) result(ok)
     !  Purpose: tries to get m jobs from the local job_storage.
     !           Returns true if either: it got some jobs
     !                        or: there are no jobs in the storage
@@ -513,7 +513,7 @@ contains
     ASSERT(ierr==MPI_SUCCESS)
   end function local_tgetm
 
-  subroutine report_or_store(my_jobs)
+  subroutine report_or_store(my_jobs, already_done)
     !  Purpose: If a job is finished, this cleans up afterwards
     !           Needed for termination algorithm, there are two
     !           cases, it was a job of the own responsibilty or
@@ -524,6 +524,7 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in  ) :: my_jobs(JLENGTH)
+    integer(kind=i4_kind), intent(inout) :: already_done
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: num_jobs_done
