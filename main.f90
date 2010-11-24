@@ -20,7 +20,6 @@ integer :: i, k
 
 double precision :: time
 double precision, allocatable :: times(:, :)
-double precision, allocatable :: time_stamps(:,:), loops(:)
 
 integer, allocatable :: jobs_done(:)
 integer, allocatable :: sub_total(:)
@@ -56,24 +55,19 @@ endif
 ! times(:, 2) --- working (usful work)
 !
 allocate(times(0:n_procs-1, 2))
-allocate(time_stamps(0:n_procs-1, 5))
-allocate(loops(0:n_procs-1))
 allocate(jobs_done(0:n_procs-1), sub_total(0:n_procs-1))
 times = 0.0
-time_stamps = 0.0
 
 call time_stamp("START",0)
 
 ! starting time:
 times(rank, 1) = MPI_WTIME()
-time_stamps(rank,1) = MPI_WTIME()
 
 !
 ! Needs to be done once:
 !
 call dlb_init()
 
-time_stamps(rank,2) = MPI_WTIME()
 
 !
 ! Repeat the loop several times:
@@ -87,8 +81,6 @@ do k = 1, NTIMES
     !
     call dlb_setup(NJOBS)
 
-    ! FIXME: this time stamp is bogus:
-    time_stamps(rank, 3) = MPI_WTIME()
 
     do while ( dlb_give_more(MAXJOBS, interval) )
         ! measure working time:
@@ -108,7 +100,6 @@ do k = 1, NTIMES
     enddo
 enddo
 
-time_stamps(rank,4) = MPI_WTIME()
 
 !
 ! Do once:
@@ -119,14 +110,12 @@ call dlb_finalize()
 ! The rest is debug and diagnostics.
 !
 
-time_stamps(rank,5) = MPI_WTIME()
 
 call time_stamp("END",0)
 ! elapsed time:
 times(rank, 1) = MPI_WTIME() - times(rank, 1)
 
 call reduce_double_2D(times)
-call reduce_double_2D(time_stamps)
 call reduce_int_1D(sub_total)
 call reduce_int_1D(jobs_done)
 
@@ -146,19 +135,6 @@ if ( rank == 0 ) then
     print *, 'efficiency =', sum(times(:, 2)) / maxval(times(:, 1)) / size(times, 1)
     print *, 'maximum elapsed times = ', maxval(times(:,1))
     print *, 'maximum difference in working times =', maxval(times(:,2)) - minval(times(:,2))
-    print *, 'Timings: Time points:'
-    print *, time_stamps(:,1)
-    print *, time_stamps(:,2)
-    print *, time_stamps(:,3)
-    print *, time_stamps(:,4)
-    print *, time_stamps(:,5)
-    print *, 'Timings: durations:'
-    print *, "dlb_init", time_stamps(:,2) - time_stamps(:,1)
-    print *, "dlb_setup", time_stamps(:,3) - time_stamps(:,2)
-    loops = time_stamps(:,4) - time_stamps(:,3)
-    print *, "loops", loops(:)
-    print *, 'maximum difference in loops =', maxval(loops(:)) - minval(loops(:))
-    print *, "dlb_finalize", time_stamps(:,5) - time_stamps(:,4)
     print *, "jobs done on the processors: ", jobs_done(:)
     print *, "max/min jobs on procs: ", maxval(jobs_done(:)), minval(jobs_done(:))
 endif
