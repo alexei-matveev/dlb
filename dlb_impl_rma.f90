@@ -298,11 +298,12 @@ contains
     integer(kind=i4_kind)                :: message(1 + JLENGTH)
     !------------ Executable code --------------------------------
 
-    ! check for any message
-    call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
+    do ! while MPI_IPROBE(..., flag, ...) returns flag=.true.
+        ! check for any message
+        call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world, flag, stat, ierr)
+        ASSERT(ierr==MPI_SUCCESS)
+        if ( .not. flag ) exit ! while loop
 
-    do while (flag) !got a message
 
       call MPI_RECV(message, 1+JLENGTH, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG,comm_world, stat,ierr)
       !print *, time_stamp_prefix(MPI_Wtime()), "got message from", stat(MPI_SOURCE), "with", message
@@ -358,9 +359,6 @@ contains
         print *, "or change parameter MSGTAG in this module to an unused value"
         call abort()
       end select
-
-      call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world, flag, stat, ierr)
-      ASSERT(ierr==MPI_SUCCESS)
     enddo
     check_messages = terminated
 
