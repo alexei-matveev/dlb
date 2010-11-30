@@ -840,8 +840,9 @@ contains
     !           will be done on each proc and where is start and endpoint
     !           in the global job range, this will be fed directly in
     !           the dlb_setup of the dlb routine
-    !           each one should get an equal amount of them, if it
-    !           is not equally dividable the first ones get one more
+    !
+    !           If it is not dividable, the last processor will get
+    !           the rest also
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
@@ -850,22 +851,31 @@ contains
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind) :: jobs_per_proc, rest
+    integer(kind=i4_kind) :: jobs_per_proc
+    !integer(kind=i4_kind) :: rest
 
     jobs_per_proc = N / n_procs
     my_jobs(JLEFT) = jobs_per_proc * my_rank
-    ! if it is not dividable, distribute the rest
-    ! this will shift the start point of each (but the first) proc
-    rest = N - jobs_per_proc * n_procs
-    if (my_rank < rest) then
-       my_jobs(JLEFT) = my_jobs(JLEFT) + my_rank
-    else
-       my_jobs(JLEFT) = my_jobs(JLEFT) + rest
-    endif
 
-    ! if this proc has to do one more job tell him so
-    if (my_rank < rest) jobs_per_proc = jobs_per_proc + 1
+    ! old version, where additional jobs were distributed also
+    !
+    ! kept for possible return if appropriate
+    ! if it is not dividable, distribute the rest
+    !           each one should get an equal amount of them, if it
+    !           is not equally dividable the first ones get one more
+    !! this will shift the start point of each (but the first) proc
+    !rest = N - jobs_per_proc * n_procs
+    !if (my_rank < rest) then
+    !   my_jobs(JLEFT) = my_jobs(JLEFT) + my_rank
+    !else
+    !   my_jobs(JLEFT) = my_jobs(JLEFT) + rest
+    !endif
+
+    !! if this proc has to do one more job tell him so
+    !!if (my_rank < rest) jobs_per_proc = jobs_per_proc + 1
+
     my_jobs(JRIGHT) = my_jobs(JLEFT) + jobs_per_proc
+    if (my_rank == n_procs -1) my_jobs(JRIGHT) = N
   end function distribute_jobs
 #endif
 
