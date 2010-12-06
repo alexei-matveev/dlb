@@ -279,6 +279,9 @@ contains
     has_jr_on = .false.
     count_ask = -1
     lm_source = -1
+    call test_resp_done(0, requ_m, my_rank) ! needed if it is initialized with zero jobs for
+    ! this proc, the reporing of how many jobs are done for zero jobs is stopped before
+    ! it reaches the part were it is tested if the responsibility is done
     call task_messages(has_jr_on, requ_m, lm_source,count_ask, proc_asked_last)
     if (.not. has_jr_on) call task_local_storage(has_jr_on, requ_m, count_ask, proc_asked_last)
     do while (.not. termination())
@@ -312,6 +315,35 @@ contains
 
   subroutine thread_control() bind(C)
   end subroutine thread_control
+
+
+  subroutine test_resp_done(n, requ, rank)
+    !  Purpose: tests if the responsibility is done, when n new
+    ! jobs are finished
+    !
+    ! Context: secretary thread.
+    !
+    !
+    ! Locks: wrlock, through check_termination
+    !        NEEDS to be in a JS_LOCK context
+    !------------ Modules used ------------------- ---------------
+    implicit none
+    !------------ Declaration of formal parameters ---------------
+    integer(kind=i4_kind), allocatable  :: requ(:)
+    integer(kind=i4_kind), intent(in)   :: n
+    integer(kind=i4_kind), intent(in)   :: rank
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
+    !------------ Executable code --------------------------------
+
+      if(decrease_resp(n, rank)== 0) then ! if all my jobs are done
+        if (my_rank == termination_master) then
+          call check_termination(my_rank)
+        else
+          call send_resp_done( requ)
+        endif
+      endif
+  end subroutine test_resp_done
 
   subroutine task_messages(wait_answer, requ, lm_source, count_ask, proc_asked_last)
     !  Purpose: checks if any message has arrived, check_message will
@@ -455,13 +487,7 @@ contains
     case (DONE_JOB) ! someone finished stolen job slice
       ASSERT(message(2)>0)
 
-      if (decrease_resp(message(2), stat(MPI_SOURCE)) == 0) then
-        if (my_rank == termination_master) then
-          call check_termination(my_rank)
-        else
-          call send_resp_done( requ_m)
-        endif
-      endif
+      call test_resp_done(message(2), requ_m, stat(MPI_SOURCE))
 
     case (RESP_DONE) ! finished responsibility
       ! arrives only on termination master:
@@ -541,13 +567,7 @@ contains
     ! if my_jobs(JRIGHT)/= start_job(JRIGHT) someone has stolen jobs
     if (rank == my_rank) then
       my_resp_self = my_resp_self + num_jobs_done
-      if(decrease_resp(num_jobs_done, my_rank)== 0) then ! if all my jobs are done
-        if (my_rank == termination_master) then
-          call check_termination(my_rank)
-        else
-          call send_resp_done( requ)
-        endif
-      endif
+      call test_resp_done(num_jobs_done, requ, my_rank)
     else
       your_resp = your_resp + num_jobs_done
       ! As all isends have to be closed sometimes, storage of
