@@ -196,14 +196,14 @@ contains
     integer :: rank, ierr
 
     call MPI_COMM_RANK( MPI_COMM_WORLD, rank, ierr )
-    if ( ierr /= MPI_SUCCESS ) stop "error in MPI_COMM_RANK"
+    ASSERT(ierr==MPI_SUCCESS)
 
     if ( rank == 0 ) then
       call MPI_REDUCE( MPI_IN_PLACE, buf, length, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
     else
       call MPI_REDUCE( buf, MPI_IN_PLACE, length, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
     endif
-    if ( ierr /= MPI_SUCCESS ) stop "error in MPI_REDUCE"
+    ASSERT(ierr==MPI_SUCCESS)
   end subroutine reduce_double_buf
 
   subroutine reduce_int_buf(buf, length)
@@ -215,14 +215,14 @@ contains
     integer :: rank, ierr
 
     call MPI_COMM_RANK( MPI_COMM_WORLD, rank, ierr )
-    if ( ierr /= MPI_SUCCESS ) stop "error in MPI_COMM_RANK"
+    ASSERT(ierr==MPI_SUCCESS)
 
     if ( rank == 0 ) then
       call MPI_REDUCE( MPI_IN_PLACE, buf, length, MPI_INTEGER, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
     else
       call MPI_REDUCE( buf, MPI_IN_PLACE, length, MPI_INTEGER, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
     endif
-    if ( ierr /= MPI_SUCCESS ) stop "error in MPI_REDUCE"
+    ASSERT(ierr==MPI_SUCCESS)
   end subroutine reduce_int_buf
 
 end program main
