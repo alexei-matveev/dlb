@@ -10,7 +10,7 @@ use dlb_common, only: time_stamp ! for debug prints
 implicit none
 !include 'mpif.h'
 
-integer, parameter :: NJOBS = 20
+integer            :: NJOBS = 20
 integer, parameter :: MAXJOBS = 1
 integer, parameter :: NTIMES = 3
 
@@ -42,6 +42,12 @@ case (MPI_THREAD_MULTIPLE)
 case default
   print *, 'provided capabilities=',prov
 end select
+
+!
+! Parse command line (after having given the chance for MPI
+! to modify it)
+!
+call get_args(NJOBS)
 
 call MPI_COMM_RANK( MPI_COMM_WORLD, rank, ierr )
 call MPI_COMM_SIZE( MPI_COMM_WORLD, n_procs, ierr)
@@ -142,6 +148,28 @@ endif
 call MPI_FINALIZE(ierr)
 
 contains
+
+  subroutine get_args(njobs)
+    implicit none
+    integer, intent(out) :: njobs
+    ! *** end of interface ***
+
+    character(len=128) :: arg
+    integer :: stat
+
+    ! requires F2003-bits for argv support:
+    call get_command_argument(1, arg, status=stat)
+
+    if ( stat /= 0 ) then
+        arg = "20"
+    endif
+
+    read(arg, *, iostat=stat) njobs
+
+    if ( stat /= 0 ) then
+      stop "Usage: ./test_dlb [NJOBS]"
+    endif
+  end subroutine get_args
 
   subroutine reduce_int_1D(array)
     implicit none
