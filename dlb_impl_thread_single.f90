@@ -174,6 +174,12 @@ contains
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     call dlb_thread_init()
+    if (my_rank == 0) then
+        print *, "DLB init: using variant 'thread single'"
+        print *, "DLB init: This variant needs an additinal thread for mpi messages"
+        print *, "DLB init: This thread is generated with Pthreads"
+        print *, "DLB init: Please ensure that MPI has at least MPI_THREAD_SERIALIZED"
+    endif
   end subroutine dlb_init
 
   subroutine dlb_finalize()

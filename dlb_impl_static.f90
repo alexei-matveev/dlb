@@ -45,6 +45,7 @@ module dlb_impl
 !----------------------------------------------------------------
 # include "dlb.h"
 use dlb_common, only: dlb_common_init, dlb_common_finalize
+use dlb_common, only: my_rank
 implicit none
 ! ONLY FOR DEBBUGING WITHOUT PARAGAUSS
 ! END ONLY FOR DEBUGGING
@@ -59,7 +60,6 @@ integer, parameter :: i4_kind = integer_kind
 ! real with 8 bytes, precision 15 decimal digits
 integer, parameter :: double_precision_kind = selected_real_kind(15)
 integer, parameter :: r8_kind = double_precision_kind
-integer(kind=i4_kind) :: my_rank
 double precision :: time_offset = -1.0
 ! END ONLY FOR DEBUGGING
 
@@ -79,6 +79,10 @@ contains
     implicit none
     !** End of interface *****************************************
     call dlb_common_init()
+    if (my_rank == 0) then
+        print *, "DLB init: using variant 'static'"
+        print *, "DLB init: This variant is a 'non-dynamical DLB' routine"
+    endif
   end subroutine dlb_init
   !*************************************************************
   subroutine dlb_finalize()

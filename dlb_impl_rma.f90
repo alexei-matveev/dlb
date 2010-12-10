@@ -175,6 +175,11 @@ contains
     job_storage = 0
 
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
+    if (my_rank ==0) then
+        print *, "DLB init: using variant 'rma'"
+        print *, "DLB init: This variant uses the remote memory access of MPI implementation"
+        print *, "DLB init: it needs real asynchronous RMA actions by MPI for working properly"
+    endif
   end subroutine dlb_init
 
   subroutine dlb_finalize()

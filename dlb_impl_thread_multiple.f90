@@ -231,6 +231,11 @@ contains
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     call dlb_thread_init()
+    if (my_rank == 0) then
+        print *, "DLB init: using variant 'thread multiple'"
+        print *, "DLB init: This variant needs additinalal threads from Pthreads"
+        print *, "DLB init: Please ensure that MPI has at least MPI_THREAD_MULTIPLE"
+    endif
   end subroutine dlb_init
 
   subroutine dlb_finalize()
