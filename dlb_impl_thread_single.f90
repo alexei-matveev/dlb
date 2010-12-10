@@ -265,6 +265,7 @@ contains
     integer(kind=i4_kind)                :: count_ask(n_procs), proc_asked_last ! remember
                                           ! which job request I send (and to whom the last)
     integer(kind=i4_kind)                :: ierr
+    double precision                     :: timestart ! just for debugging
     logical :: has_jr_on
     !------------ Executable code --------------------------------
     count_messages = 0
@@ -282,14 +283,16 @@ contains
     call test_resp_done(0, requ_m, my_rank) ! needed if it is initialized with zero jobs for
     ! this proc, the reporing of how many jobs are done for zero jobs is stopped before
     ! it reaches the part were it is tested if the responsibility is done
-    call task_messages(has_jr_on, requ_m, lm_source,count_ask, proc_asked_last)
-    if (.not. has_jr_on) call task_local_storage(has_jr_on, requ_m, count_ask, proc_asked_last)
+    call task_messages(has_jr_on, requ_m, lm_source,count_ask, proc_asked_last,&
+         many_zeros, timestart, timemax)
+    if (.not. has_jr_on) call task_local_storage(has_jr_on, requ_m, count_ask, proc_asked_last, timestart)
     do while (.not. termination())
       call c_sleep(1000) !microseconds
       ! check for any message with messagetag dlb
-      call task_messages(has_jr_on, requ_m, lm_source, count_ask, proc_asked_last)
+      call task_messages(has_jr_on, requ_m, lm_source, count_ask, proc_asked_last,&
+          many_zeros, timestart, timemax)
       call test_requests(requ_m)
-      if (.not. has_jr_on) call task_local_storage(has_jr_on, requ_m, count_ask, proc_asked_last)
+      if (.not. has_jr_on) call task_local_storage(has_jr_on, requ_m, count_ask, proc_asked_last, timestart)
     enddo
 
     ! now finish all messges still available, no matter if they have been received
@@ -345,7 +348,8 @@ contains
       endif
   end subroutine test_resp_done
 
-  subroutine task_messages(wait_answer, requ, lm_source, count_ask, proc_asked_last)
+  subroutine task_messages(wait_answer, requ, lm_source, count_ask, proc_asked_last,&
+             many_zeros, timestart, timemax)
     !  Purpose: checks if any message has arrived, check_message will
     !           then select the response to the content
     !           if no more messages are found it will finish the task
@@ -355,6 +359,8 @@ contains
     logical, intent(inout)               :: wait_answer
     integer(kind=i4_kind),allocatable    :: requ(:)
     integer(kind=i4_kind), intent(inout) :: lm_source(:), proc_asked_last, count_ask(:)
+    integer(kind=i4_kind), intent(inout) :: many_zeros! just for debugging
+    double precision, intent(inout)      :: timestart, timemax ! just for debugging
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)
@@ -369,13 +375,14 @@ contains
       count_messages = count_messages + 1
       call MPI_RECV(message, 1+JLENGTH, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
       !print *, my_rank, "received ",stat(MPI_SOURCE),"'s message", message
-      call check_messages(requ, message, stat, wait_answer, lm_source, count_ask, proc_asked_last )
+      call check_messages(requ, message, stat, wait_answer, lm_source, count_ask, proc_asked_last,&
+          many_zeros, timestart, timemax)
       call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
       ASSERT(ierr==MPI_SUCCESS)
     enddo
   end subroutine task_messages
 
-  subroutine task_local_storage(wait_answer, requ, count_ask, proc_asked_last)
+  subroutine task_local_storage(wait_answer, requ, count_ask, proc_asked_last, timestart)
     !  Purpose: checks if there are still jobs in the local storage
     !          if not send a message to another proc asking for jobs
     !          and remember that there is already one on its way
@@ -387,6 +394,8 @@ contains
     logical, intent(out)               :: wait_answer
     integer(kind=i4_kind), intent(inout) :: count_ask(:)
     integer(kind=i4_kind), intent(out) :: proc_asked_last
+    double precision, intent(inout)    :: timestart !inout? we do not change it
+                                         ! in any case
     integer(kind=i4_kind),allocatable    :: requ(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
@@ -401,6 +410,7 @@ contains
         ! only report finished jobs, when there are still any
         call report_or_store(requ,already_done, job_storage(JOWNER))
       endif
+      timestart = MPI_WTIME()
       call send_request(requ, count_ask, proc_asked_last)
     endif
     call th_mutex_unlock(LOCK_JS)
@@ -455,7 +465,8 @@ contains
     call add_request(requ_wr, requ)
   end subroutine send_request
 
-  subroutine check_messages(requ_m, message, stat, wait_answer, lm_source,count_ask, proc_asked_last)
+  subroutine check_messages(requ_m, message, stat, wait_answer, lm_source,count_ask, proc_asked_last,&
+            many_zeros, timestart, timemax)
     !  Purpose: checks which message has arrived, checks for messages:
     !          Someone finished stolen job slice
     !          Someone has finished its responsibility (only termination_master)
@@ -477,8 +488,11 @@ contains
     logical, intent(inout) :: wait_answer
     integer(kind=i4_kind), intent(inout) :: lm_source(:)
     integer(kind=i4_kind), intent(inout) :: count_ask(:), proc_asked_last
+    integer(kind=i4_kind), intent(inout) :: many_zeros! just for debugging
+    double precision, intent(inout)      :: timestart, timemax ! just for debugging
     integer, intent(in) :: message(1 + JLENGTH), stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind)                :: my_jobs(JLENGTH)
+    integer(kind=i4_kind)                :: timeend
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     !------------ Executable code --------------------------------
@@ -509,10 +523,14 @@ contains
       wait_answer = .true. !No use to send a new request for work right now
 
     case (WORK_DONAT) ! got work from other proc
+      timeend = MPI_WTIME()
+      if ((timeend - timestart) > timemax) timemax = timeend - timestart
       count_offers = count_offers + 1
       my_jobs = message(2:)
       if ((my_jobs(JLEFT) >= my_jobs(JRIGHT)) .and. .not. termination()) then
+        timestart = MPI_WTIME()
         call send_request(requ_m, count_ask, proc_asked_last)
+        many_zeros = many_zeros + 1
       else
         wait_answer = .false.
         proc_asked_last = -1  ! set back, which proc to wait for
