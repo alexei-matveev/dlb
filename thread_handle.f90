@@ -213,6 +213,7 @@ module thread_handle
     ! Signals: none.
     !
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: print_statistics
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in)    :: proc
@@ -223,6 +224,7 @@ module thread_handle
 
     ! there will be only a send to the other procs, telling them to terminate
     ! thus the termination_master sets its termination here
+    call print_statistics()
     call wrlock()
     terminated = .true.
     call unlock()

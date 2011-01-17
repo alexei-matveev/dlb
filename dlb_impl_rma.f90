@@ -294,6 +294,7 @@ contains
     !          Someone has finished its responsibilty (only termination_master)
     !          There are no more jobs (message from termination_master to finish)
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: print_statistics
     implicit none
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
@@ -351,6 +352,7 @@ contains
             endif
 
             terminated = .true.
+            call print_statistics()
             ! NOW all my messages HAVE to be complete, so close (without delay)
             call end_requests(requ2)
             call end_communication()
@@ -375,6 +377,7 @@ contains
     !  Purpose: only on termination_master, checks if all procs
     !           have reported termination
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: print_statistics
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in)    :: proc
@@ -386,6 +389,7 @@ contains
     ! thus the termination_master sets its termination here
     terminated = .true.
     if (n_procs > 1) then
+      call print_statistics()
       call send_termination()
     endif
     call end_requests(requ2)

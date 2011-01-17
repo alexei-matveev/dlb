@@ -56,6 +56,7 @@ module dlb_common
   public :: decrease_resp
   public :: clear_up
 
+  public :: print_statistics
   ! integer with 4 bytes, range 9 decimal digits
   integer, parameter, public :: i4_kind = selected_int_kind(9)
 
@@ -653,6 +654,30 @@ contains
   end subroutine clear_up
 
 
+  subroutine print_statistics()
+    ! Purpose: end all of the stored requests in requ
+    !          no matter if the corresponding message has arived
+    !
+    ! Context for 3Threads: mailbox thread, control thread.
+    !             2 Threads: secretary thread
+    !------------ Modules used ------------------- ---------------
+    implicit none
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
+    integer(kind=i4_kind)                :: i, j
+    integer(kind=i4_kind)                :: stolen_jobs(n_procs-1)
+    !------------ Executable code --------------------------------
+    j = 1
+    do i = 1, n_procs
+        if ( i /= my_rank+1) then
+            stolen_jobs(j) = messages(2, i)
+            j = j + 1
+        endif
+    enddo
+    print *,  my_rank, "stole jobs from the others", stolen_jobs
+    print *, my_rank, "got jobs stolen:", my_resp(my_rank + 1)
+  end subroutine print_statistics
+
 ! algorithm for termination (is in principle the same for all dynamical variants)
   integer(i4_kind) function decrease_resp(n, source)
     ! Purpose:  decrease my_resp  by done jobs, for itself increamental
@@ -859,6 +884,12 @@ contains
     jobs_per_proc = N / n_procs
     ! N = jobs_per_proc * n_procs + rest; rest < n_procs
     rest = N - jobs_per_proc * n_procs
+
+    if (my_rank == termination_master) then
+        print *, "Distributing of jobs on the processors"
+        print *, "There are ", N, " jobs altogether"
+        print *, "each processor will get approximatly", jobs_per_proc
+    endif
 
     ! Starting point of own interval:
     my_jobs(JLEFT) = jobs_per_proc * my_rank + min(rest, my_rank)

@@ -488,6 +488,7 @@ contains
     ! Signals: COND_NJ2_UPDATE
     !
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: print_statistics
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer, allocatable :: requ_m(:)
@@ -523,6 +524,7 @@ contains
           stop "stat(MPI_SOURCE) /= termination_master"
       endif
 
+      call print_statistics()
       call wrlock()
       terminated = .true.
       call unlock()
