@@ -158,7 +158,6 @@ module dlb_impl
   ! SECRETARY has terminated) we don't want concurently prints of different threads, so
   ! secretary mustn't print them itsself
   integer(kind=i4_kind)             :: count_messages, count_requests, count_offers
-  integer(kind=i4_kind)             :: my_resp_start, my_resp_self, your_resp
   integer(kind=i4_kind)             :: many_tries, many_searches
   integer(kind=i4_kind)             :: many_zeros
   double precision  :: timemax
@@ -280,8 +279,6 @@ contains
     many_tries = 0
     many_searches = 0
     many_zeros = 0
-    my_resp_self = 0
-    your_resp = 0
     timemax = 0.0
     has_jr_on = .false.
     count_ask = -1
@@ -592,10 +589,8 @@ contains
     ! (stored in start_job) to this one, all jobs were done
     ! if my_jobs(JRIGHT)/= start_job(JRIGHT) someone has stolen jobs
     if (rank == my_rank) then
-      my_resp_self = my_resp_self + num_jobs_done
       call test_resp_done(num_jobs_done, requ, my_rank)
     else
-      your_resp = your_resp + num_jobs_done
       ! As all isends have to be closed sometimes, storage of
       ! the request handlers is needed
       call report_job_done(num_jobs_done, rank)
@@ -657,8 +652,6 @@ contains
     ! already done should contain how many of the jobs have been done already
     already_done = 0
     call dlb_common_setup(start_job(JRIGHT) - start_job(JLEFT)) ! sets none finished on termination_master
-    ! needed for termination
-    my_resp_start = start_job(JRIGHT) - start_job(JLEFT)
     ! Job storage holds all the jobs currently in use
     job_storage(:JLENGTH) = start_job
     ! from now on, there are several threads, so chared objects have to
