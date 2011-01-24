@@ -83,12 +83,7 @@ module dlb_impl
   use dlb_common, only: i4_kind, r8_kind, comm_world
   use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
   use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT, MSGTAG
-  use dlb_common, only: add_request, test_requests, end_requests, send_resp_done, report_job_done
-  use dlb_common, only: dlb_common_setup, has_last_done, send_termination
-  use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
-  use dlb_common, only: decrease_resp
-  use dlb_common, only: end_communication
-  use dlb_common, only: split_at
+  use dlb_common, only: my_rank, n_procs, termination_master
   implicit none
   save            ! save all variables defined in this module
   private         ! by default, all names are private
@@ -293,7 +288,6 @@ contains
     !          Someone has finished its responsibilty (only termination_master)
     !          There are no more jobs (message from termination_master to finish)
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: print_statistics
     implicit none
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
@@ -376,7 +370,6 @@ contains
     !  Purpose: only on termination_master, checks if all procs
     !           have reported termination
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: print_statistics
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in)    :: proc
@@ -410,7 +403,7 @@ contains
     !           (fewer if there are not m left), if there is 0 jobs
     !           given back, there is no more in the storage
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: reserve_workm
+    use dlb_common, only: reserve_workm, set_empty_job
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(i4_kind), intent(in)  :: m
@@ -526,6 +519,7 @@ contains
     !            second case, send to victim, how many of his jobs
     !            were finished
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: decrease_resp, send_resp_done, report_job_done
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in  ) :: my_jobs(JLENGTH)
@@ -567,6 +561,7 @@ contains
     !           it may change and rewrite it, else only the integer belonging to
     !           the proc may be reset to 0
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: set_empty_job
     implicit none
     integer(i4_kind), intent(in)  :: m, rank
     integer(i4_kind), intent(inout)  :: already_done
@@ -642,6 +637,7 @@ contains
     !
     ! Perform read-modify-write sequence
     !
+    use dlb_common, only: set_empty_job
     implicit none
     integer(i4_kind), intent(in)  :: rank, iarg
     integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
@@ -734,7 +730,7 @@ contains
     !
     ! FIXME: the role of parameter "m" is not clear!
     !
-    use dlb_common, only: i4_kind, JLENGTH, steal_work_for_rma
+    use dlb_common, only: i4_kind, JLENGTH, steal_work_for_rma, split_at
     implicit none
     integer(i4_kind), intent(in)  :: m
     integer(i4_kind), intent(in)  :: remote(:) ! (JLENGTH)
@@ -790,7 +786,7 @@ contains
     ! NOTE: This function has to adhere to the interface of modify(...)
     ! argument in try_read_modify_write(...)
     !
-    use dlb_common, only: i4_kind, JLENGTH, reserve_workm
+    use dlb_common, only: i4_kind, JLENGTH, reserve_workm, split_at
     implicit none
     integer(i4_kind), intent(in)  :: m
     integer(i4_kind), intent(in)  :: local(:) ! (JLENGTH)
@@ -1016,6 +1012,7 @@ contains
     !           all jobs should be the numbers from START to END, with
     !           START <= STP <= EP <= END
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: dlb_common_setup, set_start_job
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
