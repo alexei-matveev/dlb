@@ -215,7 +215,6 @@ module dlb_impl
   ! For debugging and counting trace
   ! used only on one thread
   integer(kind=i4_kind)             :: count_messages, count_requests, count_offers ! how many messages arrived, MAILBOX
-  integer(kind=i4_kind)             :: my_resp_start, my_resp_self, your_resp !how many jobs doen where, CONTROL
   integer(kind=i4_kind)             :: many_tries, many_searches !how many times asked for jobs, CONTROL
   integer(kind=i4_kind)             :: many_zeros !how many times asked for jobs, CONTROL
   double precision  :: timemax
@@ -302,7 +301,6 @@ contains
        print *, my_rank, "C: zeros", many_zeros
        print *, my_rank, "C: longest wait for answer", timemax
        !print *, my_rank, "CONTROL: tried", many_searches, "times to get new jobs, by trying to steal", many_tries
-       !print *, my_rank, "CONTROL: done", my_resp_self, "of my own, gave away", my_resp_start - my_resp_self, "and stole", your_resp
        !print *,my_rank, "MAILBOX: got ", count_messages, "messages with", count_requests, "requests and", count_offers, "offers"
     endif
       ! if true means MAIN did not intent to come back (check termination is
@@ -429,8 +427,6 @@ contains
     many_tries = 0
     many_searches = 0
     many_zeros = 0
-    my_resp_self = 0
-    your_resp = 0
     timemax = 0.0
     ! message is always the same (WORK_REQUEST)
     message = 0
@@ -681,12 +677,10 @@ contains
     ! if my_jobs(JRIGHT)/= start_job(JRIGHT) someone has stolen jobs
     !if (num_jobs_done == 0) return ! there is non job, thus why care
     if (my_jobs(JOWNER) == my_rank) then
-      my_resp_self = my_resp_self + num_jobs_done
       if(decrease_resp_locked(num_jobs_done, my_rank)== 0) then ! if all my jobs are done
          call send_resp_done(requ)
       endif
     else
-      your_resp = your_resp + num_jobs_done
       ! As all isends have to be closed sometimes, storage of
       ! the request handlers is needed
       call report_job_done(num_jobs_done, my_jobs(JOWNER))
@@ -728,8 +722,6 @@ contains
     ! start_job should only be changed if all current jobs are finished
     start_job = set_start_job(job)
     call dlb_common_setup(start_job(JRIGHT) - start_job(JLEFT))
-    ! only for debugging:
-    my_resp_start = start_job(JRIGHT) - start_job(JLEFT)
     ! Job storage holds all the jobs currently in use
     job_storage(:JLENGTH) = start_job
     ! from now on, there are several threads, so shared objects have to
