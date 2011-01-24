@@ -116,7 +116,6 @@ module dlb_impl
   logical                           :: terminated!, finishedjob ! for termination algorithm
   integer(kind=i4_kind),allocatable :: requ2(:) ! requests of send are stored till relaese
   integer(kind=i4_kind)             :: requ1 ! this request will be used in any case
-  integer(kind=i4_kind)             :: my_resp_start, my_resp_self, your_resp !how many jobs doen where
   integer(kind=i4_kind)             :: many_tries, many_searches !how many times asked for jobs
   integer(kind=i4_kind)             :: many_locked, many_zeros
   !----------------------------------------------------------------
@@ -542,7 +541,6 @@ contains
     ! if my_jobs(JRIGHT)/= start-job(JRIGHT) someone has stolen jobs
     num_jobs_done = already_done
     if (my_jobs(JOWNER) == my_rank) then
-      my_resp_self = my_resp_self + num_jobs_done
       if (decrease_resp(num_jobs_done, my_rank)== 0) then
         if (my_rank == termination_master) then
           call check_termination(my_rank)
@@ -551,7 +549,6 @@ contains
         endif
       endif
     else
-      your_resp = your_resp + num_jobs_done
       call report_job_done(num_jobs_done, my_jobs(JOWNER))
     endif
   end subroutine report_or_store
@@ -1043,13 +1040,8 @@ contains
     many_searches = 0
     many_locked = 0
     many_zeros = 0
-    my_resp_self = 0
-    your_resp = 0
     already_done = 0
     remember_last = start_job(JLEFT)
-
-    ! needed for termination
-    my_resp_start = start_job(JRIGHT) - start_job(JLEFT)
 
     ! Job storage holds all the jobs currently in use
     ! direct storage, because in own memory used here
