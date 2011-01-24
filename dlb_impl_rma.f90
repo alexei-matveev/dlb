@@ -288,6 +288,8 @@ contains
     !          Someone has finished its responsibilty (only termination_master)
     !          There are no more jobs (message from termination_master to finish)
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: decrease_resp, end_requests, send_resp_done, end_communication
+    use dlb_common, only: print_statistics
     implicit none
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
@@ -370,6 +372,8 @@ contains
     !  Purpose: only on termination_master, checks if all procs
     !           have reported termination
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: has_last_done, send_termination, end_requests, end_communication
+    use dlb_common, only: print_statistics
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in)    :: proc
