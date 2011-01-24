@@ -163,6 +163,9 @@ contains
     !
     termination_master = n_procs - 1
 
+    !
+    ! Only on termination master:
+    !
     if (my_rank == termination_master) then
       allocate(all_done(n_procs), stat = alloc_stat)
       ASSERT(alloc_stat==0)
@@ -176,6 +179,9 @@ contains
 
     integer :: ierr, alloc_stat
 
+    !
+    ! Only on termination master:
+    !
     if (allocated(all_done)) then
       deallocate(all_done, stat=alloc_stat)
       ASSERT(alloc_stat==0)
@@ -198,6 +204,9 @@ contains
 
     integer ::  alloc_stat
 
+    !
+    ! Only on termination master:
+    !
     if (allocated(all_done)) all_done  = .false.
 
     ! if there is any exchange of jobs, the following things are needed
