@@ -745,7 +745,7 @@ contains
     call add_request(req, requ)
   end subroutine send_resp_done
 
-  subroutine report_job_done(num_jobs_done, source2)
+  subroutine report_job_done(num_jobs_done, owner)
     !  Purpose: If a job is finished, this cleans up afterwards
     !           Needed for termination algorithm, there are two
     !           cases, it was a job of the own responsibilty or
@@ -759,33 +759,40 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in  ) :: num_jobs_done, source2
+    integer(kind=i4_kind), intent(in  ) :: num_jobs_done, owner
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind)                :: source
+    integer(kind=i4_kind)                :: owner1 ! == owner + 1
     !------------ Executable code --------------------------------
     if (num_jobs_done < 1) RETURN
 
-    source = source2 + 1
+    !
+    ! I assume one never send this kind of messages to myself?
+    !
+    ASSERT(owner/=my_rank)
+
+    ! base-1 rank of the owner for indexing into fortran arrays:
+    owner1 = owner + 1
+
     ! We need the messages and req_dj entry of source in any case
     ! thus if there is still a message pending delete it
     ! by sending the sum of all jobs done so far, it is not
     ! of interest any more if the previous message has arrived
-    if (message_on_way(source)) then
-        call MPI_CANCEL(req_dj(source), ierr)
+    if (message_on_way(owner1)) then
+        call MPI_CANCEL(req_dj(owner1), ierr)
         ASSERT(ierr==MPI_SUCCESS)
-        call MPI_WAIT(req_dj(source),stat, ierr)
+        call MPI_WAIT(req_dj(owner1),stat, ierr)
         ASSERT(ierr==MPI_SUCCESS)
     endif
-    messages(1, source) = DONE_JOB
-    messages(3:, source) = 0
-    messages(2, source) = messages(2, source) +  num_jobs_done
-    call time_stamp("send message to source", 2)
-    call MPI_ISEND(messages(:,source),1 + JLENGTH, MPI_INTEGER4, source2,&
-                                MSGTAG,comm_world, req_dj(source), ierr)
+    messages(1, owner1) = DONE_JOB
+    messages(3:, owner1) = 0
+    messages(2, owner1) = messages(2, owner1) +  num_jobs_done
+    call time_stamp("send message to owner1", 2)
+    call MPI_ISEND(messages(:, owner1), 1 + JLENGTH, MPI_INTEGER4, owner,&
+                                MSGTAG, comm_world, req_dj(owner1), ierr)
     ASSERT(ierr==MPI_SUCCESS)
-    message_on_way(source) = .true.
+    message_on_way(owner1) = .true.
   end subroutine report_job_done
 
   logical function has_last_done(proc)
