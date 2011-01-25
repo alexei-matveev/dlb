@@ -92,14 +92,13 @@ module dlb_impl
 # include "dlb.h"
   use dlb_common, only: i4_kind, r8_kind, comm_world
   use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
-  use dlb_common, only: add_request, test_requests, end_requests, send_resp_done, report_job_done
+  use dlb_common, only: add_request, test_requests, end_requests, send_resp_done
   use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT, MSGTAG
   use dlb_common, only: WORK_DONAT, WORK_REQUEST
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
   use dlb_common, only: clear_up
   use dlb_common, only: masterserver
-  use dlb_common, only: decrease_resp
   use dlb_common, only: end_communication
   use iso_c_binding
   use thread_handle
@@ -167,11 +166,12 @@ module dlb_impl
   ! * terminated: this is the flag, telling everybody, that it's done
   !             read: ALL
   !             write: CONTROL, MAILBOX
-  ! * my_resp: read: CONTROL, MAILBOX
+  ! * reported_by, reported_to: (FIXME: verify)
+  !          read: CONTROL, MAILBOX
   !          write: CONTROL, MAILBOX
   !          for termination algorithm, CONTROL and MAILBOX may have knowledge about finished jobs
   !          stored in dlb_common, after other threads have been initalized, will be only accessed
-  !          with function decrease_resp
+  !          by functions report_to/report_by
   !
   ! Those below are the mutexes that are used in combination with signals:
   !
@@ -308,23 +308,6 @@ contains
       ! would try to join the thread in the next cycle again
     my_job = jobs(:L_JOB)
   end subroutine dlb_give_more
-
-  integer(i4_kind) function decrease_resp_locked(n, source)
-    ! Purpose: make lock around my_resp, decrease it by done jobs
-    !          and return updated value for further inspections
-    !
-    ! Context: control, and mailbox threads.
-    !
-    ! Locks: wrlock
-    !
-    implicit none
-    integer(i4_kind), intent(in)  :: n, source
-    ! *** end of interface ***
-
-    call wrlock()
-    decrease_resp_locked = decrease_resp(n, source)
-    call unlock()
-  end function decrease_resp_locked
 
   subroutine thread_secretary() bind(C)
   end subroutine
@@ -550,6 +533,7 @@ contains
     !        - through divide_jobs(): COND_JS_UPDATE.
     !
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: report_by, reports_pending
     use dlb_common, only: print_statistics
     implicit none
     !------------ Declaration of formal parameters ---------------
@@ -557,14 +541,27 @@ contains
     integer, intent(in) :: message(1 + JLENGTH), stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind), intent(inout) :: lm_source(:)
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    !------------ Executable code --------------------------------
+
+    integer(i4_kind) :: pending
+
     select case(message(1))
 
     case (DONE_JOB) ! someone finished stolen job slice
       ASSERT(message(2)>0)
+      ASSERT(stat(MPI_SOURCE)/=my_rank)
 
-      if (decrease_resp_locked(message(2),stat(MPI_SOURCE)) == 0) then
+      !
+      ! Handle fresh cumulative report:
+      !
+      call wrlock()
+          ! this does modify global vars (in dlb_common):
+          call report_by(message(2), stat(MPI_SOURCE))
+
+          ! this is read-only:
+          pending = reports_pending()
+      call unlock()
+
+      if ( pending == 0 ) then
         call send_resp_done( requ_m)
       endif
 
@@ -661,31 +658,40 @@ contains
     ! Locks: wrlock,
     !        wrlock through decrease_resp_locked()
     !
-    !------------ Modules used ------------------- ---------------
+    use dlb_common, only: report_to, reports_pending
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in  ) :: my_jobs(JLENGTH)
     integer(kind=i4_kind), allocatable  :: requ(:)
-    !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind), intent(inout):: num_jobs_done
-    !------------ Executable code --------------------------------
+    !** End of interface *****************************************
+
+    integer(i4_kind) :: pending
+
     call time_stamp("finished a job",4)
     ! my_jobs hold recent last point, as proc started from beginning and
     ! steal from the back, this means that from the initial starting point on
     ! (stored in start_job) to this one, all jobs were done
     ! if my_jobs(JRIGHT)/= start_job(JRIGHT) someone has stolen jobs
     !if (num_jobs_done == 0) return ! there is non job, thus why care
+
+    call wrlock()
+        !
+        ! Report scheduled jobs (modifies globals in dlb_common):
+        !
+        call report_to(num_jobs_done, my_jobs(JOWNER))
+
+        ! reset global var:
+        num_jobs_done = 0
+
+        pending = reports_pending()
+    call unlock()
+
     if (my_jobs(JOWNER) == my_rank) then
-      if(decrease_resp_locked(num_jobs_done, my_rank)== 0) then ! if all my jobs are done
+      if( pending == 0) then ! if all my jobs are done
          call send_resp_done(requ)
       endif
-    else
-      ! As all isends have to be closed sometimes, storage of
-      ! the request handlers is needed
-      call report_job_done(num_jobs_done, my_jobs(JOWNER))
     endif
-    num_jobs_done = 0
   end subroutine report_or_store
 
   subroutine dlb_setup(job)
