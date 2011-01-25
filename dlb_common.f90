@@ -51,9 +51,13 @@ module dlb_common
   public :: dlb_common_init, dlb_common_finalize, dlb_common_setup
   public :: add_request, test_requests, end_requests
   public :: end_communication
-  public :: send_resp_done, report_job_done, send_termination, has_last_done
+  public :: send_resp_done, send_termination, has_last_done
   public :: set_start_job, set_empty_job
-  public :: decrease_resp
+
+  public :: report_to!(n, owner), with n being an incremental report
+  public :: report_by!(n, owner), with n being a cumulative report
+  public :: reports_pending!() -> integer
+
   public :: clear_up
 
   public :: print_statistics
@@ -85,15 +89,45 @@ module dlb_common
 
   integer(kind=i4_kind), public, protected :: my_rank, n_procs ! some synonyms, They will be initialized once and afterwards
                                         ! be read only
-  integer(kind=i4_kind), public, protected ::  termination_master ! the one who gathers the finished my_resp's
-                                         ! and who tells all, when it is complety finished
-                                         ! in case of the variant with master as server of jobs, its also the master
+
+  !
+  ! Termination master is the process that gathers completion reports
+  ! and tells everyone to terminate. In case of the variant with master
+  ! as server of jobs, its also the master.
+  !
+  integer(i4_kind), public, protected :: termination_master
 
   !================================================================
   ! End of public interface of module
   !================================================================
 
-  integer(kind=i4_kind), allocatable :: my_resp(:)
+  !
+  ! This scalar holds the number of jobs initially assigned to the process
+  ! owning this variable. FIXME: make it an array (1:n_procs) to keep full
+  ! info about initial assignment. Currently not doable as the setup procedure
+  ! is provided only one assignment (to myself).
+  !
+  integer(i4_kind) :: responsibility = -1
+
+  !
+  ! This array holds the counts of jobs that were initially assigned to the
+  ! process owning this structure and later reported as done by one of the
+  ! workers. Note that sum(reported_by(:)) is to be compared with
+  ! with the total number of jobs from the initial assignment kept in
+  ! the variable "responsibility".
+  !
+  integer(i4_kind), allocatable :: reported_by(:) ! (0:n_procs-1)
+
+  !
+  ! The next array holds the counts of jobs that were delivered to "userspace"
+  ! of the process owning this structure (aka jobs that were "done") and reported
+  ! to the respective job owner according to initial assignment.
+  ! Note that sum(reported_to(1:n_procs)) is the number of jobs "done" by the
+  ! process owning this structure. We dont abuse message buffers to keep this data
+  ! anymore.
+  !
+  integer(i4_kind), allocatable :: reported_to(:) ! (0:n_procs-1)
+
   integer(kind=i4_kind), allocatable :: messages(:,:), req_dj(:) !need to store the messages for DONE_JOB,
                      ! as they may still be not finished, when the subroutine for generating them is finshed.
                      ! There may be a lot of them, message_on_way keeps track, to whom they are already on their way
@@ -220,8 +254,22 @@ contains
     allocate(req_dj(n_procs), stat = alloc_stat)
     ASSERT(alloc_stat==0)
 
-    allocate(my_resp(n_procs), stat = alloc_stat)
+    !
+    ! These arrays are indexed by MPI ranks, make them base-0:
+    !
+    allocate(reported_by(0:n_procs-1), stat = alloc_stat)
     ASSERT(alloc_stat==0)
+
+    allocate(reported_to(0:n_procs-1), stat = alloc_stat)
+    ASSERT(alloc_stat==0)
+
+    !
+    ! Nothing reported yet:
+    !
+    reported_by(:) = 0
+    reported_to(:) = 0
+    responsibility = resp
+
 
     ! Here they are initalizied, at the beginning none message has been
     ! put on its way, from the messages we know everything except the
@@ -229,8 +277,6 @@ contains
     messages = 0
     messages(1,:) = DONE_JOB
     message_on_way = .false.
-    my_resp = 0
-    my_resp(my_rank + 1) = resp
   end subroutine dlb_common_setup
 
   ! To make it easier to add for example new job informations
@@ -592,7 +638,7 @@ contains
     ! these variables will only be needed after the next dlb-setup
     deallocate(message_on_way, messages, stat=alloc_stat)
     ASSERT(alloc_stat==0)
-    deallocate(req_dj, my_resp, stat=alloc_stat)
+    deallocate(req_dj, reported_by, reported_to, stat=alloc_stat)
     ASSERT(alloc_stat==0)
   end subroutine end_communication
 
@@ -662,59 +708,65 @@ contains
     call end_requests(requ)
   end subroutine clear_up
 
-
   subroutine print_statistics()
     ! Purpose: end all of the stored requests in requ
     !          no matter if the corresponding message has arived
     !
     ! Context for 3Threads: mailbox thread, control thread.
     !             2 Threads: secretary thread
-    !------------ Modules used ------------------- ---------------
     implicit none
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: i, j
-    integer(kind=i4_kind)                :: stolen_jobs(n_procs-1)
-    !------------ Executable code --------------------------------
-    j = 1
-    do i = 1, n_procs
-        if ( i /= my_rank+1) then
-            stolen_jobs(j) = messages(2, i)
-            j = j + 1
-        endif
-    enddo
-    print *,  my_rank, "stole jobs from the others", stolen_jobs
-    print *, my_rank, "got jobs stolen:", my_resp(my_rank + 1)
+
+
+    ! executed by me, sorted by owner:
+    write(*, '("[", I3, "] REPORTED_TO =", 128I4)")') my_rank, reported_to
+
+    ! assigned to me, sorted by execution host:
+    write(*, '("[", I3, "] REPORTED_BY =", 128I4)")') my_rank, reported_by
+
+    !
+    ! FIXME: why cannot I use collective communications here?
+    !        Tried MPI_BARRIER for pretty printing.
+    !
   end subroutine print_statistics
 
-! algorithm for termination (is in principle the same for all dynamical variants)
-  integer(i4_kind) function decrease_resp(n, source)
-    ! Purpose:  decrease my_resp  by done jobs, for itself increamental
-    !          other procs give sum of their changes
-    !          return sum, thats all jobs which have done
+  subroutine report_by(n, source)
     !
-    !          there is need to differenciate between the resp of the proc itself
-    !          and those he gets from others, the other will give always the sum of all
-    !          they have done for this proc, as this proc wants to store only the ones
-    !          of the current job batch
+    ! Handles arriving scheduling reports.
+    ! NOTE: "n" is NOT an increment, but a cumulative
+    ! report of the job count from my initial assignment
+    ! scheduled by the source.
+    !
     implicit none
-    integer(i4_kind), intent(in)  :: n, source
+    integer(i4_kind), intent(in) :: n, source
     ! *** end of interface ***
 
-    if (source == my_rank) then
-    my_resp(source+1) = my_resp(source+1) - n
-    else
-    my_resp(source+1) = -n
-    endif
-    decrease_resp = sum(my_resp)
-  end function decrease_resp
+    reported_by(source) = n
+    ! ... yes, this array was allocated as base-0.
+  end subroutine report_by
+
+  function reports_pending() result(pending)
+    !
+    ! How many jobs from my initial assignment
+    ! have not yet been reported as scheduled.
+    !
+    implicit none
+    integer(i4_kind) :: pending
+    ! *** end of interface ***
+
+    pending = responsibility - sum(reported_by)
+    ASSERT(pending>=0)
+  end function reports_pending
 
   subroutine send_resp_done(requ)
-    !  Purpose: my_resp holds the number of jobs, assigned at the start
-    !           to this proc, so this proc is responsible that they will
-    !           be finished, if my_resp == 0, I should tell termination_master
-    !           that, termination master will collect all the finished resp's
-    !           untill it gots all of them back
+    ! Purpose: when condition
+    !
+    !   sum(reported_by(:)) == responsibility
+    !
+    ! is met, I should tell termination_master that jobs initially
+    ! assigned to be have been scheduled by calling this sub.
+    ! Termination master will collect all the finished resp's
+    ! untill it gots all of them back
     !
     ! Context 3Thread: mailbox  and control thread.
     !             2 Threads: secretary thread
@@ -745,55 +797,80 @@ contains
     call add_request(req, requ)
   end subroutine send_resp_done
 
-  subroutine report_job_done(num_jobs_done, owner)
-    !  Purpose: If a job is finished, this cleans up afterwards
-    !           Needed for termination algorithm, there are two
-    !           cases, it was a job of the own responsibilty or
-    !           one from another, first case just change my number
-    !            second case, send to victim, how many of his jobs
-    !            were finished
+  subroutine report_to(num_jobs_done, owner)
+    !
+    ! Handles reporting scheduled jobs, expects an increment
+    ! and an owner rank.
+    !
+    ! Needed for termination algorithm, there are two
+    ! cases, it was a job of the own responsibilty or
+    ! one from another, first case just change my number
+    ! second case, send a cumulative report on how many of
+    ! his jobs were scheduled.
     !
     ! Context: control thread.
     !             2 Threads: secretary thread
     !
-    !------------ Modules used ------------------- ---------------
     implicit none
-    !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in  ) :: num_jobs_done, owner
+    integer(i4_kind), intent(in) :: num_jobs_done, owner
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind)                :: owner1 ! == owner + 1
-    !------------ Executable code --------------------------------
-    if (num_jobs_done < 1) RETURN
 
-    !
-    ! I assume one never send this kind of messages to myself?
-    !
-    ASSERT(owner/=my_rank)
+    integer(i4_kind) :: ierr, stat(MPI_STATUS_SIZE)
+    integer(i4_kind) :: owner1 ! == owner + 1
 
-    ! base-1 rank of the owner for indexing into fortran arrays:
-    owner1 = owner + 1
-
-    ! We need the messages and req_dj entry of source in any case
-    ! thus if there is still a message pending delete it
-    ! by sending the sum of all jobs done so far, it is not
-    ! of interest any more if the previous message has arrived
-    if (message_on_way(owner1)) then
-        call MPI_CANCEL(req_dj(owner1), ierr)
-        ASSERT(ierr==MPI_SUCCESS)
-        call MPI_WAIT(req_dj(owner1),stat, ierr)
-        ASSERT(ierr==MPI_SUCCESS)
+    ! FIXME: for compatibility reasons:
+    if ( num_jobs_done == 0 ) then
+        print *, "report_to: why reporting nothing?"
+        RETURN
     endif
-    messages(1, owner1) = DONE_JOB
-    messages(3:, owner1) = 0
-    messages(2, owner1) = messages(2, owner1) +  num_jobs_done
-    call time_stamp("send message to owner1", 2)
-    call MPI_ISEND(messages(:, owner1), 1 + JLENGTH, MPI_INTEGER4, owner,&
-                                MSGTAG, comm_world, req_dj(owner1), ierr)
-    ASSERT(ierr==MPI_SUCCESS)
-    message_on_way(owner1) = .true.
-  end subroutine report_job_done
+    ASSERT(num_jobs_done>=0)
+
+    !
+    ! Increment the local counters keeping track of all reports:
+    !
+    reported_to(owner) = reported_to(owner) + num_jobs_done
+    ! ... yes, this array was allocated as base-0.
+
+    if ( owner == my_rank ) then
+        !
+        ! We intentionally avoid sending messages to myself.
+        ! FIXME: schould we really?
+        !
+        call report_by(reported_to(owner), owner)
+    else
+        ! base-1 rank of the owner for indexing into fortran arrays:
+        owner1 = owner + 1
+
+        ! We need the messages and req_dj entry of source in any case
+        ! thus if there is still a message pending delete it
+        ! by sending the sum of all jobs done so far, it is not
+        ! of interest any more if the previous message has arrived
+        if (message_on_way(owner1)) then
+            call MPI_CANCEL(req_dj(owner1), ierr)
+            ASSERT(ierr==MPI_SUCCESS)
+            call MPI_WAIT(req_dj(owner1), stat, ierr)
+            ASSERT(ierr==MPI_SUCCESS)
+        endif
+
+        !
+        ! Hopefully after an MPI_CANCEL we can reuse the buffer:
+        !
+        messages(1, owner1) = DONE_JOB
+
+        !
+        ! Cumulative report to remote owner:
+        !
+        messages(2, owner1) = reported_to(owner)
+        messages(3:, owner1) = 0
+
+        call time_stamp("send message to owner1", 2)
+
+        call MPI_ISEND(messages(:, owner1), 1 + JLENGTH, MPI_INTEGER4, owner,&
+                                    MSGTAG, comm_world, req_dj(owner1), ierr)
+        ASSERT(ierr==MPI_SUCCESS)
+        message_on_way(owner1) = .true.
+    endif
+  end subroutine report_to
 
   logical function has_last_done(proc)
     !  Purpose: only on termination_master, checks if reported one
