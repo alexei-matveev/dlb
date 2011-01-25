@@ -89,13 +89,12 @@ module dlb_impl
 # include "dlb.h"
   use dlb_common, only: i4_kind, r8_kind, comm_world
   use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
-  use dlb_common, only: add_request, test_requests, end_requests, send_resp_done, report_job_done
+  use dlb_common, only: add_request, test_requests, end_requests, send_resp_done
   use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT, MSGTAG
   use dlb_common, only: WORK_DONAT, WORK_REQUEST
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: dlb_common_setup
   use dlb_common, only: masterserver
-  use dlb_common, only: decrease_resp
   use dlb_common, only: end_communication
   use dlb_common, only: clear_up
   use iso_c_binding
@@ -283,7 +282,9 @@ contains
     has_jr_on = .false.
     count_ask = -1
     lm_source = -1
-    call test_resp_done(0, requ_m, my_rank) ! needed if it is initialized with zero jobs for
+
+    ! FIXME: still not clear why:
+    call test_resp_done(requ_m) ! needed if it is initialized with zero jobs for
     ! this proc, the reporing of how many jobs are done for zero jobs is stopped before
     ! it reaches the part were it is tested if the responsibility is done
     call task_messages(has_jr_on, requ_m, lm_source,count_ask, proc_asked_last,&
@@ -323,7 +324,7 @@ contains
   end subroutine thread_control
 
 
-  subroutine test_resp_done(n, requ, rank)
+  subroutine test_resp_done(requ)
     !  Purpose: tests if the responsibility is done, when n new
     ! jobs are finished
     !
@@ -333,16 +334,15 @@ contains
     ! Locks: wrlock, through check_termination
     !        NEEDS to be in a JS_LOCK context
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: reports_pending
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), allocatable  :: requ(:)
-    integer(kind=i4_kind), intent(in)   :: n
-    integer(kind=i4_kind), intent(in)   :: rank
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     !------------ Executable code --------------------------------
 
-      if(decrease_resp(n, rank)== 0) then ! if all my jobs are done
+      if( reports_pending() == 0 ) then ! if all my jobs are done
         if (my_rank == termination_master) then
           call check_termination(my_rank)
         else
@@ -485,6 +485,7 @@ contains
     ! Signals: COND_NJ2_UPDATE
     !
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: report_by
     use dlb_common, only: print_statistics
     implicit none
     !------------ Declaration of formal parameters ---------------
@@ -504,8 +505,14 @@ contains
 
     case (DONE_JOB) ! someone finished stolen job slice
       ASSERT(message(2)>0)
+      ASSERT(stat(MPI_SOURCE)/=my_rank)
 
-      call test_resp_done(message(2), requ_m, stat(MPI_SOURCE))
+      !
+      ! Handle fresh cumulative report:
+      !
+      call report_by(message(2), stat(MPI_SOURCE))
+
+      call test_resp_done(requ_m)
 
     case (RESP_DONE) ! finished responsibility
       ! arrives only on termination master:
@@ -575,6 +582,7 @@ contains
     ! Locks: wrlock, through check_termination
     !
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: report_to
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), allocatable  :: requ(:)
@@ -588,14 +596,17 @@ contains
     ! steal from the back, this means that from the initial starting point on
     ! (stored in start_job) to this one, all jobs were done
     ! if my_jobs(JRIGHT)/= start_job(JRIGHT) someone has stolen jobs
-    if (rank == my_rank) then
-      call test_resp_done(num_jobs_done, requ, my_rank)
-    else
-      ! As all isends have to be closed sometimes, storage of
-      ! the request handlers is needed
-      call report_job_done(num_jobs_done, rank)
-    endif
+
+    !
+    ! Make an incremental report:
+    !
+    call report_to(num_jobs_done, rank)
+
     num_jobs_done = 0
+
+    if (rank == my_rank) then
+      call test_resp_done(requ)
+    endif
   end subroutine report_or_store
 
 
