@@ -288,7 +288,8 @@ contains
     !          Someone has finished its responsibilty (only termination_master)
     !          There are no more jobs (message from termination_master to finish)
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: decrease_resp, end_requests, send_resp_done, end_communication
+    use dlb_common, only: report_by, reports_pending &
+        , end_requests, send_resp_done, end_communication
     use dlb_common, only: print_statistics
     implicit none
     !------------ Declaration of formal parameters ---------------
@@ -314,8 +315,14 @@ contains
         case ( DONE_JOB )
             ! someone finished stolen job slice
             ASSERT(message(2)>0)
+            ASSERT(stat(MPI_SOURCE)/=my_rank)
 
-            if (decrease_resp(message(2), stat(MPI_SOURCE)) == 0) then
+            !
+            ! Handle a fresh cumulative report:
+            !
+            call report_by(message(2), stat(MPI_SOURCE))
+
+            if ( reports_pending() == 0) then
                 if (my_rank == termination_master) then
                     call check_termination(my_rank)
                 else
@@ -523,7 +530,7 @@ contains
     !            second case, send to victim, how many of his jobs
     !            were finished
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: decrease_resp, send_resp_done, report_job_done
+    use dlb_common, only: report_to, reports_pending, send_resp_done
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in  ) :: my_jobs(JLENGTH)
@@ -538,16 +545,23 @@ contains
     ! (stored in start_job) to this one, all jobs were done
     ! if my_jobs(JRIGHT)/= start-job(JRIGHT) someone has stolen jobs
     num_jobs_done = already_done
+
+    !
+    ! Report the jobs being (about to be) scheduled:
+    !
+    call report_to(num_jobs_done, my_jobs(JOWNER))
+
+    !
+    ! Here we apparenly try to detect the termination early:
+    !
     if (my_jobs(JOWNER) == my_rank) then
-      if (decrease_resp(num_jobs_done, my_rank)== 0) then
+      if ( reports_pending() == 0) then
         if (my_rank == termination_master) then
           call check_termination(my_rank)
         else
           call send_resp_done(requ2)
         endif
       endif
-    else
-      call report_job_done(num_jobs_done, my_jobs(JOWNER))
     endif
   end subroutine report_or_store
 
