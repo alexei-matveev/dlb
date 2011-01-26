@@ -739,7 +739,7 @@ contains
     integer(MPI_ADDRESS_KIND), parameter :: displacement = JLENGTH ! long int
     integer(MPI_ADDRESS_KIND), parameter :: zero = 0
 
-    zeros(:) = 0
+    zeros(:) = OFF
 
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
@@ -776,7 +776,7 @@ contains
     !
     ! Zero fields responsible for locking:
     !
-    win_data(JLENGTH+1:) = 0
+    win_data(JLENGTH+1:) = OFF
 
     !
     ! PUT data and overwrite lock data structure with zeros in one epoch:
