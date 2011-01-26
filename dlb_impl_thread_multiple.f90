@@ -556,7 +556,7 @@ contains
       !
       call wrlock()
           ! this does modify global vars (in dlb_common):
-          call report_by(message(2), stat(MPI_SOURCE))
+          call report_by(stat(MPI_SOURCE), message(2))
 
           ! this is read-only:
           pending = reports_pending()
@@ -680,7 +680,7 @@ contains
         !
         ! Report scheduled jobs (modifies globals in dlb_common):
         !
-        call report_to(num_jobs_done, owner)
+        call report_to(owner, num_jobs_done)
 
         pending = reports_pending()
     call unlock()

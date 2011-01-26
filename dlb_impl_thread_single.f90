@@ -511,7 +511,7 @@ contains
       !
       ! Handle fresh cumulative report:
       !
-      call report_by(message(2), stat(MPI_SOURCE))
+      call report_by(stat(MPI_SOURCE), message(2))
 
       call test_resp_done(requ_m)
 
@@ -601,7 +601,7 @@ contains
     !
     ! Make an incremental report:
     !
-    call report_to(num_jobs_done, owner)
+    call report_to(owner, num_jobs_done)
 
     if ( owner == my_rank ) then
       call test_resp_done(requ)

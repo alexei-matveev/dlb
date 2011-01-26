@@ -54,8 +54,8 @@ module dlb_common
   public :: send_resp_done, send_termination, has_last_done
   public :: set_start_job, set_empty_job
 
-  public :: report_to!(n, owner), with n being an incremental report
-  public :: report_by!(n, owner), with n being a cumulative report
+  public :: report_to!(owner, n), with n being an incremental report
+  public :: report_by!(source, n), with n being a cumulative report
   public :: reports_pending!() -> integer
 
   public :: clear_up
@@ -730,7 +730,7 @@ contains
     !
   end subroutine print_statistics
 
-  subroutine report_by(n, source)
+  subroutine report_by(source, n)
     !
     ! Handles arriving scheduling reports.
     ! NOTE: "n" is NOT an increment, but a cumulative
@@ -797,7 +797,7 @@ contains
     call add_request(req, requ)
   end subroutine send_resp_done
 
-  subroutine report_to(num_jobs_done, owner)
+  subroutine report_to(owner, num_jobs_done)
     !
     ! Handles reporting scheduled jobs, expects an increment
     ! and an owner rank.
@@ -812,7 +812,7 @@ contains
     !             2 Threads: secretary thread
     !
     implicit none
-    integer(i4_kind), intent(in) :: num_jobs_done, owner
+    integer(i4_kind), intent(in) :: owner, num_jobs_done
     !** End of interface *****************************************
 
     integer(i4_kind) :: ierr, stat(MPI_STATUS_SIZE)
@@ -836,7 +836,7 @@ contains
         ! We intentionally avoid sending messages to myself.
         ! FIXME: schould we really?
         !
-        call report_by(reported_to(owner), owner)
+        call report_by(owner, reported_to(owner))
     else
         ! base-1 rank of the owner for indexing into fortran arrays:
         owner1 = owner + 1
