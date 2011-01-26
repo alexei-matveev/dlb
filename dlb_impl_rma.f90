@@ -102,8 +102,10 @@ module dlb_impl
   integer(kind=i4_kind), parameter  :: ON = 1, OFF = 0 ! For read-modify-write
   integer(kind=i4_kind)             :: jobs_len  ! Length of complete jobs storage
   integer(kind=i4_kind)            :: win ! for the RMA object
-  type(c_ptr)  :: c_job_pointer     ! needed for MPI RMA handling (for c pseudo pointer)
-  integer(kind=i4_kind), pointer    :: job_storage(:) ! store all the jobs, belonging to this processor
+
+  ! store all the jobs, belonging to this processor and the lock struct here:
+  integer(kind=i4_kind), pointer    :: job_storage(:) ! (jobs_len)
+
   integer(kind=i4_kind)             :: already_done ! stores how many jobs the proc has done from
                                       ! the current interval
   integer(kind=i4_kind)             :: remember_last ! to find out if someone has stolen something
@@ -131,6 +133,7 @@ contains
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
+    type(c_ptr) :: c_job_pointer ! needed for MPI RMA handling (for c pseudo pointer)
     integer(kind=i4_kind)                :: ierr, sizeofint
     integer(kind=MPI_ADDRESS_KIND)       :: size_alloc, size_all
     !------------ Executable code --------------------------------
