@@ -875,7 +875,7 @@ contains
     ! and there is a try to steal new ones
     start_job = set_start_job(job)
 
-    call dlb_common_setup(start_job(JRIGHT) - start_job(JLEFT))
+    call dlb_common_setup(length(start_job))
 
     already_done = 0
 
