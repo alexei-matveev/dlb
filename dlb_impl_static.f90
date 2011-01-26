@@ -73,25 +73,28 @@ double precision :: time_offset = -1.0
 public dlb_init, dlb_finalize, dlb_setup, dlb_give_more !for using the module
 
 contains
+
   subroutine dlb_init()
     !  Purpose: initalization of needed stuff
     !------------ Modules used ------------------- ---------------
     implicit none
     !** End of interface *****************************************
+
     call dlb_common_init()
     if (my_rank == 0) then
         print *, "DLB init: using variant 'static'"
         print *, "DLB init: This variant is a 'non-dynamical DLB' routine"
     endif
   end subroutine dlb_init
-  !*************************************************************
+
   subroutine dlb_finalize()
     !  Purpose: cleaning up everything, after last call
     !------------ Modules used ------------------- ---------------
     implicit none
+
     call dlb_common_finalize()
   end subroutine dlb_finalize
-  !*************************************************************
+
   subroutine dlb_give_more(n, my_job)
     !  Purpose: Returns next bunch of up to n jobs, if jobs(JRIGHT)<=
     !  jobs(JLEFT) there are no more jobs there, else returns the jobs
@@ -102,11 +105,12 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
     integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB)
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+    !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: w
     integer(i4_kind), target             :: jobs(JLENGTH)
-!   !------------ Executable code --------------------------------
+    !------------ Executable code --------------------------------
+
     ! First try to get a job from local storage
     w = min(job_storage(JRIGHT) - job_storage(JLEFT), n)
     w = max(w, 0)
@@ -115,7 +119,7 @@ contains
     job_storage(JLEFT) = jobs(JRIGHT)
     my_job = jobs(:L_JOB)
   end subroutine dlb_give_more
-  !*************************************************************
+
   subroutine dlb_setup(job)
     !  Purpose: initialization of a dlb run, each proc should call
     !           it with inital jobs. The inital jobs should be a
@@ -128,10 +132,10 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
-!   !** End of interface *****************************************
-!   !------------ Declaration of local variables -----------------
+    !** End of interface *****************************************
+
     job_storage(:L_JOB) = job
   end subroutine dlb_setup
-  !*************************************************************
+
   !--------------- End of module ----------------------------------
 end module dlb_impl
