@@ -475,7 +475,7 @@ contains
             ! its my_resp, local(JRIGHT) tells together with start_jobs how many jobs
             ! have been done
             !
-            call report_or_store(local, already_done)
+            call report_or_store(local(JOWNER), already_done)
         else
             ok = .false.
             jobs(JRIGHT) = jobs(JLEFT) ! non actuell informations, make them invalid
@@ -506,7 +506,7 @@ contains
             !
             ! see above
             !
-            call report_or_store(local, already_done)
+            call report_or_store(local(JOWNER), already_done)
         endif
 
         !
@@ -522,7 +522,7 @@ contains
     ASSERT(ierr==MPI_SUCCESS)
   end function local_tgetm
 
-  subroutine report_or_store(my_jobs, already_done)
+  subroutine report_or_store(owner, num_jobs_done)
     !  Purpose: If a job is finished, this cleans up afterwards
     !           Needed for termination algorithm, there are two
     !           cases, it was a job of the own responsibilty or
@@ -532,29 +532,25 @@ contains
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: report_to, reports_pending, send_resp_done
     implicit none
-    !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in  ) :: my_jobs(JLENGTH)
-    integer(kind=i4_kind), intent(inout) :: already_done
+    integer(i4_kind), intent(in) :: owner
+    integer(i4_kind), intent(in) :: num_jobs_done
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: num_jobs_done
-    !------------ Executable code --------------------------------
+
     !print *, time_stamp_prefix(MPI_Wtime()), "finished a job, now report or store", my_jobs
     ! my_jobs hold recent last point, as proc started from beginning and
     ! steal from the back, this means that from the initial starting point on
     ! (stored in start_job) to this one, all jobs were done
     ! if my_jobs(JRIGHT)/= start-job(JRIGHT) someone has stolen jobs
-    num_jobs_done = already_done
 
     !
     ! Report the jobs being (about to be) scheduled:
     !
-    call report_to(num_jobs_done, my_jobs(JOWNER))
+    call report_to(num_jobs_done, owner)
 
     !
     ! Here we apparenly try to detect the termination early:
     !
-    if (my_jobs(JOWNER) == my_rank) then
+    if ( owner == my_rank) then
       if ( reports_pending() == 0) then
         if (my_rank == termination_master) then
           call check_termination(my_rank)

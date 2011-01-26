@@ -433,7 +433,8 @@ contains
         ! not if masterserver is wanted, then there is no need for the termination algorithm, master knows
         ! where are all jobs by its own
         if (.not. masterserver) then
-           call report_or_store(job_storage(:JLENGTH), requ_c, already_done)
+           call report_or_store(job_storage(JOWNER), already_done, requ_c)
+           already_done = 0
         endif
 
         my_jobs = job_storage(:JLENGTH)
@@ -645,7 +646,7 @@ contains
     !endif
   end subroutine local_tgetm
 
-  subroutine report_or_store(my_jobs, requ, num_jobs_done)
+  subroutine report_or_store(owner, num_jobs_done, requ)
     !  Purpose: If a job is finished, this cleans up afterwards
     !           Needed for termination algorithm, there are two
     !           cases, it was a job of the own responsibilty or
@@ -661,9 +662,9 @@ contains
     use dlb_common, only: report_to, reports_pending
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in  ) :: my_jobs(JLENGTH)
-    integer(kind=i4_kind), allocatable  :: requ(:)
-    integer(kind=i4_kind), intent(inout):: num_jobs_done
+    integer(i4_kind), intent(in)   :: owner
+    integer(i4_kind), intent(in)   :: num_jobs_done
+    integer(i4_kind), allocatable  :: requ(:)
     !** End of interface *****************************************
 
     integer(i4_kind) :: pending
@@ -679,15 +680,12 @@ contains
         !
         ! Report scheduled jobs (modifies globals in dlb_common):
         !
-        call report_to(num_jobs_done, my_jobs(JOWNER))
-
-        ! reset global var:
-        num_jobs_done = 0
+        call report_to(num_jobs_done, owner)
 
         pending = reports_pending()
     call unlock()
 
-    if (my_jobs(JOWNER) == my_rank) then
+    if ( owner == my_rank ) then
       if( pending == 0) then ! if all my jobs are done
          call send_resp_done(requ)
       endif

@@ -411,7 +411,8 @@ contains
       if (.not. masterserver .and. already_done > 0) then
         ! masterserver has different termination algorithm
         ! only report finished jobs, when there are still any
-        call report_or_store(requ,already_done, job_storage(JOWNER))
+        call report_or_store(job_storage(JOWNER), already_done, requ)
+        already_done = 0
       endif
       timestart = MPI_WTIME()
       call send_request(requ, count_ask, proc_asked_last)
@@ -569,7 +570,7 @@ contains
     end select
   end subroutine check_messages
 
-  subroutine report_or_store(requ, num_jobs_done, rank)
+  subroutine report_or_store(owner, num_jobs_done, requ)
     !  Purpose: If a job is finished, this cleans up afterwards
     !           Needed for termination algorithm, there are two
     !           cases, it was a job of the own responsibilty or
@@ -585,9 +586,9 @@ contains
     use dlb_common, only: report_to
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), allocatable  :: requ(:)
-    integer(kind=i4_kind), intent(inout):: num_jobs_done
-    integer(kind=i4_kind), intent(in)   :: rank
+    integer(i4_kind), intent(in)   :: owner
+    integer(i4_kind), intent(in)   :: num_jobs_done
+    integer(i4_kind), allocatable  :: requ(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     !------------ Executable code --------------------------------
@@ -600,11 +601,9 @@ contains
     !
     ! Make an incremental report:
     !
-    call report_to(num_jobs_done, rank)
+    call report_to(num_jobs_done, owner)
 
-    num_jobs_done = 0
-
-    if (rank == my_rank) then
+    if ( owner == my_rank ) then
       call test_resp_done(requ)
     endif
   end subroutine report_or_store
