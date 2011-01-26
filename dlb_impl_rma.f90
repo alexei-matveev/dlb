@@ -108,13 +108,8 @@ module dlb_impl
 
   integer(kind=i4_kind)             :: already_done ! stores how many jobs the proc has done from
                                       ! the current interval
-  integer(kind=i4_kind)             :: remember_last ! to find out if someone has stolen something
-  logical                           :: had_thief ! only check for messages if there is realy a change that there are some
   logical                           :: terminated!, finishedjob ! for termination algorithm
   integer(kind=i4_kind),allocatable :: requ2(:) ! requests of send are stored till relaese
-  integer(kind=i4_kind)             :: requ1 ! this request will be used in any case
-  integer(kind=i4_kind)             :: many_tries, many_searches !how many times asked for jobs
-  integer(kind=i4_kind)             :: many_locked, many_zeros
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
 contains
@@ -210,9 +205,9 @@ contains
   end subroutine dlb_finalize
 
   subroutine dlb_give_more(n, slice)
-    !  Purpose: Returns next bunch of up to n jobs, if jobs(JRIGHT)<=
-    !  jobs(JLEFT) there are no more jobs there, else returns the jobs
-    !  done by the procs should be jobs(JLEFT) + 1 to jobs(JRIGHT) in
+    !  Purpose: Returns next bunch of up to n jobs.
+    !  If slice(2) <= slice(1) there are no more jobs there, else returns the jobs
+    !  done by the procs should be slice(1) + 1 to slice(2) in
     !  the related job list
     !  first the jobs are tried to get from the local storage of the
     !  current proc, if there are no more, it will try to steal some
@@ -227,58 +222,100 @@ contains
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: v, ierr
-    logical                              :: term
-    integer(i4_kind), target             :: jobs(JLENGTH)
-    !------------ Executable code --------------------------------
+    integer(i4_kind) :: rank, ierr
+    integer(i4_kind) :: jobs(JLENGTH)
+    integer(i4_kind) :: stolen_jobs(JLENGTH)
+    integer(i4_kind) :: local_jobs(JLENGTH)
+    logical :: ok
 
-    ! check for (termination) messages, if: have to gather the my_resp = 0
-    ! messages (termination Master) or if someone has stolen
-    ! and my report back
-    term = .false.
-    if(had_thief .or. (my_rank==termination_master)) term = check_messages()
-
-    ! First try to get job from local storage (loop because some one lese may
-    ! try to read from there ( local_tgetm false means, have to try again,
-    ! true means that this proc has gotten all the jobs it may get from its
-    ! local storage in this dlb-loop)
-    do while ( .not. local_tgetm(n, jobs, already_done) )
-       call time_stamp("waiting for time to acces my own memory",2)
+    !
+    ! First try to get jobs from local storage
+    !
+    ok = .false.
+    do while ( .not. storage_is_empty(my_rank) )
+        !
+        ! Stealing from myself:
+        !
+        ok = try_read_modify_write(my_rank, steal_local, n, jobs)
+        if ( ok ) exit ! while loop
     enddo
-    call time_stamp("finished local search",3)
-    if (jobs(JLEFT) .NE. remember_last) had_thief = .true.
-    remember_last = jobs(JRIGHT)
 
-    if ( empty(jobs) ) many_searches = many_searches + 1 ! just for debugging
+    if ( .not. ok ) then
+        !
+        ! Apparently the local storage is empty:
+        !
+        ASSERT(storage_is_empty(my_rank))
 
-    ! if local storage only gives empty job:
-    do while ( empty(jobs) .and. .not. check_messages())
+        !
+        ! This is the place to report how much of the work
+        ! has been completed so far and reset the counters.
+        ! For a report we need an "owner" of the jobs that we were
+        ! executing, get this by looking into the (empty) local queue,
+        ! that is suposed to keep a valid owner field:
+        !
+        call read_unsafe(my_rank, jobs)
+        call report_or_store(jobs(JOWNER), already_done)
+        already_done = 0
 
-      ! check like above but also for termination message from termination master
-      v = select_victim(my_rank, n_procs)
+        !
+        ! Try stealing from random workers
+        ! until termination is announced:
+        !
+        do while ( .not. check_messages() )
+            ! check like above but also for termination message from termination master
 
-      ! try to get job from v, if v's memory occupied by another or contains
-      ! nothing to steal, job is still empty
-      many_tries = many_tries + 1 ! just for debugging
+            rank = select_victim(my_rank, n_procs)
 
-      call time_stamp("about to call rmw_tgetm()",4)
-      term = rmw_tgetm(n, v, jobs, already_done)
-      call time_stamp("returned from rmw_tgetm()",4)
-    enddo
-    call time_stamp("finished stealing",3)
+            !
+            ! try to get jobs from rank, if rank's memory occupied by another or contains
+            ! nothing to steal, this will return false:
+            !
+            ok = try_read_modify_write(rank, steal_remote, n, stolen_jobs)
+            if ( ok ) exit ! while loop
+        enddo
+
+        !
+        ! Stealing from remote succeded:
+        !
+        if ( ok ) then
+            !
+            ! Early "stealing" from myself --- do it before storing
+            ! the stolen interval in publically availbale storage.
+            ! Ensures progress, avoids stealing back-and-forth.
+            !
+            ok = steal_local(n, stolen_jobs, local_jobs, jobs)
+            ASSERT(ok)
+
+            !
+            ! This stores the rest for later delivery in the OWN job-storage
+            !
+            call write_unsafe(my_rank, local_jobs)
+        endif
+    endif
+
+    !
+    ! Increment the counter for delivered jobs.
+    ! It is somewhat too early to declare them "completed",
+    ! but once delivered to "userspace" these jobs cannot
+    ! be stolen anymore and may be considered
+    ! "scheduled for execution":
+    !
+    already_done = already_done + length(jobs)
 
     ! NOTE: named constants are now known outside.
     ! Return only the start and endpoint of the job slice:
     slice(1) = jobs(JLEFT)
     slice(2) = jobs(JRIGHT)
 
-    ! this would not work: no ensurance that the others already know that
-    ! they should be terminated, they could steal jobs setup by already terminated
-    ! processors
-    !if (terminated) call dlb_setup(setup_jobs)
+    !
+    ! Here a syncronization feature, the very last call to dlb_give_more(...)
+    ! does not return until all workers pass this barrier.
+    !
+    ! FIXME: this is a speciality of RMA implementation, to avoid
+    ! the case of others stealing unrelated jobs from the next round of
+    ! call dlb_setup(...); do while ( dlb_give_more(...) ) ...
+    !
     if ( empty(jobs) ) then
-       print *, my_rank, "tried", many_searches, "for new jobs and stealing", many_tries
-       print *, my_rank, "was locked", many_locked, "got zero", many_zeros
        call MPI_BARRIER(comm_world, ierr)
        ASSERT(ierr==MPI_SUCCESS)
     endif
@@ -402,129 +439,6 @@ contains
     call end_communication()
   end subroutine check_termination
 
-  function local_tgetm(m, jobs, already_done) result(ok)
-    !  Purpose: tries to get m jobs from the local job_storage.
-    !           Returns true if either: it got some jobs
-    !                        or: there are no jobs in the storage
-    !                            as this proc is the only one to put
-    !                            jobs in the storage, there is no use
-    !                            in waiting here
-    !           returns only false if it has been locked by others while
-    !           accessing a non-empty storage.
-    !           if true also:
-    !           local try for get m jobs, m is number of requested jobs
-    !           if there are enough my_jobs will give their number back
-    !           (fewer if there are not m left), if there is 0 jobs
-    !           given back, there is no more in the storage
-    !------------ Modules used ------------------- ---------------
-    use dlb_common, only: reserve_workm, set_empty_job
-    implicit none
-    !------------ Declaration of formal parameters ---------------
-    integer(i4_kind), intent(in)  :: m
-    integer(i4_kind), intent(inout)  :: already_done
-    integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
-    logical                       :: ok ! result
-    !** End of interface *****************************************
-
-    integer(i4_kind) :: ierr, locked
-
-    integer(i4_kind) :: local(JLENGTH)
-    integer(i4_kind) :: remaining(JLENGTH)
-
-    ASSERT(size(jobs)==JLENGTH)
-
-    jobs = set_empty_job()
-
-    !
-    ! Acquire MPI-lock on local storage:
-    !
-    call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
-
-    ! each proc which ones to acces the memory, sets his point to 1
-    ! (else they are all 0), so if the sum is more than 0, at least one
-    ! proc tries to get the memory, the one, who got locked = 0 has the right
-    ! to work
-    local(:) = job_storage(:JLENGTH) ! first JLENGTH hold the job
-
-    !
-    ! See if someone else holding the user-lock:
-    !
-    locked = sum(job_storage(JLENGTH+1:))
-
-    !
-    ! Below are 2x2 = 4 branches roughly corresponding to the
-    ! four possible cases of (locked, empty(local)) tuple.
-    ! In three of these cases ok = .true. in one ... (guess what).
-    !
-    ! FIXME: too difficult to reason about this code.
-    !
-    if ( locked > 0 ) then
-        !
-        ! Someone else is holding user-lock on local storage:
-        !
-        call time_stamp("blocked by lock contension",2)
-
-        ! find out if it makes sense to wait:
-        if ( empty(local) ) then
-            ok = .true.
-            call time_stamp("blocked, but empty",2)
-            ! True means we got all jobs we can from the storage, there is no need
-            ! to wait for an locked access, as we can see this by are mere read,
-            ! no need for write, thus no need to cycle around
-
-            !
-            ! Finished a job interval, thus someone (local(JOWNER)) has to recrease
-            ! its my_resp, local(JRIGHT) tells together with start_jobs how many jobs
-            ! have been done
-            !
-            call report_or_store(local(JOWNER), already_done)
-        else
-            ok = .false.
-            jobs(JRIGHT) = jobs(JLEFT) ! non actuell informations, make them invalid
-        endif
-
-    else
-        !
-        ! Acquired user-lock on local storage:
-        !
-        ok = .true.
-        call time_stamp("free",2)
-
-        !
-        ! Try taking a slice from (a copy of) the local storage:
-        !
-        if ( steal_local(m, local, remaining, jobs) ) then
-            !
-            ! This shoul be better done at a single place:
-            !
-            already_done = already_done + length(jobs)
-            !
-            ! Store remaining jobs:
-            !
-            job_storage(:JLENGTH) = remaining(:)
-        else
-            ! no more jobs!
-            ASSERT(empty(local))
-            !
-            ! see above
-            !
-            call report_or_store(local(JOWNER), already_done)
-        endif
-
-        !
-        ! Release user-lock:
-        !
-        job_storage(JLENGTH+1:) = 0
-    endif
-    !
-    ! Release MPI-lock:
-    !
-    call MPI_WIN_UNLOCK(my_rank, win, ierr)
-    call time_stamp("release",3)
-    ASSERT(ierr==MPI_SUCCESS)
-  end function local_tgetm
-
   subroutine report_or_store(owner, num_jobs_done)
     !  Purpose: If a job is finished, this cleans up afterwards
     !           Needed for termination algorithm, there are two
@@ -546,14 +460,14 @@ contains
     ! if my_jobs(JRIGHT)/= start-job(JRIGHT) someone has stolen jobs
 
     !
-    ! Report the jobs being (about to be) scheduled:
+    ! Report the number of scheduled jobs:
     !
     call report_to(owner, num_jobs_done)
 
     !
     ! Here we apparenly try to detect the termination early:
     !
-    if ( owner == my_rank) then
+    if ( owner == my_rank ) then
       if ( reports_pending() == 0) then
         if (my_rank == termination_master) then
           call check_termination(my_rank)
@@ -563,92 +477,6 @@ contains
       endif
     endif
   end subroutine report_or_store
-
-  function rmw_tgetm(m, rank, jobs, already_done) result(ok)
-    !  Purpose: read-modify-write variant fo getting m from another proc
-    !           rank, returns true if the other proc has its memory free
-    !           false if it is not
-    !           if the memory can be accessed, take some jobs from him,
-    !           store those, which are more than m in own local storage
-    !           read-modify-write is implemented with an integer for each
-    !           proc, which is 0, if this proc does not wants to access the
-    !           memory and 1 else; before changing or using the informations
-    !           gotten with MPI_GET, each proc tests if the sum fo this integer
-    !           is 0, if it is, this proc is the first to access the memory,
-    !           it may change and rewrite it, else only the integer belonging to
-    !           the proc may be reset to 0
-    !------------ Modules used ------------------- ---------------
-    use dlb_common, only: set_empty_job
-    implicit none
-    integer(i4_kind), intent(in)  :: m, rank
-    integer(i4_kind), intent(inout)  :: already_done
-    integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
-    logical                       :: ok ! result
-    ! *** end of interface ***
-
-    integer(i4_kind) :: stolen_jobs(JLENGTH)
-    integer(i4_kind) :: local_jobs(JLENGTH)
-
-    !
-    ! NOTE: size(jobs) is JLENGTH, (jobs(JLEFT), jobs(JRIGHT)] specify
-    ! the interval, the rest is metadata that should be copied
-    ! around.
-    !
-    ASSERT(size(jobs)==JLENGTH)
-
-    !
-    ! remote_jobs are fetched from rank, split into
-    !   1) remaining_jobs --- are returned back to rank
-    !   2) stolen_jobs    --- for local processing,
-    !      these are further split into
-    !      a) jobs        --- are output of this sub.
-    !      b) local_jobs  --- are stored in local storage
-    !
-
-    ok = try_read_modify_write(rank, steal_remote, m, stolen_jobs)
-
-    if ( .not. ok ) then
-        jobs = set_empty_job()
-        RETURN
-    endif
-
-    already_done = 0
-    !
-    ! "Stealing" from myself:
-    !
-    ok = steal_local(m, stolen_jobs, local_jobs, jobs)
-    ASSERT(ok)
-
-    !
-    ! This shoul be better done at a single place:
-    !
-    already_done = already_done + length(jobs)
-
-    !
-    ! This stores the rest for later delivery in the OWN job-storage
-    !
-    call write_unsafe(my_rank, local_jobs)
-    ! This stores the new jobs (minus the ones for direct use)
-    ! in the storage, as soon as there a no more other procs
-    ! trying to do something
-    !
-    ! FIXME: (already addressed?)
-    ! The while loop may be go on for ever: because it
-    ! is nowere ensured that the current processor will
-    ! find its memory unlocked of the user lock by the others
-    ! some times. If all other procs have finished and this
-    ! one wants to write the additional jobs in its own storage
-    ! it may find each time it gets the win_lock a user lock
-    ! by someone else. This has already happend if some procs
-    ! were trying to get their local_tgetm when all were
-    ! finished. In this case a checking for termination stuff
-    ! already im the local loop helped.
-    ! Here the solution is that the proc writes the additional
-    ! information in the storage, that is empty, anyhow.
-    ! In this case stealing procs, which find empty storage
-    ! are allowed only to reset the lock relevant part of the storage
-    ! A better solution is welcome.
-  end function rmw_tgetm
 
   function try_read_modify_write(rank, modify, iarg, jobs) result(ok)
     !
@@ -1039,7 +867,6 @@ contains
     !------------ Executable code --------------------------------
 
     ! these variables are for the termination algorithm
-    had_thief = .false.
     terminated = .false.
 
     ! set starting values for the jobs, needed also in this way for
@@ -1050,12 +877,7 @@ contains
 
     call dlb_common_setup(start_job(JRIGHT) - start_job(JLEFT))
 
-    many_tries = 0
-    many_searches = 0
-    many_locked = 0
-    many_zeros = 0
     already_done = 0
-    remember_last = start_job(JLEFT)
 
     ! Job storage holds all the jobs currently in use
     ! direct storage, because in own memory used here
