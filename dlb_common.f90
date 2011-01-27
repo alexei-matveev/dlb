@@ -476,12 +476,12 @@ contains
     !
     ! at the point
     !
-    !     C = A + reserve_workm(m, local)
+    !     C = A + min(B - A, m)
     !
     ! NOTE: This function has to adhere to the interface of modify(...)
     ! argument in try_read_modify_write(...)
     !
-    ! use dlb_common, only: i4_kind, JLENGTH, reserve_workm, split_at
+    ! use dlb_common, only: i4_kind, JLENGTH, split_at
     implicit none
     integer(i4_kind), intent(in)  :: m
     integer(i4_kind), intent(in)  :: local(:) ! (JLENGTH)
@@ -496,9 +496,10 @@ contains
     ASSERT(size(remaining)==JLENGTH)
     ASSERT(size(stolen)==JLENGTH)
 
-    ! The give_grid function needs only up to m jobs at once, thus
-    ! divide the jobs
-    work = reserve_workm(m, local(:L_JOB))
+    ! The give_grid function needs only up to m jobs at once:
+    work = min(length(local), m)
+    ! work = max(work, 0)
+    ASSERT(work>=0)
 
     ! split here:
     c = local(JLEFT) + work
@@ -530,19 +531,6 @@ contains
 
     n = max(jobs(JRIGHT) - jobs(JLEFT), 0)
   end function length
-
-  pure function reserve_workm(m, jobs) result(n)
-    ! PURPOSE: give back number of jobs to take, should be up to m, but
-    ! less if there are not so many available
-    implicit none
-    integer(i4_kind), intent(in) :: m
-    integer(i4_kind), intent(in) :: jobs(2)
-    integer(i4_kind)             :: n ! result
-    !** End of interface *****************************************
-
-    n = min(jobs(2) - jobs(1), m)
-    n = max(n, 0)
-  end function reserve_workm
 
   pure function divide_work(jobs) result(n)
     ! Purpose: give back number of jobs to take, half what is there
