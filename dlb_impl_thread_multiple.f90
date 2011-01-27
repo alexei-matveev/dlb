@@ -166,7 +166,7 @@ module dlb_impl
   ! * terminated: this is the flag, telling everybody, that it's done
   !             read: ALL
   !             write: CONTROL, MAILBOX
-  ! * reported_by, reported_to: (FIXME: verify)
+  ! * reported_by, reported_to:
   !          read: CONTROL, MAILBOX
   !          write: CONTROL, MAILBOX
   !          for termination algorithm, CONTROL and MAILBOX may have knowledge about finished jobs
