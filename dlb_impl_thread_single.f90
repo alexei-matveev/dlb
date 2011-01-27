@@ -284,9 +284,11 @@ contains
     lm_source = -1
 
     ! FIXME: still not clear why:
-    call test_resp_done(requ_m) ! needed if it is initialized with zero jobs for
-    ! this proc, the reporing of how many jobs are done for zero jobs is stopped before
-    ! it reaches the part were it is tested if the responsibility is done
+    ! Check if we have really gotten anything, else report already here that there is nothing as
+    ! elsewhere getting to the function test_resp_done with zero jobs done is surpressed
+    ! Needed in case that n_procs > Number of jobs
+    call test_resp_done(requ_m)
+
     call task_messages(has_jr_on, requ_m, lm_source,count_ask, proc_asked_last,&
          many_zeros, timestart, timemax)
     if (.not. has_jr_on) call task_local_storage(has_jr_on, requ_m, count_ask, proc_asked_last, timestart)
