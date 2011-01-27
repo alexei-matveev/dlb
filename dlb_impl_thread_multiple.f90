@@ -250,15 +250,15 @@ contains
   end subroutine dlb_finalize
 
   subroutine dlb_give_more(n, my_job)
-    !  Purpose: Returns next bunch of up to n jobs, if jobs(JRIGHT)<=
-    !  jobs(JLEFT) there are no more jobs there, else returns the jobs
-    !  done by the procs should be jobs(JLEFT) + 1 to jobs(JRIGHT) in
+    !  Purpose: Returns next bunch of up to n jobs, if my_job(2)<=
+    !  my_job(1) there are no more jobs there, else returns the jobs
+    !  done by the procs should be my_job(1) + 1 to my_job(2) in
     !  the related job list
     !  first the jobs are tried to get from the local storage of the
     !  current proc
     !  if there are not enough it will wait for either new ones to arrive
     !  or termination, the return value of my_jobs should only contain
-    !  my_jobs(JLEFT) == my_jobs(JRIGHT) if all procs are terminated
+    !  my_job(1) == my_job(2) if all procs are terminated
     !
     ! Context: main thread.
     !
@@ -266,11 +266,14 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
-    integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB)
+    integer(kind=i4_kind), intent(out  ) :: my_job(:) ! (2)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(i4_kind), target             :: jobs(JLENGTH)
     !------------ Executable code --------------------------------
+
+    ASSERT(size(my_job)==2)
+
     ! First try to get a job from local storage
     call th_mutex_lock(LOCK_JS)
     call local_tgetm(n, jobs)
@@ -306,7 +309,10 @@ contains
       ! if true means MAIN did not intent to come back (check termination is
       ! too dangerous, because MAIN may still have work for one go and thus
       ! would try to join the thread in the next cycle again
-    my_job = jobs(:L_JOB)
+
+    ! only the start and endpoint of job slice are needed outside:
+    my_job(1) = jobs(JLEFT)
+    my_job(2) = jobs(JRIGHT)
   end subroutine dlb_give_more
 
   subroutine thread_secretary() bind(C)
