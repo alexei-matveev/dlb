@@ -214,7 +214,8 @@ contains
     !  more work from others, till the separate termination algorithm
     !  states, that everything is done
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: select_victim
+    use dlb_common, only: select_victim, steal_local, steal_remote &
+        , length, empty
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(i4_kind), intent(in)  :: n
@@ -555,113 +556,6 @@ contains
     !
   end function try_read_modify_write
 
-  function steal_remote(m, remote, remaining, stolen) result(ok)
-    !
-    ! Stealing is implemented as splitting the interval
-    !
-    !     (A, B] = remote(1:2)
-    !
-    ! into
-    !
-    !     remaining(1:2) = (A, C] and stolen(1:2) = (C, B]
-    !
-    ! at the point C computed with the help of the legacy function
-    ! "steal_work_for_rma(...)" as
-    !
-    !     C = B - steal_work_for_rma(m, remote)
-    !
-    ! NOTE: This function has to adhere to the interface of modify(...)
-    ! argument in try_read_modify_write(...)
-    !
-    ! FIXME: the role of parameter "m" is not clear!
-    !
-    use dlb_common, only: i4_kind, JLENGTH, steal_work_for_rma, split_at
-    implicit none
-    integer(i4_kind), intent(in)  :: m
-    integer(i4_kind), intent(in)  :: remote(:) ! (JLENGTH)
-    integer(i4_kind), intent(out) :: remaining(:) ! (JLENGTH)
-    integer(i4_kind), intent(out) :: stolen(:) ! (JLENGTH)
-    logical                       :: ok ! result
-    ! *** end of interface ***
-
-    integer(i4_kind) :: work, c
-
-    ASSERT(size(remote)==JLENGTH)
-    ASSERT(size(remaining)==JLENGTH)
-    ASSERT(size(stolen)==JLENGTH)
-
-    ok = .false. ! failure
-    remaining = -1 ! junk
-    stolen = -1 ! junk
-
-    ! how much of the work should be stolen
-    ! try to avoid breaking in job intervals smaller than m
-    work = steal_work_for_rma(m, remote(:L_JOB))
-
-    !
-    ! We were told that nothing can be stolen --- report failure:
-    !
-    if ( work == 0 ) RETURN
-
-    !
-    ! Split the interval here:
-    !
-
-    c = remote(JLEFT) + work
-
-    call split_at(c, remote, stolen, remaining)
-
-    ok = .not. empty(stolen)
-  end function steal_remote
-
-  function steal_local(m, local, remaining, stolen) result(ok)
-    !
-    ! "Stealing" from myself is implemented as splitting the interval
-    !
-    !     (A, B] = local(1:2)
-    !
-    ! into
-    !
-    !     stolen(1:2) = (A, C] and remaining(1:2) = (C, B]
-    !
-    ! at the point
-    !
-    !     C = A + reserve_workm(m, local)
-    !
-    ! NOTE: This function has to adhere to the interface of modify(...)
-    ! argument in try_read_modify_write(...)
-    !
-    use dlb_common, only: i4_kind, JLENGTH, reserve_workm, split_at
-    implicit none
-    integer(i4_kind), intent(in)  :: m
-    integer(i4_kind), intent(in)  :: local(:) ! (JLENGTH)
-    integer(i4_kind), intent(out) :: remaining(:) ! (JLENGTH)
-    integer(i4_kind), intent(out) :: stolen(:) ! (JLENGTH)
-    logical                       :: ok ! result
-    ! *** end of interface ***
-
-    integer(i4_kind) :: work, c
-
-    ASSERT(size(local)==JLENGTH)
-    ASSERT(size(remaining)==JLENGTH)
-    ASSERT(size(stolen)==JLENGTH)
-
-    ! The give_grid function needs only up to m jobs at once, thus
-    ! divide the jobs
-    work = reserve_workm(m, local(:L_JOB))
-
-    ! split here:
-    c = local(JLEFT) + work
-
-    !
-    ! Note the order of (stolen, remaining) --- left interval is stolen, right
-    ! interval is remaining:
-    !
-    call split_at(c, local, stolen, remaining)
-
-    ok = .not. empty(stolen)
-  end function steal_local
-
   function try_lock_and_read(rank, jobs) result(ok)
     !
     ! Try getting a lock indexed by rank and if that succeeds,
@@ -857,7 +751,7 @@ contains
     !           all jobs should be the numbers from START to END, with
     !           START <= STP <= EP <= END
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: dlb_common_setup, set_start_job
+    use dlb_common, only: dlb_common_setup, set_start_job, length
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
@@ -884,26 +778,8 @@ contains
     call write_and_unlock(my_rank, start_job)
   end subroutine dlb_setup
 
-  logical function empty(jobs)
-    implicit none
-    integer(i4_kind), intent(in) :: jobs(:)
-    ! *** end of interface ***
-
-    empty = length(jobs) == 0
-  end function empty
-
-  function length(jobs) result(n)
-    implicit none
-    integer(i4_kind), intent(in) :: jobs(:)
-    integer(i4_kind)             :: n ! result
-    ! *** end of interface ***
-
-    ASSERT(size(jobs)==JLENGTH)
-
-    n = max(jobs(JRIGHT) - jobs(JLEFT), 0)
-  end function length
-
   logical function storage_is_empty(rank)
+    use dlb_common, only: empty, JLENGTH
     implicit none
     integer(i4_kind), intent(in) :: rank
     ! *** end of interface ***
