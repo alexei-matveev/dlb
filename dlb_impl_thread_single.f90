@@ -205,7 +205,7 @@ contains
     !
     ! Context: main thread.
     !
-    !------------ Modules used ------------------- ---------------
+    use dlb_common, only: empty
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
@@ -222,7 +222,7 @@ contains
     ! if local storage only gives empty job: cycle under checking for termination
     ! only try new job from local_storage after JLEFT told that there are any
     call th_mutex_lock(LOCK_JS)
-    do while (jobs(JLEFT) >= jobs(JRIGHT) .and. .not. termination())
+    do while ( empty(jobs) .and. .not. termination() )
        ! found no job in first try, now wait for change before doing anything
        ! CONTROL will make a wake up
        call th_cond_wait(COND_JS2_UPDATE, LOCK_JS)
@@ -232,7 +232,7 @@ contains
     call time_stamp("finished loop over local search",3)
     ! here we should have a valid job slice with at least one valid job
     ! or a terminated algorithm
-    if (jobs(JLEFT) >= jobs(JRIGHT)) then
+    if ( empty(jobs) ) then
       ! if true means MAIN did not intent to come back (check termination is
       ! too dangerous, because MAIN may still have work for one go and thus
       ! would try to join the thread in the next cycle again
@@ -393,7 +393,7 @@ contains
     !          and remember that there is already one on its way
     !          does also the my_resp lowerage of the termination algorithm
     !          as a finished job means, someone has to know it
-    !------------ Modules used ------------------- ---------------
+    use dlb_common, only: empty
     implicit none
     !------------ Declaration of formal parameters ---------------
     logical, intent(out)               :: wait_answer
@@ -407,7 +407,7 @@ contains
     !------------ Executable code --------------------------------
     wait_answer = .false.
     call th_mutex_lock(LOCK_JS)
-    if (job_storage(JLEFT) >= job_storage(JRIGHT)) then
+    if ( empty(job_storage) ) then
       wait_answer = .true.
       many_searches = many_searches + 1 !global debug tool
       if (.not. masterserver .and. already_done > 0) then
@@ -488,7 +488,7 @@ contains
     ! Signals: COND_NJ2_UPDATE
     !
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: report_by
+    use dlb_common, only: report_by, empty
     use dlb_common, only: print_statistics
     implicit none
     !------------ Declaration of formal parameters ---------------
@@ -542,7 +542,7 @@ contains
       if ((timeend - timestart) > timemax) timemax = timeend - timestart
       count_offers = count_offers + 1
       my_jobs = message(2:)
-      if ((my_jobs(JLEFT) >= my_jobs(JRIGHT)) .and. .not. termination()) then
+      if ( empty(my_jobs) .and. .not. termination() ) then
         timestart = MPI_WTIME()
         call send_request(requ_m, count_ask, proc_asked_last)
         many_zeros = many_zeros + 1
@@ -648,7 +648,7 @@ contains
     !           START <= STP <= EP <= END
     !
     ! Starts other Thread, runs on MAIN
-    !------------ Modules used ------------------- ---------------
+    use dlb_common, only: length
     use thread_handle, only: thread_setup, th_create_one
     implicit none
     !------------ Declaration of formal parameters ---------------
@@ -663,7 +663,7 @@ contains
     start_job = set_start_job(job)
     ! already done should contain how many of the jobs have been done already
     already_done = 0
-    call dlb_common_setup(start_job(JRIGHT) - start_job(JLEFT)) ! sets none finished on termination_master
+    call dlb_common_setup(length(start_job)) ! sets none finished on termination_master
     ! Job storage holds all the jobs currently in use
     job_storage(:JLENGTH) = start_job
     ! from now on, there are several threads, so chared objects have to
