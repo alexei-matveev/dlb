@@ -44,7 +44,6 @@ module dlb_common
   public :: length!(jobs) -> integer
   public :: empty!(jobs) -> logical
 
-  public :: reserve_workm!(m, jobs) -> integer n
   public :: divide_work!(jobs) -> integer n
   public :: divide_work_master!(m, jobs) -> integer n
   public :: split_at! (C, AB, AC, CB)

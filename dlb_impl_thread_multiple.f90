@@ -273,7 +273,7 @@ contains
     !------------ Executable code --------------------------------
     ! First try to get a job from local storage
     call th_mutex_lock(LOCK_JS)
-    call local_tgetm(n, jobs, already_done)
+    call local_tgetm(n, jobs)
     call th_mutex_unlock(LOCK_JS)
     call time_stamp("finished first local search",3)
     ! if local storage only gives empty job: cycle under checking for termination
@@ -287,7 +287,7 @@ contains
        i_am_waiting = .true.
        call th_cond_wait(COND_JS2_UPDATE, LOCK_JS)
        i_am_waiting = .false.
-       call local_tgetm(n, jobs, already_done)
+       call local_tgetm(n, jobs)
     enddo
     call th_mutex_unlock(LOCK_JS)
     call time_stamp("finished loop over local search",3)
@@ -610,7 +610,7 @@ contains
     end select
   end subroutine check_messages
 
-  subroutine local_tgetm(m, my_jobs, already_done)
+  subroutine local_tgetm(m, my_jobs)
     !  Purpose: takes m jobs from the left from object job_storage
     !           in the first try there is no need to wait for
     !           something going on in the jobs
@@ -622,28 +622,34 @@ contains
     ! Conditions: COND_JS_UPDATE
     !              waits on COND_JS2_UPDATE
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: reserve_workm
-    use dlb_common, only: split_at
+    use dlb_common, only: steal_local, length, set_empty_job
+    use dlb_common, only: empty
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: m
-    integer(kind=i4_kind), intent(out  ) :: my_jobs(JLENGTH)
-    integer(kind=i4_kind), intent(inout) :: already_done
+    integer(i4_kind), intent(in)  :: m
+    integer(i4_kind), intent(out) :: my_jobs(JLENGTH)
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: w, sp
-    integer(i4_kind)              :: remaining(JLENGTH)
-    !------------ Executable code --------------------------------
-    w = reserve_workm(m, job_storage) ! how many jobs to get
-    sp = job_storage(JLEFT) + w
-    call split_at(sp, job_storage, my_jobs, remaining)
-    job_storage = remaining
-    already_done = already_done + w
-    if (job_storage(JLEFT) >= job_storage(JRIGHT)) then
+
+    integer(i4_kind) :: remaining(JLENGTH)
+
+    if ( steal_local(m, job_storage, remaining, my_jobs) ) then
+        !
+        ! Stealing successfull:
+        !
+        job_storage = remaining
+    else
+        !
+        ! It is OK to return an empty job range from here:
+        !
+        my_jobs = set_empty_job()
+    endif
+
+    already_done = already_done + length(my_jobs)
+
+    if ( empty(job_storage) ) then
       call time_stamp("MAIN wakes CONTROL",3)
       call th_cond_signal(COND_JS_UPDATE)
     endif
-    !endif
   end subroutine local_tgetm
 
   subroutine report_or_store(owner, num_jobs_done, requ)

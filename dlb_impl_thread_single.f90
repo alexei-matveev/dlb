@@ -611,7 +611,7 @@ contains
   end subroutine report_or_store
 
 
-   subroutine local_tgetm(m, my_jobs)
+  subroutine local_tgetm(m, my_jobs)
     !  Purpose: takes m jobs from the left from object job_storage
     !           in the first try there is no need to wait for
     !           something going on in the jobs
@@ -621,21 +621,28 @@ contains
     ! Locks: complete function is locked by LOCK_JS from outside
     !
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: reserve_workm, split_at
+    use dlb_common, only: steal_local, length, set_empty_job
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: m
-    integer(kind=i4_kind), intent(out  ) :: my_jobs(JLENGTH)
+    integer(i4_kind), intent(in)  :: m
+    integer(i4_kind), intent(out) :: my_jobs(JLENGTH)
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: w, sp
-    integer(i4_kind)              :: remaining(JLENGTH)
-    !------------ Executable code --------------------------------
-    w = reserve_workm(m, job_storage) ! how many jobs to get
-    sp = job_storage(JLEFT) + w
-    call split_at(sp, job_storage, my_jobs, remaining)
-    job_storage = remaining
-    already_done = already_done + w
+
+    integer(i4_kind) :: remaining(JLENGTH)
+
+    if ( steal_local(m, job_storage, remaining, my_jobs) ) then
+        !
+        ! Stealing successfull:
+        !
+        job_storage = remaining
+    else
+        !
+        ! It is OK to return an empty job range from here:
+        !
+        my_jobs = set_empty_job()
+    endif
+
+    already_done = already_done + length(my_jobs)
   end subroutine local_tgetm
 
   subroutine dlb_setup(job)
