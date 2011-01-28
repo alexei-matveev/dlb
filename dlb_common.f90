@@ -57,6 +57,7 @@ module dlb_common
   public :: end_communication
   public :: send_resp_done, send_termination, has_last_done
   public :: set_start_job, set_empty_job
+  public :: output_border
 
   public :: report_to!(owner, n), with n being an incremental report
   public :: report_by!(source, n), with n being a cumulative report
@@ -835,12 +836,13 @@ contains
     implicit none
     !** End of interface *****************************************
 
+    if (1 < output_border) then
+        ! executed by me, sorted by owner:
+        write(*, '("[", I3, "] REPORTED_TO =", 128I4)")') my_rank, reported_to
 
-    ! executed by me, sorted by owner:
-    write(*, '("[", I3, "] REPORTED_TO =", 128I4)")') my_rank, reported_to
-
-    ! assigned to me, sorted by execution host:
-    write(*, '("[", I3, "] REPORTED_BY =", 128I4)")') my_rank, reported_by
+        ! assigned to me, sorted by execution host:
+        write(*, '("[", I3, "] REPORTED_BY =", 128I4)")') my_rank, reported_by
+    endif
 
     !
     ! FIXME: why cannot I use collective communications here?
@@ -1096,7 +1098,7 @@ contains
     ! N = jobs_per_proc * n_procs + rest; rest < n_procs
     rest = N - jobs_per_proc * n_procs
 
-    if (my_rank == termination_master) then
+    if (my_rank == termination_master .and. 1 < output_border) then
         print *, "Distributing of jobs on the processors"
         print *, "There are ", N, " jobs altogether"
         print *, "each processor will get approximatly", jobs_per_proc

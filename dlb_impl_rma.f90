@@ -102,6 +102,11 @@ module dlb_impl
   integer(kind=i4_kind), parameter  :: ON = 1, OFF = 0 ! For read-modify-write
   integer(kind=i4_kind)             :: jobs_len  ! Length of complete jobs storage
   integer(kind=i4_kind)            :: win ! for the RMA object
+  ! Read Modify Write Error codes;
+  integer(kind=i4_kind), parameter  :: RMW_SUCCESS = 0
+  integer(kind=i4_kind), parameter  :: RMW_LOCKED = 1
+  integer(kind=i4_kind), parameter  :: RMW_MODIFY_ERROR = 2
+
 
   ! store all the jobs, belonging to this processor and the lock struct here:
   integer(kind=i4_kind), pointer    :: job_storage(:) ! (jobs_len)
@@ -110,6 +115,9 @@ module dlb_impl
                                       ! the current interval
   logical                           :: terminated!, finishedjob ! for termination algorithm
   integer(kind=i4_kind),allocatable :: requ2(:) ! requests of send are stored till relaese
+  ! Variables need for debug and efficiency testing
+  integer(kind=i4_kind)             :: many_tries, many_searches !how many times asked for jobs
+  integer(kind=i4_kind)             :: many_locked, many_zeros, self_many_locked
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
 contains
@@ -125,6 +133,7 @@ contains
     !           as it needs parallelization of all processes
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: dlb_common_init
+    use dlb_common, only: output_border
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
@@ -167,7 +176,7 @@ contains
     job_storage = 0
 
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
-    if (my_rank ==0) then
+    if (my_rank ==0 .and. 0 < output_border) then
         print *, "DLB init: using variant 'rma'"
         print *, "DLB init: This variant uses the remote memory access of MPI implementation"
         print *, "DLB init: it needs real asynchronous RMA actions by MPI for working properly"
@@ -214,8 +223,7 @@ contains
     !  more work from others, till the separate termination algorithm
     !  states, that everything is done
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: select_victim, steal_local, steal_remote &
-        , length, empty
+    use dlb_common, only: select_victim
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(i4_kind), intent(in)  :: n
@@ -227,21 +235,36 @@ contains
     integer(i4_kind) :: jobs(JLENGTH)
     integer(i4_kind) :: stolen_jobs(JLENGTH)
     integer(i4_kind) :: local_jobs(JLENGTH)
-    logical :: ok
+    integer(i4_kind) :: ok
+    logical          :: ok_logical
 
     !
     ! First try to get jobs from local storage
     !
-    ok = .false.
+    ok = 2
     do while ( .not. storage_is_empty(my_rank) )
         !
         ! Stealing from myself:
         !
         ok = try_read_modify_write(my_rank, steal_local, n, jobs)
-        if ( ok ) exit ! while loop
+
+        select case ( ok )
+
+        case (RMW_SUCCESS)
+            ! We got what we wanted
+            exit ! while loop
+
+        case (RMW_LOCKED) ! separated debug statement
+            ! some other processor has lock for our memory
+            self_many_locked = self_many_locked + 1
+
+        case default
+            cycle
+
+        end select
     enddo
 
-    if ( .not. ok ) then
+    if ( .not. ok == 0 ) then
         !
         ! Apparently the local storage is empty:
         !
@@ -254,6 +277,7 @@ contains
         ! executing, get this by looking into the (empty) local queue,
         ! that is suposed to keep a valid owner field:
         !
+        many_searches = many_searches + 1 ! just for debugging
         call read_unsafe(my_rank, jobs)
         call report_or_store(jobs(JOWNER), already_done)
         already_done = 0
@@ -271,21 +295,40 @@ contains
             ! try to get jobs from rank, if rank's memory occupied by another or contains
             ! nothing to steal, this will return false:
             !
+            many_tries = many_tries + 1 ! just for debugging
             ok = try_read_modify_write(rank, steal_remote, n, stolen_jobs)
-            if ( ok ) exit ! while loop
+
+            select case ( ok )
+
+            case (RMW_SUCCESS)
+                ! We got what we wanted
+                exit ! while loop
+
+            case (RMW_LOCKED) ! for debugging separated
+                ! Other processor holds the lock
+                many_locked = many_locked + 1
+
+            case (RMW_MODIFY_ERROR) ! for debugging separated
+                ! In this case victims job storage was empty
+                many_zeros = many_zeros + 1
+
+            case default
+                cycle
+
+            end select
         enddo
 
         !
         ! Stealing from remote succeded:
         !
-        if ( ok ) then
+        if ( ok == 0 ) then
             !
             ! Early "stealing" from myself --- do it before storing
             ! the stolen interval in publically availbale storage.
             ! Ensures progress, avoids stealing back-and-forth.
             !
-            ok = steal_local(n, stolen_jobs, local_jobs, jobs)
-            ASSERT(ok)
+            ok_logical = steal_local(n, stolen_jobs, local_jobs, jobs)
+            ASSERT(ok_logical)
 
             !
             ! This stores the rest for later delivery in the OWN job-storage
@@ -316,7 +359,12 @@ contains
     ! the case of others stealing unrelated jobs from the next round of
     ! call dlb_setup(...); do while ( dlb_give_more(...) ) ...
     !
-    if ( empty(jobs) ) then
+    if ( empty(jobs)) then
+       if (1 < output_border) then
+           print *, my_rank, "tried", many_searches, "for new jobs and stealing", many_tries
+           print *, my_rank, "was locked", many_locked, "got zero", many_zeros
+           print *, my_rank, "was locked on own memory", self_many_locked
+       endif
        call MPI_BARRIER(comm_world, ierr)
        ASSERT(ierr==MPI_SUCCESS)
     endif
@@ -412,7 +460,7 @@ contains
     check_messages = terminated
 
     if (terminated) then
-      call time_stamp("TERMINATING!", 1)
+      call time_stamp("TERMINATING!", 2)
     endif
   end function check_messages
 
@@ -479,15 +527,16 @@ contains
     endif
   end subroutine report_or_store
 
-  function try_read_modify_write(rank, modify, iarg, jobs) result(ok)
+  function try_read_modify_write(rank, modify, iarg, jobs) result(error)
     !
     ! Perform read-modify-write sequence
+    ! returns error code, 0 means success, else describes reasons for failure
     !
     use dlb_common, only: set_empty_job
     implicit none
     integer(i4_kind), intent(in)  :: rank, iarg
     integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
-    logical                       :: ok ! result
+    integer(i4_kind)              :: error ! resulting error code 0 == success
     !
     ! Input argument "modify(...)" is a procedure that takes an integer argument
     ! "iarg", a jobs descriptor "orig" and produces two job descriptors
@@ -510,7 +559,7 @@ contains
 
     integer(i4_kind) :: orig(JLENGTH)
     integer(i4_kind) :: left(JLENGTH)
-
+    logical          :: ok
     !
     ! "orig" job descriptor is fetched from "rank", split into
     !   1) "left"  --- which written back to "rank"
@@ -532,7 +581,11 @@ contains
     ok = try_lock_and_read(rank, orig)
 
     ! Return if locking failed:
-    if ( .not. ok ) RETURN
+    if ( .not. ok ) then
+       ! error code, needed for debugging
+       error = RMW_LOCKED
+       RETURN
+    endif
 
     ! Modify step:
     ok = modify(iarg, orig, left, jobs)
@@ -543,9 +596,14 @@ contains
     !
     if ( .not. ok ) then
         call unlock(rank)
+        ! error code, needed for debugging
+        error = RMW_MODIFY_ERROR
         RETURN
     endif
 
+    ! succeeded therefore no error:
+    ! needed for more than only debugging
+    error = RMW_SUCCESS
     !
     ! Write back and release the lock:
     !
@@ -770,6 +828,14 @@ contains
     start_job = set_start_job(job)
 
     call dlb_common_setup(length(start_job))
+
+    ! initalize some debug variables
+    many_tries = 0
+    many_searches = 0
+    many_locked = 0
+    self_many_locked = 0
+    many_zeros = 0
+    ! end initalizing debug variables
 
     already_done = 0
 
