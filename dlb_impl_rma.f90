@@ -223,7 +223,8 @@ contains
     !  more work from others, till the separate termination algorithm
     !  states, that everything is done
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: select_victim
+    use dlb_common, only: select_victim, steal_local, steal_remote &
+        , length, empty, output_border
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(i4_kind), intent(in)  :: n
