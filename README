@@ -127,3 +127,18 @@ COMPILATION:
 
 If DLB is used external from the ParaGauss repository set DLB_EXTERNAL = 1 on
 top of the DLB Makefile.
+
+OUTPUT LEVEL:
+
+DLB is able to run without producing output. But it may also provide some informations
+and statistics up to very detailed informations about its behaviour.
+What it will print of them is selected by the output level. This may be changed by setting
+the variable output_border in dlb_common.f90 to another value:
+output_border = 0 : no output at all
+output_border = 1 : at initalization it will be printed which DLB variant is used
+output_border = 2 : the DLB variants  will also provide some more
+                    statistics with summarized informations about the run of DLB
+output_border > 2 : additional output will appear with time stamps at some selected places
+
+As DLB is still in the testing phase output_border is set to 2 by default, which should allow
+to understand better, where the problems are.

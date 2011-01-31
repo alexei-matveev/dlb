@@ -168,11 +168,12 @@ contains
     !  Purpose: initalization of needed stuff
     !           is in one thread context
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: output_border
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     call dlb_thread_init()
-    if (my_rank == 0) then
+    if (my_rank == 0 .and. 0 < output_border) then
         print *, "DLB init: using variant 'thread single'"
         print *, "DLB init: This variant needs an additinal thread for mpi messages"
         print *, "DLB init: This thread is generated with Pthreads"
@@ -206,6 +207,7 @@ contains
     ! Context: main thread.
     !
     use dlb_common, only: empty
+    use dlb_common, only: output_border
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
@@ -241,9 +243,11 @@ contains
       ! would try to join the thread in the next cycle again
        call th_join_all()
        ! now only one thread left, thus all variables belong him:
-       print *, my_rank, "S: tried", many_searches, "for new jobs andstealing", many_tries
-       print *, my_rank, "S: zeros", many_zeros
-       print *, my_rank, "S: longest wait for answer", timemax
+       if (1 < output_border) then
+           print *, my_rank, "S: tried", many_searches, "for new jobs andstealing", many_tries
+           print *, my_rank, "S: zeros", many_zeros
+           print *, my_rank, "S: longest wait for answer", timemax
+       endif
     endif
 
     ! only the start and endpoint of job slice are needed outside:

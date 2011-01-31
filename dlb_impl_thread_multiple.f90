@@ -226,11 +226,12 @@ contains
     !  Purpose: initalization of needed stuff
     !           is in one thread context
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: output_border
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     call dlb_thread_init()
-    if (my_rank == 0) then
+    if (my_rank == 0 .and. 0 < output_border) then
         print *, "DLB init: using variant 'thread multiple'"
         print *, "DLB init: This variant needs additinalal threads from Pthreads"
         print *, "DLB init: Please ensure that MPI has at least MPI_THREAD_MULTIPLE"
@@ -263,6 +264,7 @@ contains
     ! Context: main thread.
     !
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: output_border
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
@@ -300,11 +302,12 @@ contains
     if (jobs(JLEFT) >= jobs(JRIGHT)) then
        call th_join_all()
        ! now only one thread left, thus all variables belong him:
-       print *, my_rank, "C: tried", many_searches, "for new jobs andstealing", many_tries
-       print *, my_rank, "C: zeros", many_zeros
-       print *, my_rank, "C: longest wait for answer", timemax
-       !print *, my_rank, "CONTROL: tried", many_searches, "times to get new jobs, by trying to steal", many_tries
-       !print *,my_rank, "MAILBOX: got ", count_messages, "messages with", count_requests, "requests and", count_offers, "offers"
+       if (1 < output_border) then
+           print *, my_rank, "C: tried", many_searches, "for new jobs andstealing", many_tries
+           print *, my_rank, "C: zeros", many_zeros
+           print *, my_rank, "C: longest wait for answer", timemax
+           print *, my_rank, "M: got ", count_messages, "messages with", count_requests, "requests and", count_offers, "offers"
+       endif
     endif
       ! if true means MAIN did not intent to come back (check termination is
       ! too dangerous, because MAIN may still have work for one go and thus
@@ -331,6 +334,7 @@ contains
     ! Context: entry to mailbox thread.
     !
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: output_border
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
@@ -348,7 +352,7 @@ contains
       call MPI_RECV(message, 1+JLENGTH, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
       ASSERT(ierr==MPI_SUCCESS)
 
-      !print *, my_rank, "got message", message, "from", stat(MPI_SOURCE)
+      if (5 < output_border) print *, my_rank, "got message", message, "from", stat(MPI_SOURCE)
       call time_stamp("got message", 4)
       count_messages = count_messages + 1
       call check_messages(requ_m, message, stat, lm_source)
