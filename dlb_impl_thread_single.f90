@@ -160,6 +160,9 @@ module dlb_impl
   integer(kind=i4_kind)             :: many_tries, many_searches
   integer(kind=i4_kind)             :: many_zeros
   double precision  :: timemax
+  ! They are only for MAIN
+  double precision  :: main_wait_all, main_wait_max, main_wait_last
+  double precision  :: max_work, last_work, average_work, num_jobs
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
 contains
@@ -215,10 +218,16 @@ contains
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(i4_kind), target             :: jobs(JLENGTH)
+    double precision                     :: start_timer
+    double precision,save                :: leave_timer = -1
     !------------ Executable code --------------------------------
 
     ASSERT(size(my_job)==2)
-
+    if (num_jobs > 0) then ! for debugging
+        last_work = MPI_Wtime() - leave_timer
+        if (last_work > max_work) max_work = last_work
+        average_work = average_work + last_work
+    endif
     ! First try to get a job from local storage
     call th_mutex_lock(LOCK_JS)
     call local_tgetm(n, jobs)
@@ -230,7 +239,13 @@ contains
     do while ( empty(jobs) .and. .not. termination() )
        ! found no job in first try, now wait for change before doing anything
        ! CONTROL will make a wake up
+       start_timer = MPI_Wtime() ! for debugging
        call th_cond_wait(COND_JS2_UPDATE, LOCK_JS)
+       main_wait_last = MPI_Wtime() - start_timer ! for debugging
+       ! store debugging information:
+       main_wait_all = main_wait_all + main_wait_last
+       if (main_wait_last > main_wait_max) main_wait_max = main_wait_last
+       ! end store debugging information
        call local_tgetm(n, jobs)
     enddo
     call th_mutex_unlock(LOCK_JS)
@@ -246,13 +261,19 @@ contains
        if (1 < output_border) then
            print *, my_rank, "S: tried", many_searches, "for new jobs andstealing", many_tries
            print *, my_rank, "S: zeros", many_zeros
-           print *, my_rank, "S: longest wait for answer", timemax
+           write(*, '(I3, " S: longest wait for answer", G20.10)'), my_rank, timemax
+           write(*, '(I3, " M: waited (all, max, last)", G20.10, G20.10, G20.10) '), my_rank, &
+                  main_wait_all, main_wait_max, main_wait_last
+           write(*, '(I3, " M: work slices lasted (average, max, last)", G20.10, G20.10, G20.10)'), my_rank,&
+              average_work/ num_jobs, max_work, last_work
        endif
     endif
 
     ! only the start and endpoint of job slice are needed outside:
     my_job(1) = jobs(JLEFT)
     my_job(2) = jobs(JRIGHT)
+    leave_timer = MPI_Wtime() ! for debugging
+    num_jobs = num_jobs + 1 ! for debugging
   end subroutine dlb_give_more
 
   subroutine thread_secretary() bind(C)
@@ -675,6 +696,16 @@ contains
     !------------ Executable code --------------------------------
     ! these variables are for the termination algorithm
     terminated = .false.
+    main_waits = .false.
+    ! For debugging and keeping trace:
+    main_wait_all = 0
+    main_wait_max = 0
+    main_wait_last = 0
+    max_work = 0
+    last_work = 0
+    average_work = 0
+    num_jobs = 0
+    ! end for debugging
     ! set starting values for the jobs
     start_job = set_start_job(job)
     ! already done should contain how many of the jobs have been done already
