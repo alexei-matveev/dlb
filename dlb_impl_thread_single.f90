@@ -139,6 +139,7 @@ module dlb_impl
   ! thread IDs, use base-0 indices:
   integer(kind=i4_kind), parameter :: SECRETARY = 0
 
+  logical :: main_waits
 
 
   integer(kind=i4_kind)             :: already_done ! stores how many jobs of the current interval have
@@ -240,7 +241,9 @@ contains
        ! found no job in first try, now wait for change before doing anything
        ! CONTROL will make a wake up
        start_timer = MPI_Wtime() ! for debugging
+       main_waits = .true. ! MAIN is waiting, control doesn't need to sleep
        call th_cond_wait(COND_JS2_UPDATE, LOCK_JS)
+       main_waits = .false. ! MAIN is back again
        main_wait_last = MPI_Wtime() - start_timer ! for debugging
        ! store debugging information:
        main_wait_all = main_wait_all + main_wait_last
@@ -300,7 +303,8 @@ contains
                                           ! which job request I send (and to whom the last)
     integer(kind=i4_kind)                :: ierr
     double precision                     :: timestart ! just for debugging
-    logical :: has_jr_on
+    logical :: has_jr_on ! a request for more work is on its way
+    logical :: go_sleep ! give more time to main
     !------------ Executable code --------------------------------
     count_messages = 0
     count_offers = 0
@@ -323,7 +327,10 @@ contains
          many_zeros, timestart, timemax)
     if (.not. has_jr_on) call task_local_storage(has_jr_on, requ_m, count_ask, proc_asked_last, timestart)
     do while (.not. termination())
-      call c_sleep(1000) !microseconds
+      call th_mutex_lock(LOCK_JS)
+      go_sleep = .not. main_waits ! if main has nothing left to do, no need to go to sleep
+      call th_mutex_unlock(LOCK_JS)
+      if(go_sleep) call c_sleep(1000) !microseconds
       ! check for any message with messagetag dlb
       call task_messages(has_jr_on, requ_m, lm_source, count_ask, proc_asked_last,&
           many_zeros, timestart, timemax)
