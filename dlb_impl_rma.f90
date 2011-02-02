@@ -118,6 +118,8 @@ module dlb_impl
   ! Variables need for debug and efficiency testing
   integer(kind=i4_kind)             :: many_tries, many_searches !how many times asked for jobs
   integer(kind=i4_kind)             :: many_locked, many_zeros, self_many_locked
+  double precision  :: main_wait_all, main_wait_max, main_wait_last
+  double precision  :: max_work, last_work, average_work, num_jobs
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
 contains
@@ -238,7 +240,14 @@ contains
     integer(i4_kind) :: local_jobs(JLENGTH)
     integer(i4_kind) :: ok
     logical          :: ok_logical
-
+    double precision                     :: start_timer
+    double precision,save                :: leave_timer = -1
+    !------------ Executable code --------------------------------
+    if (num_jobs > 0) then ! for debugging
+        last_work = MPI_Wtime() - leave_timer
+        if (last_work > max_work) max_work = last_work
+        average_work = average_work + last_work
+    endif
     !
     ! First try to get jobs from local storage
     !
@@ -287,6 +296,7 @@ contains
         ! Try stealing from random workers
         ! until termination is announced:
         !
+        start_timer = MPI_Wtime() ! for debugging
         do while ( .not. check_messages() )
             ! check like above but also for termination message from termination master
 
@@ -318,6 +328,12 @@ contains
 
             end select
         enddo
+        main_wait_last = MPI_Wtime() - start_timer ! for debugging
+        ! store debugging information:
+        main_wait_all = main_wait_all + main_wait_last
+        if (main_wait_last > main_wait_max) main_wait_max = main_wait_last
+        ! end store debugging information
+
 
         !
         ! Stealing from remote succeded:
@@ -365,11 +381,17 @@ contains
            print *, my_rank, "tried", many_searches, "for new jobs and stealing", many_tries
            print *, my_rank, "was locked", many_locked, "got zero", many_zeros
            print *, my_rank, "was locked on own memory", self_many_locked
+           write(*, '(I3, " M: waited (all, max, last)", G20.10, G20.10, G20.10) '), my_rank, &
+                  main_wait_all, main_wait_max, main_wait_last
+           write(*, '(I3, " M: work slices lasted (average, max, last)", G20.10, G20.10, G20.10)'), my_rank,&
+              average_work/ num_jobs, max_work, last_work
        endif
        call MPI_BARRIER(comm_world, ierr)
        ASSERT(ierr==MPI_SUCCESS)
     endif
     call time_stamp("dlb_give_more: exit",3)
+    leave_timer = MPI_Wtime() ! for debugging
+    num_jobs = num_jobs + 1 ! for debugging
   end subroutine dlb_give_more
 
   logical function check_messages()
@@ -836,6 +858,13 @@ contains
     many_locked = 0
     self_many_locked = 0
     many_zeros = 0
+    main_wait_all = 0
+    main_wait_max = 0
+    main_wait_last = 0
+    max_work = 0
+    last_work = 0
+    average_work = 0
+    num_jobs = 0
     ! end initalizing debug variables
 
     already_done = 0
