@@ -415,17 +415,16 @@ contains
     !
     !     remaining(1:2) = (A, C] and stolen(1:2) = (C, B]
     !
-    ! at the point C computed with the help of the legacy function
-    ! "steal_work_for_rma(...)" as
+    ! at the point C computed with the help of the legacy procedure as
     !
-    !     C = B - steal_work_for_rma(m, remote)
+    !     C = B - length(remote) / (2m) * m
     !
     ! NOTE: This function has to adhere to the interface of modify(...)
     ! argument in try_read_modify_write(...)
     !
     ! FIXME: the role of parameter "m" is not clear!
     !
-    ! use dlb_common, only: i4_kind, JLENGTH, steal_work_for_rma, split_at
+    ! use dlb_common, only: i4_kind, JLENGTH, split_at
     implicit none
     integer(i4_kind), intent(in)  :: m
     integer(i4_kind), intent(in)  :: remote(:) ! (JLENGTH)
@@ -439,28 +438,41 @@ contains
     ASSERT(size(remote)==JLENGTH)
     ASSERT(size(remaining)==JLENGTH)
     ASSERT(size(stolen)==JLENGTH)
+    ASSERT(m>=0)
 
     ok = .false. ! failure
     remaining = -1 ! junk
     stolen = -1 ! junk
 
-    ! how much of the work should be stolen
+    !
+    ! Now compute how much of the work should be stolen
     ! try to avoid breaking in job intervals smaller than m
-    work = steal_work_for_rma(m, remote(:L_JOB))
+    !
 
     !
-    ! We were told that nothing can be stolen --- report failure:
+    ! This much is is available:
     !
-    if ( work == 0 ) RETURN
+    work = length(remote)
+
+    !
+    ! FIXME: Is this logic still necessary?
+    !
+    ! Leave a multiple of "m", steal the rest.
+    ! Note that for m==1 a (bigger) half will be stolen:
+    !
+    work = work - work / (2 * m) * m
+    ASSERT(work>=0)
 
     !
     ! Split the interval here:
     !
-
     c = remote(JLEFT) + work
 
     call split_at(c, remote, stolen, remaining)
 
+    !
+    ! Stolen interval will be empty if work == 0:
+    !
     ok = .not. empty(stolen)
   end function steal_remote
 
@@ -531,23 +543,6 @@ contains
 
     n = max(jobs(JRIGHT) - jobs(JLEFT), 0)
   end function length
-
-  pure function steal_work_for_rma(m, jobs) result(n)
-    ! Purpose: give back number of jobs to take, half what is there
-    !          but gives more if could not divided equally
-    !          this should ensure the progress of the whole program
-    implicit none
-    integer(i4_kind), intent(in) :: m
-    integer(i4_kind), intent(in) :: jobs(2)
-    integer(i4_kind)             :: n ! result
-    !** End of interface *****************************************
-
-    ! give half of all jobs:
-    n =  (jobs(2) - jobs(1)) / (2 * m) * m
-    n = max(n, 0)
-    ! but give more, if job numbers not odd
-    n =  (jobs(2) - jobs(1)) - n
-  end function steal_work_for_rma
 
   subroutine split_at(C, AB, AC, CB)
     !
