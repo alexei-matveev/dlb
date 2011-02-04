@@ -147,7 +147,7 @@ module dlb_impl_thread_common
     ! Signals: COND_JS_UPDATE.
     !
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: divide_work, divide_work_master
+    use dlb_common, only: divide_work
     use dlb_common, only: split_at
     USE_MPI
     implicit none
@@ -162,14 +162,8 @@ module dlb_impl_thread_common
     !------------ Executable code --------------------------------
     call th_mutex_lock(LOCK_JS)
 
-    if (masterserver) then
-      !!! variant with masterserver: here only a part of the jobs available may be
-      !!! given away
-      w = divide_work_master(job_storage, n_procs)
-    else
-      !!! chare the jobs equally distributed
-      w = divide_work(job_storage)
-    endif
+    ! Share the jobs (a half, or less if olnly master has some):
+    w = divide_work(job_storage(1:2), n_procs)
 
     g_jobs = job_storage
     messagesJA(1, partner+1) = WORK_DONAT

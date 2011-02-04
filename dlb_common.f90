@@ -44,8 +44,7 @@ module dlb_common
   public :: length!(jobs) -> integer
   public :: empty!(jobs) -> logical
 
-  public :: divide_work!(jobs) -> integer n
-  public :: divide_work_master!(m, jobs) -> integer n
+  public :: divide_work!(jobs, np) -> integer n
   public :: split_at! (C, AB, AC, CB)
 
   public :: irand!(long int) -> long int
@@ -533,34 +532,6 @@ contains
     n = max(jobs(JRIGHT) - jobs(JLEFT), 0)
   end function length
 
-  pure function divide_work(jobs) result(n)
-    ! Purpose: give back number of jobs to take, half what is there
-    !          take less than half if could not equally divided
-    implicit none
-    integer(i4_kind), intent(in) :: jobs(2)
-    integer(i4_kind)             :: n ! result
-    !** End of interface *****************************************
-
-    ! give half of all jobs:
-    n =  (jobs(2) - jobs(1)) / 2
-    n = max(n, 0)
-  end function divide_work
-
-  pure function divide_work_master(jobs, np) result(n)
-    ! Purpose: give back number of jobs to take,
-    !          as all jobs to share are located at master give back
-    !          portion of division by the number of jobs
-    implicit none
-    integer(i4_kind), intent(in) :: jobs(2)
-    integer(i4_kind), intent(in) :: np
-    integer(i4_kind)             :: n ! result
-    !** End of interface *****************************************
-
-    ! exponential decrease, but not less than m (a job bunch at a time)
-    n =  (jobs(2) - jobs(1)) / np
-    if (n > (jobs(2) - jobs(1))) n = 0
-  end function divide_work_master
-
   pure function steal_work_for_rma(m, jobs) result(n)
     ! Purpose: give back number of jobs to take, half what is there
     !          but gives more if could not divided equally
@@ -1046,6 +1017,21 @@ contains
   end subroutine send_termination
 
 #ifdef DLB_MASTER_SERVER
+  pure function divide_work(jobs, np) result(n)
+    ! Purpose: give back number of jobs to take,
+    !          as all jobs to share are located at master give back
+    !          portion of division by the number of jobs
+    implicit none
+    integer(i4_kind), intent(in) :: jobs(2)
+    integer(i4_kind), intent(in) :: np
+    integer(i4_kind)             :: n ! result
+    !** End of interface *****************************************
+
+    ! exponential decrease (?)
+    n =  (jobs(2) - jobs(1)) / np
+    if (n > (jobs(2) - jobs(1))) n = 0
+  end function divide_work
+
   function distribute_jobs(N, n_procs, my_rank) result(my_jobs)
     !  Purpose: given the number of jobs alltogether, decides how many
     !           will be done on each proc and where is start and endpoint
@@ -1073,6 +1059,20 @@ contains
     endif
   end function distribute_jobs
 #else
+  pure function divide_work(jobs, np) result(n)
+    ! Purpose: give back number of jobs to take, half what is there
+    !          take less than half if could not equally divided
+    implicit none
+    integer(i4_kind), intent(in) :: jobs(2)
+    integer(i4_kind), intent(in) :: np ! unused
+    integer(i4_kind)             :: n ! result
+    !** End of interface *****************************************
+
+    ! give half of all jobs:
+    n =  (jobs(2) - jobs(1)) / 2
+    n = max(n, 0)
+  end function divide_work
+
   function distribute_jobs(N, n_procs, my_rank) result(my_jobs)
     !  Purpose: given the number of jobs alltogether, decides how many
     !           will be done on each proc and where is start and endpoint
