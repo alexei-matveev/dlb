@@ -101,7 +101,7 @@ module dlb_impl
   use dlb_common, only: masterserver
   use dlb_common, only: end_communication
   use iso_c_binding
-  use thread_handle
+  use dlb_impl_thread_common
   USE_MPI
   implicit none
   !use type_module ! type specification parameters
@@ -151,9 +151,9 @@ module dlb_impl
                                               ! in setup
   logical                           :: i_am_waiting ! Thead 0 (main thread) is waiting for CONTROL
 
-  ! These variables are also essentiel but as they are also needed in thread_handle and to avoid
+  ! These variables are also essentiel but as they are also needed in dlb_impl_thread_common and to avoid
   ! cyclic dependencies they are stored there:
-  !integer(kind=i4_kind), parameter :: LOCK_JS   = 0 !declared in thread_handle
+  !integer(kind=i4_kind), parameter :: LOCK_JS   = 0 !declared in dlb_impl_thread_common
   !logical, parameter :: masterserver = .false. ! changes to different variant (master slave concept for comparision)
   !integer(kind=i4_kind)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
   !logical                           :: terminated ! for termination algorithm
@@ -742,7 +742,7 @@ contains
     !
     ! Starts other Threads, runs on MAIN
     !------------ Modules used ------------------- ---------------
-    use thread_handle, only: thread_setup, th_create_all
+    use dlb_impl_thread_common, only: thread_setup, th_create_all
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)

@@ -57,10 +57,10 @@ ifeq ($(DLB_VARIANT), 1)
 	dlb_objs = dlb_impl_rma.o
 endif
 ifeq ($(DLB_VARIANT), 2)
-	dlb_objs = dlb_impl_thread_single.o thread_handle.o thread_wrapper.o
+	dlb_objs = dlb_impl_thread_single.o dlb_impl_thread_common.o thread_wrapper.o
 endif
 ifeq ($(DLB_VARIANT), 3)
-	dlb_objs = dlb_impl_thread_multiple.o thread_handle.o thread_wrapper.o
+	dlb_objs = dlb_impl_thread_multiple.o dlb_impl_thread_common.o thread_wrapper.o
 endif
 
 # in the library should also be the genearl file as well as the extensions
@@ -76,12 +76,12 @@ $(libdlb.a): $(objs)
 LIBS = -L. -ldlb $(MPILIBS)
 
 # dependencies
-dlb_impl_rma.o dlb_impl_thread_multiple.o thread_handle.o dlb_impl_thread_single.o dlb_impl_static.o: dlb_common.o
-dlb_impl_thread_multiple.o: thread_handle.o thread_wrapper.o
-dlb_impl_thread_single.o: thread_handle.o thread_wrapper.o
-dlb_impl_rma.o dlb_impl_thread_multiple.o thread_handle.o dlb_impl_thread_single.o dlb_impl_static.o: dlb_mpi.o
+dlb_impl_rma.o dlb_impl_thread_multiple.o dlb_impl_thread_common.o dlb_impl_thread_single.o dlb_impl_static.o: dlb_common.o
+dlb_impl_thread_multiple.o: dlb_impl_thread_common.o thread_wrapper.o
+dlb_impl_thread_single.o: dlb_impl_thread_common.o thread_wrapper.o
+dlb_impl_rma.o dlb_impl_thread_multiple.o dlb_impl_thread_common.o dlb_impl_thread_single.o dlb_impl_static.o: dlb_mpi.o
 main.o dlb_common.o dlb.o: dlb_mpi.o
-thread_handle.o: thread_wrapper.o
+dlb_impl_thread_common.o: thread_wrapper.o
 dlb.o: $(dlb_objs) dlb_common.o
 test.o: dlb_common.o
 main.o: test.o $(libdlb.a)

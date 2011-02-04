@@ -1,4 +1,4 @@
-module thread_handle
+module dlb_impl_thread_common
 # include "dlb.h"
   use iso_c_binding
   use dlb_common, only: dlb_common_init
@@ -260,4 +260,4 @@ module thread_handle
      endif
    end subroutine end_threads
 
-end module thread_handle
+end module dlb_impl_thread_common

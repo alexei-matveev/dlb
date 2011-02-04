@@ -98,7 +98,7 @@ module dlb_impl
   use dlb_common, only: end_communication
   use dlb_common, only: clear_up
   use iso_c_binding
-  use thread_handle
+  use dlb_impl_thread_common
   USE_MPI
   implicit none
   !use type_module ! type specification parameters
@@ -122,7 +122,7 @@ module dlb_impl
   !------------ Declaration of types ------------------------------
 
   !------------ Declaration of constants and variables ----
-  ! these variables are also needed but stored in thread_handle, to avoid cyclic binding:
+  ! these variables are also needed but stored in dlb_impl_thread_common, to avoid cyclic binding:
   !integer(kind=i4_kind), parameter  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
   !integer(kind=i4_kind), parameter  :: JOBS_LEN = JLENGTH  ! Length of complete jobs storage
 
@@ -693,7 +693,7 @@ contains
     !
     ! Starts other Thread, runs on MAIN
     use dlb_common, only: length
-    use thread_handle, only: thread_setup, th_create_one
+    use dlb_impl_thread_common, only: thread_setup, th_create_one
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
