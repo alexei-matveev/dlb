@@ -108,6 +108,8 @@ module dlb_impl
   save            ! save all variables defined in this module
   private         ! by default, all names are private
   !== Interrupt end of public interface of module =================
+  ! Program from outside might want to know the thread-safety-level required form DLB
+  integer(kind=i4_kind), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_MULTIPLE
 
   !------------ public functions and subroutines ------------------
   public :: dlb_init, dlb_finalize, dlb_setup, dlb_give_more
@@ -234,7 +236,7 @@ contains
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     call dlb_thread_init()
-    if (my_rank == 0 .and. 0 < output_border) then
+    if (my_rank == 0 .and. 2 < output_border) then
         print *, "DLB init: using variant 'thread multiple'"
         print *, "DLB init: This variant needs additinalal threads from Pthreads"
         print *, "DLB init: Please ensure that MPI has at least MPI_THREAD_MULTIPLE"

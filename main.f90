@@ -2,6 +2,7 @@ program main
 ! Purpose: starts tests
 
 use dlb, only: dlb_init, dlb_finalize, dlb_setup, dlb_give_more
+use dlb, only: DLB_THREAD_REQUIRED
 use test, only: echo
 # include "dlb.h"
 USE_MPI
@@ -32,17 +33,29 @@ call MPI_INIT_THREAD(MPI_THREAD_MULTIPLE, prov, ierr)
 
 select case(prov)
 case (MPI_THREAD_SINGLE)
-  print *, 'MPI_THREAD_SINGLE'
+  print *, 'Got Thread level: MPI_THREAD_SINGLE'
 case (MPI_THREAD_FUNNELED)
-  print *, 'MPI_THREAD_FUNNELED'
+  print *, 'Got Thread level: MPI_THREAD_FUNNELED'
 case (MPI_THREAD_SERIALIZED)
-  print *, 'MPI_THREAD_SERIALIZED'
+  print *, 'Got Thread level: MPI_THREAD_SERIALIZED'
 case (MPI_THREAD_MULTIPLE)
-  print *, 'MPI_THREAD_MULTIPLE'
+  print *, 'Got Thread level: MPI_THREAD_MULTIPLE'
 case default
   print *, 'provided capabilities=',prov
 end select
 
+! Different DLB implementations need different required Thread levels
+! DLB_THREAD_REQUIRED will give the minimum level needed, if it is not
+! reached it does not make any sense to continue
+! Be aware that the thread level requirements are only for the raw DLB algortihm
+! if the job calculation need also some kind of message passing a needed Thread level
+! higher than MPI_THREAD_SINGLE means that one has to use MPI_THREAD_MULTIPLE for having
+! both message passings work together
+if (prov < DLB_THREAD_REQUIRED) then
+    print *, "ERROR: the required thread level could not be obtained"
+    print *, "instead of level", DLB_THREAD_REQUIRED, "there was only level", prov
+    stop "MPI does not provided required thread level"
+endif
 !
 ! Parse command line (after having given the chance for MPI
 ! to modify it)

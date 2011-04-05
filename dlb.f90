@@ -81,6 +81,8 @@ module dlb
 ! Need here some stuff, that is already defined elsewere
 use dlb_common, only: JLEFT, JRIGHT, L_JOB
 use dlb_common, only: i4_kind
+use dlb_impl, only: DLB_THREAD_REQUIRED
+
 implicit none
 save            ! save all variables defined in this module
 private         ! by default, all names are private
@@ -89,6 +91,7 @@ private         ! by default, all names are private
 
 public dlb_init, dlb_finalize, dlb_setup, dlb_setup_color, dlb_give_more
 public dlb_give_more_color
+public DLB_THREAD_REQUIRED
 
 ! storage for the distribution of jobs over the colors, should hold exactly
 ! the distr one has given in dlb_setup_color, start_color is a helpe varialbe

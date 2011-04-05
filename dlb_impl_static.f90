@@ -44,6 +44,7 @@ module dlb_impl
 !
 !----------------------------------------------------------------
 # include "dlb.h"
+USE_MPI
 use dlb_common, only: dlb_common_init, dlb_common_finalize
 use dlb_common, only: my_rank
 implicit none
@@ -72,6 +73,9 @@ double precision :: time_offset = -1.0
 
 public dlb_init, dlb_finalize, dlb_setup, dlb_give_more !for using the module
 
+! Program from outside might want to know the thread-safety-level required form DLB
+integer(kind=i4_kind), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_SINGLE
+
 contains
 
   subroutine dlb_init()
@@ -82,7 +86,7 @@ contains
     !** End of interface *****************************************
 
     call dlb_common_init()
-    if (my_rank == 0 .and. 0 < output_border) then
+    if (my_rank == 0 .and. 2 < output_border) then
         print *, "DLB init: using variant 'static'"
         print *, "DLB init: This variant is a 'non-dynamical DLB' routine"
     endif

@@ -88,6 +88,8 @@ module dlb_impl
   save            ! save all variables defined in this module
   private         ! by default, all names are private
   !== Interrupt end of public interface of module =================
+  ! Program from outside might want to know the thread-safety-level required form DLB
+  integer(kind=i4_kind), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_SINGLE
 
   !------------ public functions and subroutines ------------------
   public :: dlb_init, dlb_finalize, dlb_setup, dlb_give_more
@@ -178,7 +180,7 @@ contains
     job_storage = 0
 
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
-    if (my_rank ==0 .and. 0 < output_border) then
+    if (my_rank ==0 .and. 2 < output_border) then
         print *, "DLB init: using variant 'rma'"
         print *, "DLB init: This variant uses the remote memory access of MPI implementation"
         print *, "DLB init: it needs real asynchronous RMA actions by MPI for working properly"
