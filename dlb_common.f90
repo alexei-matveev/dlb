@@ -56,7 +56,6 @@ module dlb_common
   public :: end_communication
   public :: send_resp_done, send_termination, has_last_done
   public :: set_start_job, set_empty_job
-  public :: output_border
 
   public :: report_to!(owner, n), with n being an incremental report
   public :: report_by!(source, n), with n being a cumulative report
@@ -145,8 +144,6 @@ module dlb_common
 
   !------------ Declaration of constants and variables ----
 
-  integer(i4_kind), parameter :: output_border = 2
-
   double precision :: time_offset = -1.0
   logical, allocatable              :: all_done(:) ! only allocated on termination_master, stores which proc's
                                                    ! jobs are finished. If with masterserver: which proc has terminated
@@ -179,7 +176,7 @@ contains
       time_offset = time
     endif
 
-   if(output_level < output_border) print *, time_stamp_prefix(time), msg
+   if(output_level < OUTPUT_BORDER) print *, time_stamp_prefix(time), msg
   end subroutine time_stamp
 ! END ONLY FOR DEBUGGING
 
@@ -777,7 +774,7 @@ contains
     implicit none
     !** End of interface *****************************************
 
-    if (1 < output_border) then
+    if (1 < OUTPUT_BORDER) then
         ! executed by me, sorted by owner:
         write(*, '("[", I3, "] REPORTED_TO =", 128I4)")') my_rank, reported_to
 
@@ -1116,7 +1113,7 @@ contains
     ! N = jobs_per_proc * n_procs + rest; rest < n_procs
     rest = N - jobs_per_proc * n_procs
 
-    if (my_rank == termination_master .and. 1 < output_border) then
+    if (my_rank == termination_master .and. 1 < OUTPUT_BORDER) then
         print *, "Distributing of jobs on the processors"
         print *, "There are ", N, " jobs altogether"
         print *, "each processor will get approximatly", jobs_per_proc

@@ -81,12 +81,11 @@ contains
   subroutine dlb_init()
     !  Purpose: initalization of needed stuff
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: output_border
     implicit none
     !** End of interface *****************************************
 
     call dlb_common_init()
-    if (my_rank == 0 .and. 2 < output_border) then
+    if (my_rank == 0 .and. 0 < OUTPUT_BORDER) then
         print *, "DLB init: using variant 'static'"
         print *, "DLB init: This variant is a 'non-dynamical DLB' routine"
     endif

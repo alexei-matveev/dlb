@@ -231,12 +231,11 @@ contains
     !  Purpose: initalization of needed stuff
     !           is in one thread context
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: output_border
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     call dlb_thread_init()
-    if (my_rank == 0 .and. 2 < output_border) then
+    if (my_rank == 0 .and. 0 < OUTPUT_BORDER) then
         print *, "DLB init: using variant 'thread multiple'"
         print *, "DLB init: This variant needs additinalal threads from Pthreads"
         print *, "DLB init: Please ensure that MPI has at least MPI_THREAD_MULTIPLE"
@@ -269,7 +268,6 @@ contains
     ! Context: main thread.
     !
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: output_border
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
@@ -324,7 +322,7 @@ contains
     if (jobs(JLEFT) >= jobs(JRIGHT)) then
        call th_join_all()
        ! now only one thread left, thus all variables belong him:
-       if (1 < output_border) then
+       if (1 < OUTPUT_BORDER) then
            print *, my_rank, "C: tried", many_searches, "for new jobs andstealing", many_tries
            print *, my_rank, "C: zeros", many_zeros
            print *, my_rank, "C: longest wait for answer", timemax
@@ -360,6 +358,7 @@ contains
     ! Context: entry to mailbox thread.
     !
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: output_border
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
@@ -371,7 +370,11 @@ contains
 
     lm_source = -1
     do while (.not. termination())
-      ! FIXME: can one move this below call check_messages(...)?
+      ! check and wait for any message with messagetag dlb
+      call recv(message, MPI_ANY_SOURCE, MPI_ANY_TAG, stat)
+
+      if (5 < output_border) print *, my_rank, "got message", message, "from", stat(MPI_SOURCE)
+      call time_stamp("got message", 4)
       count_messages = count_messages + 1
 
       ! check and wait for any message with any message tag:

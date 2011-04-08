@@ -137,7 +137,6 @@ contains
     !           as it needs parallelization of all processes
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: dlb_common_init
-    use dlb_common, only: output_border
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
@@ -180,7 +179,7 @@ contains
     job_storage = 0
 
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
-    if (my_rank ==0 .and. 2 < output_border) then
+    if (my_rank ==0 .and. 0 < OUTPUT_BORDER) then
         print *, "DLB init: using variant 'rma'"
         print *, "DLB init: This variant uses the remote memory access of MPI implementation"
         print *, "DLB init: it needs real asynchronous RMA actions by MPI for working properly"
@@ -228,7 +227,7 @@ contains
     !  states, that everything is done
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: select_victim, steal_local, steal_remote &
-        , length, empty, output_border
+        , length, empty
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(i4_kind), intent(in)  :: n
@@ -368,7 +367,7 @@ contains
     ! call dlb_setup(...); do while ( dlb_give_more(...) ) ...
     !
     if ( empty(jobs)) then
-       if (1 < output_border) then
+       if (1 < OUTPUT_BORDER) then
            print *, my_rank, "tried", many_searches, "for new jobs and stealing", many_tries
            print *, my_rank, "was locked", many_locked, "got zero", many_zeros
            print *, my_rank, "was locked on own memory", self_many_locked

@@ -6,6 +6,11 @@
 # file of PG
 DLB_EXTERNAL = 0
 
+# This value specifes the amount of output (of DLB).
+# See output level in README for description.
+# (0 means no output)
+OUTPUT_BORDER = 0
+
 #
 # DLB library, used for tests and in PG:
 #
@@ -38,7 +43,7 @@ endif
 CFLAGS = -Wall -g -O1 -std=c99 -D_XOPEN_SOURCE=500
 # set _XOPEN_SOURCE=500 to make rwlocks available
 
-CPP = cpp --traditional-cpp
+CPP = cpp --traditional-cpp -DOUTPUT_BORDER=$(OUTPUT_BORDER)
 #CPP = cpp --traditional-cpp  -I../include
 
 #
