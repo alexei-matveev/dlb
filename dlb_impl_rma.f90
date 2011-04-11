@@ -104,11 +104,11 @@ module dlb_impl
   integer(kind=i4_kind), parameter  :: ON = 1, OFF = 0 ! For read-modify-write
   integer(kind=i4_kind)             :: jobs_len  ! Length of complete jobs storage
   integer(kind=i4_kind)            :: win ! for the RMA object
-  ! Read Modify Write Error codes;
+
+  ! Read Modify Write Error codes:
   integer(kind=i4_kind), parameter  :: RMW_SUCCESS = 0
   integer(kind=i4_kind), parameter  :: RMW_LOCKED = 1
   integer(kind=i4_kind), parameter  :: RMW_MODIFY_ERROR = 2
-
 
   ! store all the jobs, belonging to this processor and the lock struct here:
   integer(kind=i4_kind), pointer    :: job_storage(:) ! (jobs_len)
@@ -245,38 +245,31 @@ contains
     double precision                     :: start_timer
     double precision,save                :: leave_timer = -1
     !------------ Executable code --------------------------------
+
     if (num_jobs > 0) then ! for debugging
         last_work = MPI_Wtime() - leave_timer
         if (last_work > max_work) max_work = last_work
         average_work = average_work + last_work
     endif
+
     !
     ! First try to get jobs from local storage
     !
-    ok = 2
+
+    ! Initial value should differ from RMW_SUCCESS:
+    ok = -1
     do while ( .not. storage_is_empty(my_rank) )
         !
         ! Stealing from myself:
         !
         ok = try_read_modify_write(my_rank, steal_local, n, jobs)
+        if ( ok == RMW_SUCCESS ) exit ! the while loop
 
-        select case ( ok )
-
-        case (RMW_SUCCESS)
-            ! We got what we wanted
-            exit ! while loop
-
-        case (RMW_LOCKED) ! separated debug statement
-            ! some other processor has lock for our memory
-            self_many_locked = self_many_locked + 1
-
-        case default
-            cycle
-
-        end select
+        ! for debugging only:
+        if ( ok == RMW_LOCKED ) self_many_locked = self_many_locked + 1
     enddo
 
-    if ( .not. ok == 0 ) then
+    if ( ok /= RMW_SUCCESS ) then
         !
         ! Apparently the local storage is empty:
         !
@@ -310,13 +303,10 @@ contains
             !
             many_tries = many_tries + 1 ! just for debugging
             ok = try_read_modify_write(rank, steal_remote, n, stolen_jobs)
+            if ( ok == RMW_SUCCESS ) exit ! the while loop
 
+            ! for debugging only:
             select case ( ok )
-
-            case (RMW_SUCCESS)
-                ! We got what we wanted
-                exit ! while loop
-
             case (RMW_LOCKED) ! for debugging separated
                 ! Other processor holds the lock
                 many_locked = many_locked + 1
@@ -326,8 +316,7 @@ contains
                 many_zeros = many_zeros + 1
 
             case default
-                cycle
-
+                ! nothing
             end select
         enddo
         main_wait_last = MPI_Wtime() - start_timer ! for debugging
@@ -340,7 +329,7 @@ contains
         !
         ! Stealing from remote succeded:
         !
-        if ( ok == 0 ) then
+        if ( ok == RMW_SUCCESS ) then
             !
             ! Early "stealing" from myself --- do it before storing
             ! the stolen interval in publically availbale storage.
@@ -365,7 +354,7 @@ contains
     !
     already_done = already_done + length(jobs)
 
-    ! NOTE: named constants are now known outside.
+    ! NOTE: named constants are not known outside.
     ! Return only the start and endpoint of the job slice:
     slice(1) = jobs(JLEFT)
     slice(2) = jobs(JRIGHT)
@@ -603,14 +592,10 @@ contains
     ! Try reading job info from "rank" into "orig" job descriptor, returns false
     ! if not successfull:
     !
-    ok = try_lock_and_read(rank, orig)
+    error = try_lock_and_read(rank, orig)
 
     ! Return if locking failed:
-    if ( .not. ok ) then
-       ! error code, needed for debugging
-       error = RMW_LOCKED
-       RETURN
-    endif
+    if ( error /= RMW_SUCCESS ) RETURN
 
     ! Modify step:
     ok = modify(iarg, orig, left, jobs)
@@ -639,7 +624,7 @@ contains
     !
   end function try_read_modify_write
 
-  function try_lock_and_read(rank, jobs) result(ok)
+  function try_lock_and_read(rank, jobs) result(error)
     !
     ! Try getting a lock indexed by rank and if that succeeds,
     ! read data into jobs(1:2)
@@ -649,7 +634,7 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer(i4_kind), intent(in)  :: rank
     integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
-    logical                       :: ok ! result
+    integer(i4_kind)              :: error ! error code
     ! *** end of interface ***
 
     integer(i4_kind)          :: ierr
@@ -658,9 +643,6 @@ contains
     integer(MPI_ADDRESS_KIND), parameter :: zero = 0
 
     ASSERT(size(jobs)==JLENGTH)
-
-    ok = .false.
-    jobs = -1 ! junk
 
     ! First GET-PUT round, MPI only ensures taht after MPI_UNLOCK the
     ! MPI-RMA accesses are finished, thus modify has to be done out of this lock
@@ -687,15 +669,17 @@ contains
     !
     ! FIXME: this is the data item that was GET/PUT in the same epoch:
     !
-    win_data(my_rank + 1 + JLENGTH) = 0
+    win_data(my_rank + 1 + JLENGTH) = OFF
 
     !
     ! Check if there are any procs, saying that they want to acces the memory
     !
-    if ( sum(win_data(JLENGTH+1:)) == 0 ) then
-        ok = .true.
+    if ( all(win_data(JLENGTH+1:) == OFF) ) then
         jobs(:) = win_data(1:JLENGTH)
+        error = RMW_SUCCESS
     else
+        jobs(:) = -1 ! junk
+        error = RMW_LOCKED
         ! Do nothing. Dont even try to undo our attempt to acquire the lock
         ! as the one that is holding the lock will overwrite the lock
         ! data structure when finished. See unlock/write_and_unlock below.
@@ -714,7 +698,6 @@ contains
     integer(i4_kind) :: ierr
     integer(i4_kind), target :: zeros(n_procs) ! FIXME: why target?
     integer(MPI_ADDRESS_KIND), parameter :: displacement = JLENGTH ! long int
-    integer(MPI_ADDRESS_KIND), parameter :: zero = 0
 
     zeros(:) = OFF
 
