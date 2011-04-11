@@ -400,16 +400,23 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind)                :: message(1 + JLENGTH)
+    integer(kind=i4_kind)                :: src, tag
     !------------ Executable code --------------------------------
 
     ! check for any message
     do while ( iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, stat) )
 
-        call MPI_RECV(message, size(message), MPI_INTEGER4, MPI_ANY_SOURCE, MPI_ANY_TAG, comm_world, stat,ierr)
+        src = stat(MPI_SOURCE)
+        tag = stat(MPI_TAG)
+
+        call MPI_RECV(message, size(message), MPI_INTEGER4, src, tag, comm_world, stat,ierr)
         !print *, time_stamp_prefix(MPI_Wtime()), "got message from", stat(MPI_SOURCE), "with", message
         ASSERT(ierr==MPI_SUCCESS)
 
-        select case ( message(1) )
+        ! FIXME: this will change:
+        ASSERT(tag==message(1))
+
+        select case ( tag )
 
         case ( DONE_JOB )
             ! someone finished stolen job slice
