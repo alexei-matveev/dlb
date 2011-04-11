@@ -62,6 +62,8 @@ module dlb_common
   public :: report_by!(source, n), with n being a cumulative report
   public :: reports_pending!() -> integer
 
+  public :: isend!(buf, rank, tag, req)
+
   public :: clear_up
 
   public :: print_statistics
@@ -1011,6 +1013,29 @@ contains
     call MPI_WAITALL(size(request), request, stats, ierr)
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine send_termination
+
+  subroutine isend(buf, rank, tag, req)
+    !
+    ! Here buf(1) is set to "tag" and an ISEND request is posted
+    ! with a fixed MPI MSGTAG
+    !
+    ! FIXME: dont abuse buf(1) use MPI tags instead
+    !
+    implicit none
+    integer(i4_kind), intent(inout), target :: buf(:) ! (1+JLENGTH)
+    integer(i4_kind), intent(in)            :: rank, tag
+    integer(i4_kind), intent(out)           :: req
+    ! *** end of interface ***
+
+    integer(i4_kind) :: ierr
+
+    ASSERT(size(buf)==1+JLENGTH)
+
+    ! FIXME: use MPI tags instead:
+    buf(1) = tag
+    call MPI_ISEND(buf, size(buf), MPI_INTEGER4, rank, MSGTAG, comm_world, req, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+  end subroutine isend
 
 #ifdef DLB_MASTER_SERVER
   pure function divide_work(jobs, np) result(n)
