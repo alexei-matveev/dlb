@@ -875,7 +875,7 @@ contains
      ! changed or rewritten after communication finished, thus it is saved here in order
      ! to still be present when the subroutine finishes
      ! as this routine is only called once each process in each dlb call
-     ! it will not be overwritten too sone
+     ! it will not be overwritten too soon
     !------------ Executable code --------------------------------
 
     ! FIXME: maybe use MPI_SOURCE status field on receiving side?
