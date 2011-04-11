@@ -533,6 +533,7 @@ contains
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: report_by, empty
     use dlb_common, only: print_statistics
+    use dlb_common, only: recv
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer, intent(in)                  :: src, tag ! source and tag of the pending msg
@@ -549,11 +550,7 @@ contains
     integer(i4_kind) :: message(1 + JLENGTH), stat(MPI_STATUS_SIZE)
     integer(i4_kind) :: ierr
 
-    call MPI_RECV(message, size(message), MPI_INTEGER4, src, tag, comm_world, stat, ierr)
-    ASSERT(ierr==0)
-
-    ! FIXME: this will change, by now message(1) is unused below:
-    ASSERT(tag==message(1))
+    call recv(message, src, tag, stat)
 
     select case(tag)
 
