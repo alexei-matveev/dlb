@@ -559,12 +559,12 @@ contains
 
     case (DONE_JOB) ! someone finished stolen job slice
       ASSERT(message(2)>0)
-      ASSERT(stat(MPI_SOURCE)/=my_rank)
+      ASSERT(src/=my_rank)
 
       !
       ! Handle fresh cumulative report:
       !
-      call report_by(stat(MPI_SOURCE), message(2))
+      call report_by(src, message(2))
 
       call test_resp_done(requ_m)
 
@@ -578,9 +578,7 @@ contains
 
     case (NO_WORK_LEFT) ! termination message from termination master
       ASSERT(message(2)==0)
-      if( stat(MPI_SOURCE) /= termination_master )then
-          stop "stat(MPI_SOURCE) /= termination_master"
-      endif
+      ASSERT(src==termination_master)
 
       call print_statistics()
       call wrlock()
@@ -611,8 +609,8 @@ contains
       count_requests = count_requests + 1
       ! store the intern message number, needed for knowing at the end the
       ! status of the last messages on their way
-      lm_source(stat(MPI_SOURCE)+1) = message(2)
-      call divide_jobs(stat(MPI_SOURCE), requ_m)
+      lm_source(src + 1) = message(2)
+      call divide_jobs(src, requ_m)
 
     case default
       ! This message makes no sense in this context, thus give warning
