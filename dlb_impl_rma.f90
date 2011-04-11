@@ -463,8 +463,7 @@ contains
             call end_communication()
 
         case default
-            ! This message makes no sense in this context, thus give warning
-            ! and continue (maybe the actual calculation has used it)
+            ! This message makes no sense in this context:
             print *, time_stamp_prefix(MPI_Wtime()), "ERROR: got message with unexpected content:", message
             print *, "Please make sure, that message tag",MSGTAG, "is not used by the rest of the program"
             print *, "or change parameter MSGTAG in this module to an unused value"
