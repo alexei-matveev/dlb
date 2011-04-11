@@ -411,7 +411,7 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)
     logical                              :: flag
-    integer(kind=i4_kind)                :: message(1 + JLENGTH)
+    integer(i4_kind)                     :: src, tag
     !------------ Executable code --------------------------------
 
     do ! while MPI_IPROBE returns flag == true
@@ -421,11 +421,13 @@ contains
 
         if ( .not. flag ) exit ! do loop
 
+        src = stat(MPI_SOURCE)
+        tag = stat(MPI_TAG)
+
       call time_stamp("got message", 4)
       count_messages = count_messages + 1
-      call MPI_RECV(message, size(message), MPI_INTEGER4, MPI_ANY_SOURCE, MPI_ANY_TAG, comm_world, stat, ierr)
-      !print *, my_rank, "received ",stat(MPI_SOURCE),"'s message", message
-      call check_messages(requ, message, stat, wait_answer, lm_source, count_ask, proc_asked_last,&
+
+        call check_messages(src, tag, requ, wait_answer, lm_source, count_ask, proc_asked_last,&
           many_zeros, timestart, timemax)
     enddo
   end subroutine task_messages
@@ -515,7 +517,7 @@ contains
     call add_request(requ_wr, requ)
   end subroutine send_request
 
-  subroutine check_messages(requ_m, message, stat, wait_answer, lm_source,count_ask, proc_asked_last,&
+  subroutine check_messages(src, tag, requ_m, wait_answer, lm_source,count_ask, proc_asked_last,&
             many_zeros, timestart, timemax)
     !  Purpose: checks which message has arrived, checks for messages:
     !          Someone finished stolen job slice
@@ -536,19 +538,27 @@ contains
     use dlb_common, only: print_statistics
     implicit none
     !------------ Declaration of formal parameters ---------------
+    integer, intent(in)                  :: src, tag ! source and tag of the pending msg
     integer, allocatable :: requ_m(:)
     logical, intent(inout) :: wait_answer
     integer(kind=i4_kind), intent(inout) :: lm_source(:)
     integer(kind=i4_kind), intent(inout) :: count_ask(:), proc_asked_last
     integer(kind=i4_kind), intent(inout) :: many_zeros! just for debugging
     double precision, intent(inout)      :: timestart, timemax ! just for debugging
-    integer, intent(in) :: message(1 + JLENGTH), stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind)                :: my_jobs(JLENGTH)
     integer(kind=i4_kind)                :: timeend
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    !------------ Executable code --------------------------------
-    select case(message(1))
+
+    integer(i4_kind) :: message(1 + JLENGTH), stat(MPI_STATUS_SIZE)
+    integer(i4_kind) :: ierr
+
+    call MPI_RECV(message, size(message), MPI_INTEGER4, src, tag, comm_world, stat, ierr)
+    ASSERT(ierr==0)
+
+    ! FIXME: this will change, by now message(1) is unused below:
+    ASSERT(tag==message(1))
+
+    select case(tag)
 
     case (DONE_JOB) ! someone finished stolen job slice
       ASSERT(message(2)>0)
