@@ -157,7 +157,7 @@ module dlb_impl_thread_common
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: tag
-    integer(kind=i4_kind)                :: ierr, w, req
+    integer(kind=i4_kind)                :: w, req
     integer(kind=i4_kind)                :: g_jobs(JLENGTH)
     integer(kind=i4_kind)                :: remaining(JLENGTH)
     !------------ Executable code --------------------------------
