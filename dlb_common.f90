@@ -592,7 +592,7 @@ contains
 
     len_req = 0
     if (allocated(requ)) then
-      len_req = size(requ,1)
+      len_req = size(requ)
       allocate(req_int(len_req), stat = alloc_stat)
       ASSERT(alloc_stat==0)
       req_int = requ
