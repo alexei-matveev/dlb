@@ -430,7 +430,7 @@ contains
     ! Context: entry to control thread.
     !
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: select_victim
+    use dlb_common, only: select_victim, isend
     implicit none
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
@@ -447,9 +447,6 @@ contains
     many_searches = 0
     many_zeros = 0
     timemax = 0.0
-    ! message is always the same (WORK_REQUEST)
-    message = 0
-    message(1) = WORK_REQUEST
 
     ! first lock
     call th_mutex_lock(LOCK_JS)
@@ -497,14 +494,18 @@ contains
           else
             count_ask(v+1) = 0
           endif
-          ! send along the request-messge counter to identify the last received
-          ! message of each proc in the termination phase
-          message(2) = count_ask(v+1)
 
           timestart = MPI_WTIME()
           call time_stamp("CONTROL sends message",5)
-          call MPI_ISEND(message, 1+JLENGTH, MPI_INTEGER4, v, MSGTAG, comm_world, requ_wr, ierr)
-          ASSERT(ierr==MPI_SUCCESS)
+
+          ! send along the request-messge counter to identify the last received
+          ! message of each proc in the termination phase
+          message(:) = 0
+          message(2) = count_ask(v+1)
+
+          ! message is always the same (WORK_REQUEST)
+          call isend(message, v, WORK_REQUEST, requ_wr)
+
           call test_requests(requ_c)
           call time_stamp("CONTROL waits for reply", 5)
           call th_cond_wait(COND_NJ_UPDATE, LOCK_NJ) !while waiting is unlocked for MAILBOX

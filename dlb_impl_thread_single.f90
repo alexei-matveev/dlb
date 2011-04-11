@@ -467,7 +467,7 @@ contains
     !  Purpose: send job request to another proc
     !           victim is choosen by the routine select_victim
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: select_victim
+    use dlb_common, only: select_victim, isend
     implicit none
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
@@ -475,15 +475,13 @@ contains
     integer(kind=i4_kind),intent(inout)     :: count_ask(:)
     integer(kind=i4_kind),intent(out)     :: proc_asked_last
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: v, ierr
+    integer(kind=i4_kind)                :: v
     integer(kind=i4_kind), save          :: message(1 + JLENGTH) ! is made save to ensure
                                              ! that it is not overwritten before message arrived
                                              ! there is always only one request sended, thus it will
                                              ! be for sure finished, when it is needed for the next request
     integer(kind=i4_kind)                :: requ_wr
     many_tries = many_tries + 1 ! just for debugging
-    message = 0
-    message(1) = WORK_REQUEST
 
     if (masterserver) then !!! masterserver variant, here send all job request to master
       v = termination_master
@@ -502,13 +500,16 @@ contains
     else
       count_ask(v+1) = 0
     endif
-    ! send along the request-messge counter to identify the last received
-    ! message of each proc in the termination phase
-    message(2) = count_ask(v+1)
 
     call time_stamp("SECRETARY sends message",5)
-    call MPI_ISEND(message, 1+JLENGTH, MPI_INTEGER4, v, MSGTAG, comm_world, requ_wr, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
+
+    ! send along the request-messge counter to identify the last received
+    ! message of each proc in the termination phase
+    message(:) = 0
+    message(2) = count_ask(v+1)
+
+    call isend(message, v, WORK_REQUEST, requ_wr)
+
     call add_request(requ_wr, requ)
   end subroutine send_request
 

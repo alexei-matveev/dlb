@@ -148,7 +148,7 @@ module dlb_impl_thread_common
     !
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: divide_work
-    use dlb_common, only: split_at
+    use dlb_common, only: split_at, isend
     USE_MPI
     implicit none
     !------------ Declaration of formal parameters ---------------
@@ -156,6 +156,7 @@ module dlb_impl_thread_common
     integer, allocatable :: requ(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
+    integer(kind=i4_kind)                :: tag
     integer(kind=i4_kind)                :: ierr, w, req
     integer(kind=i4_kind)                :: g_jobs(JLENGTH)
     integer(kind=i4_kind)                :: remaining(JLENGTH)
@@ -166,13 +167,13 @@ module dlb_impl_thread_common
     w = divide_work(job_storage(1:2), n_procs)
 
     g_jobs = job_storage
-    messagesJA(1, partner+1) = WORK_DONAT
+    tag = WORK_DONAT
     if (w == 0) then ! nothing to give, set empty
 
       !!! variant with master, if master cannot give work back, there is no more
       ! work for the proc, thus tell him to terminate
       if (masterserver) then
-         messagesJA(1, partner+1) = NO_WORK_LEFT
+         tag = NO_WORK_LEFT
          call check_termination(partner)
          ! don't send too many messages to myself, anyhow, termination master
          ! has to wait, till all procs got termination send back
@@ -189,8 +190,9 @@ module dlb_impl_thread_common
     endif
     messagesJA(2:,partner+1) = g_jobs
     call time_stamp("share jobs with other",5)
-    call MPI_ISEND(messagesJA(:,partner+1), 1+JLENGTH, MPI_INTEGER4, partner, MSGTAG, comm_world, req, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
+
+    call isend(messagesJA(:, partner+1), partner, tag, req)
+
     call add_request(req, requ)
     call th_mutex_unlock(LOCK_JS)
   end subroutine divide_jobs

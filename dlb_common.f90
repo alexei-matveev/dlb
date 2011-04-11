@@ -761,8 +761,6 @@ contains
     call MPI_ALLGATHER(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rec_buff, 2, MPI_INTEGER4, comm_world, ierr)
     ASSERT(ierr==MPI_SUCCESS)
     count_req = 0
-    message_s = 0
-    message_s(1) = WORK_DONAT
 
     ! If I'm waiting for a job donation also
     if (last_proc > -1) count_req = 1
@@ -783,8 +781,9 @@ contains
         case (WORK_DONAT)
           cycle
         case (WORK_REQUEST)
-           call MPI_ISEND(message_s, 1+JLENGTH, MPI_INTEGER4, stat(MPI_SOURCE), MSGTAG, comm_world, req, ierr)
-           ASSERT(ierr==MPI_SUCCESS)
+           ! FIXME: tag is the only info we send:
+           message_s(:) = 0
+           call isend(message_s, stat(MPI_SOURCE), WORK_DONAT, req)
            call add_request(req, requ)
         case default
           print *, my_rank, "got Message", message_r, ", which I wasn't waiting for"
@@ -871,7 +870,7 @@ contains
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, req
+    integer(kind=i4_kind)                :: req
     integer(kind=i4_kind), save          :: message(1+JLENGTH) ! message may only be
      ! changed or rewritten after communication finished, thus it is saved here in order
      ! to still be present when the subroutine finishes
@@ -879,11 +878,12 @@ contains
      ! it will not be overwritten too sone
     !------------ Executable code --------------------------------
 
-    message(1) = RESP_DONE
+    ! FIXME: maybe use MPI_SOURCE status field on receiving side?
+    message(:) = 0
     message(2) = my_rank
-    message(3:) = 0
-    call MPI_ISEND(message, 1+JLENGTH, MPI_INTEGER4, termination_master, MSGTAG,comm_world, req, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
+
+    call isend(message, termination_master, RESP_DONE, req)
+
     call add_request(req, requ)
   end subroutine send_resp_done
 
@@ -942,22 +942,17 @@ contains
             ASSERT(ierr==MPI_SUCCESS)
         endif
 
-        !
-        ! Hopefully after an MPI_CANCEL we can reuse the buffer:
-        !
-        messages(1, owner1) = DONE_JOB
+        call time_stamp("send message to owner1", 2)
 
         !
         ! Cumulative report to remote owner:
+        ! (hopefully after an MPI_CANCEL we can reuse the buffer)
         !
+        messages(:, owner1) = 0
         messages(2, owner1) = reported_to(owner)
-        messages(3:, owner1) = 0
 
-        call time_stamp("send message to owner1", 2)
+        call isend(messages(:, owner1), owner, DONE_JOB, req_dj(owner1))
 
-        call MPI_ISEND(messages(:, owner1), 1 + JLENGTH, MPI_INTEGER4, owner,&
-                                    MSGTAG, comm_world, req_dj(owner1), ierr)
-        ASSERT(ierr==MPI_SUCCESS)
         message_on_way(owner1) = .true.
     endif
   end subroutine report_to
@@ -1001,15 +996,17 @@ contains
     allocate(request(n_procs -1), stats(n_procs -1, MPI_STATUS_SIZE),&
     stat = alloc_stat)
     ASSERT(alloc_stat==0)
-    message(1) = NO_WORK_LEFT
-    message(2:) = 0
+
+    ! FIXME: reusing the same buffer for non-blocking sends:
+    message(:) = 0
     do i = 0, n_procs-2
-    receiver = i
-    ! skip the termination master (itsself)`
-    if (i >= termination_master) receiver = i+1
-    call time_stamp("send termination", 5)
-    call MPI_ISEND(message, 1+JLENGTH, MPI_INTEGER4, receiver, MSGTAG, comm_world ,request(i+1), ierr)
-    ASSERT(ierr==MPI_SUCCESS)
+        receiver = i
+        ! skip the termination master itself:
+        if (i >= termination_master) receiver = i+1
+        call time_stamp("send termination", 5)
+
+        ! FIXME: the tag is the only useful info sent:
+        call isend(message, receiver, NO_WORK_LEFT, request(i+1))
     enddo
     call MPI_WAITALL(size(request), request, stats, ierr)
     ASSERT(ierr==MPI_SUCCESS)
