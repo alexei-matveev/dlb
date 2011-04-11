@@ -421,12 +421,12 @@ contains
         case ( DONE_JOB )
             ! someone finished stolen job slice
             ASSERT(message(2)>0)
-            ASSERT(stat(MPI_SOURCE)/=my_rank)
+            ASSERT(src/=my_rank)
 
             !
             ! Handle a fresh cumulative report:
             !
-            call report_by(stat(MPI_SOURCE), message(2))
+            call report_by(src, message(2))
 
             if ( reports_pending() == 0) then
                 if (my_rank == termination_master) then
@@ -452,10 +452,7 @@ contains
         case ( NO_WORK_LEFT )
             ! termination message from termination master
             ASSERT(message(2)==0)
-
-            if( stat(MPI_SOURCE) /= termination_master )then
-                stop "stat(MPI_SOURCE) /= termination_master"
-            endif
+            ASSERT(src==termination_master)
 
             terminated = .true.
             call print_statistics()
