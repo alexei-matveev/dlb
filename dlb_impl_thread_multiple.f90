@@ -361,6 +361,7 @@ contains
     !
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: output_border
+    use dlb_common, only: recv
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
@@ -375,8 +376,7 @@ contains
     lm_source = -1
     do while (.not. termination())
       ! check and wait for any message with messagetag dlb
-      call MPI_RECV(message, size(message), MPI_INTEGER4, MPI_ANY_SOURCE, MPI_ANY_TAG, comm_world, stat, ierr)
-      ASSERT(ierr==MPI_SUCCESS)
+      call recv(message, MPI_ANY_SOURCE, MPI_ANY_TAG, stat)
 
       if (5 < output_border) print *, my_rank, "got message", message, "from", stat(MPI_SOURCE)
       call time_stamp("got message", 4)
