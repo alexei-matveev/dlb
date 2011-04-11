@@ -64,6 +64,7 @@ module dlb_common
 
   public :: isend!(buf, rank, tag, req)
   public :: iprobe!(src, tag, stat) -> ok
+  public :: recv!(buf, rank, tag, stat)
 
   public :: clear_up
 
@@ -1050,6 +1051,31 @@ contains
     call MPI_IPROBE(src, tag, comm_world, ok, stat, ierr)
     ASSERT(ierr==MPI_SUCCESS)
   end function iprobe
+
+  subroutine recv(buf, rank, tag, stat)
+    !
+    !
+    ! Convenience wrapper around MPI_RECV
+    !
+    ! FIXME: dont abuse buf(1) use MPI tags instead
+    !
+    implicit none
+    integer(i4_kind), intent(out) :: buf(:) ! (1+JLENGTH)
+    integer(i4_kind), intent(in)  :: rank, tag
+    integer(i4_kind), intent(out) :: stat(MPI_STATUS_SIZE)
+    ! *** end of interface ***
+
+    integer(i4_kind) :: ierr
+
+    ASSERT(size(buf)==1+JLENGTH)
+
+    buf(1) = tag
+    call MPI_RECV(buf, size(buf), MPI_INTEGER4, rank, tag, comm_world, stat, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+
+    ! FIXME: this will change:
+    ASSERT(buf(1)==stat(MPI_TAG))
+  end subroutine recv
 
 #ifdef DLB_MASTER_SERVER
   pure function divide_work(jobs, np) result(n)
