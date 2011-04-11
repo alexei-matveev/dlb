@@ -85,7 +85,6 @@ module dlb_common
   integer(kind=i4_kind), parameter, public  :: JOWNER = 3 ! Number in job, where rank of origin proc is stored
   integer(kind=i4_kind), parameter, public  :: JLEFT = 1 ! Number in job, where stp (start point) is stored
   integer(kind=i4_kind), parameter, public  :: JRIGHT = 2 ! Number in job, where ep (end point) is stored
-  integer(kind=i4_kind), parameter, public  ::  MSGTAG = 166 ! message tag for all MPI communication
 
 #ifdef DLB_MASTER_SERVER
     logical, parameter, public :: masterserver = .true. ! changes to different variant (master slave concept for comparision)
@@ -776,7 +775,7 @@ contains
     ! Cycle over all left messages, blocking MPI_RECV, as there is nothing else to do
     if (count_req > 0) then
       do i =1, count_req
-        call MPI_RECV(message_r, size(message_r), MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
+        call MPI_RECV(message_r, size(message_r), MPI_INTEGER4, MPI_ANY_SOURCE, MPI_ANY_TAG, comm_world, stat, ierr)
         select case(message_r(1))
         case (WORK_DONAT)
           cycle
@@ -1015,7 +1014,7 @@ contains
   subroutine isend(buf, rank, tag, req)
     !
     ! Here buf(1) is set to "tag" and an ISEND request is posted
-    ! with a fixed MPI MSGTAG
+    ! with an MPI tag duplicating buf(1)
     !
     ! FIXME: dont abuse buf(1) use MPI tags instead
     !
@@ -1031,7 +1030,7 @@ contains
 
     ! FIXME: use MPI tags instead:
     buf(1) = tag
-    call MPI_ISEND(buf, size(buf), MPI_INTEGER4, rank, MSGTAG, comm_world, req, ierr)
+    call MPI_ISEND(buf, size(buf), MPI_INTEGER4, rank, tag, comm_world, req, ierr)
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine isend
 

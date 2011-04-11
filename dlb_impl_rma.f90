@@ -82,7 +82,7 @@ module dlb_impl
   use iso_c_binding
   use dlb_common, only: i4_kind, r8_kind, comm_world
   use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
-  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT, MSGTAG
+  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT
   use dlb_common, only: my_rank, n_procs, termination_master
   implicit none
   save            ! save all variables defined in this module
@@ -405,11 +405,11 @@ contains
 
     do ! while MPI_IPROBE(..., flag, ...) returns flag=.true.
         ! check for any message
-        call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world, flag, stat, ierr)
+        call MPI_IPROBE(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_world, flag, stat, ierr)
         ASSERT(ierr==MPI_SUCCESS)
         if ( .not. flag ) exit ! while loop
 
-        call MPI_RECV(message, size(message), MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat,ierr)
+        call MPI_RECV(message, size(message), MPI_INTEGER4, MPI_ANY_SOURCE, MPI_ANY_TAG, comm_world, stat,ierr)
         !print *, time_stamp_prefix(MPI_Wtime()), "got message from", stat(MPI_SOURCE), "with", message
         ASSERT(ierr==MPI_SUCCESS)
 
@@ -443,8 +443,6 @@ contains
                 ! This message makes no sense in this context, thus give warning
                 ! and continue (maybe the actual calculation has used it)
                 print *, time_stamp_prefix(MPI_Wtime()), "ERROR: got unexpected message (I'm no termination master):", message
-                print *, "Please make sure, that message tag",MSGTAG, "is not used by the rest of the program"
-                print *, "or change parameter MSGTAG in this module to an unused value"
                 call abort()
             endif
 
@@ -465,8 +463,6 @@ contains
         case default
             ! This message makes no sense in this context:
             print *, time_stamp_prefix(MPI_Wtime()), "ERROR: got message with unexpected content:", message
-            print *, "Please make sure, that message tag",MSGTAG, "is not used by the rest of the program"
-            print *, "or change parameter MSGTAG in this module to an unused value"
             call abort()
         end select
     enddo

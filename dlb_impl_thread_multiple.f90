@@ -93,7 +93,7 @@ module dlb_impl
   use dlb_common, only: i4_kind, r8_kind, comm_world
   use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
   use dlb_common, only: add_request, test_requests, end_requests, send_resp_done
-  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT, MSGTAG
+  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT
   use dlb_common, only: WORK_DONAT, WORK_REQUEST
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
@@ -375,7 +375,7 @@ contains
     lm_source = -1
     do while (.not. termination())
       ! check and wait for any message with messagetag dlb
-      call MPI_RECV(message, size(message), MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
+      call MPI_RECV(message, size(message), MPI_INTEGER4, MPI_ANY_SOURCE, MPI_ANY_TAG, comm_world, stat, ierr)
       ASSERT(ierr==MPI_SUCCESS)
 
       if (5 < output_border) print *, my_rank, "got message", message, "from", stat(MPI_SOURCE)
