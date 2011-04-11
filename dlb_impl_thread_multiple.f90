@@ -430,7 +430,7 @@ contains
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: v, ierr, stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind)                :: message(1 + JLENGTH) ! there will be always
+    integer(kind=i4_kind)                :: message(JLENGTH) ! there will be always
                                                  ! only one job request around, thus saved
     integer(kind=i4_kind)                :: requ_wr
     integer(kind=i4_kind)                :: my_jobs(JLENGTH)
@@ -495,7 +495,7 @@ contains
           ! send along the request-messge counter to identify the last received
           ! message of each proc in the termination phase
           message(:) = 0
-          message(2) = count_ask(v+1)
+          message(1) = count_ask(v+1)
 
           ! message is always the same (WORK_REQUEST)
           call isend(message, v, WORK_REQUEST, requ_wr)
@@ -575,7 +575,7 @@ contains
     integer(kind=i4_kind), intent(inout) :: lm_source(:)
     !** End of interface *****************************************
 
-    integer(i4_kind) :: message(1 + JLENGTH), stat(MPI_STATUS_SIZE)
+    integer(i4_kind) :: message(JLENGTH), stat(MPI_STATUS_SIZE)
     integer(i4_kind) :: pending
 
     call recv(message, src, tag, stat)
@@ -583,7 +583,7 @@ contains
     select case(stat(MPI_TAG))
 
     case (DONE_JOB) ! someone finished stolen job slice
-      ASSERT(message(2)>0)
+      ASSERT(message(1)>0)
       ASSERT(stat(MPI_SOURCE)/=my_rank)
 
       !
@@ -591,7 +591,7 @@ contains
       !
       call wrlock()
           ! this does modify global vars (in dlb_common):
-          call report_by(stat(MPI_SOURCE), message(2))
+          call report_by(stat(MPI_SOURCE), message(1))
 
           ! this is read-only:
           pending = reports_pending()
@@ -607,10 +607,10 @@ contains
           stop "my_rank /= termination_master"
       endif
 
-      call check_termination(message(2))
+      call check_termination(message(1))
 
     case (NO_WORK_LEFT) ! termination message from termination master
-      ASSERT(message(2)==0)
+      ASSERT(message(1)==0)
       if( stat(MPI_SOURCE) /= termination_master )then
           stop "stat(MPI_SOURCE) /= termination_master"
       endif
@@ -623,7 +623,7 @@ contains
     case (WORK_DONAT) ! got work from other proc
       call th_mutex_lock( LOCK_NJ)
       count_offers = count_offers + 1
-      new_jobs = message(2:)
+      new_jobs = message(:)
       proc_asked_last = -1 ! set back, which proc to wait for
       call th_cond_signal(COND_NJ_UPDATE)
       call th_mutex_unlock( LOCK_NJ)  
@@ -632,7 +632,7 @@ contains
       count_requests = count_requests + 1
       ! store the intern message number, needed for knowing at the end the
       ! status of the last messages on their way
-      lm_source(stat(MPI_SOURCE)+1) = message(2)
+      lm_source(stat(MPI_SOURCE)+1) = message(1)
 
       call divide_jobs(stat(MPI_SOURCE), requ_m)
 

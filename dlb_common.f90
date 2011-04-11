@@ -252,7 +252,7 @@ contains
 
     ! if there is any exchange of jobs, the following things are needed
     ! (they will help to get the DONE_JOB messages on their way)
-    allocate(messages(JLENGTH + 1, n_procs), stat = alloc_stat)
+    allocate(messages(JLENGTH, n_procs), stat = alloc_stat)
     ASSERT(alloc_stat==0)
 
     allocate(message_on_way(n_procs), stat = alloc_stat)
@@ -281,8 +281,7 @@ contains
     ! Here they are initalizied, at the beginning none message has been
     ! put on its way, from the messages we know everything except the
     ! second entry which will be the number of jobs done
-    messages = 0
-    messages(1,:) = DONE_JOB
+    messages(:, :) = 0
     message_on_way = .false.
   end subroutine dlb_common_setup
 
@@ -753,7 +752,7 @@ contains
     integer(kind=i4_kind) :: ierr, i, count_req, req
     integer(kind=i4_kind) :: rec_buff(n_procs * 2)
     integer(kind=i4_kind)                :: stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind)                :: message_s(1 + JLENGTH), message_r(1 + JLENGTH)
+    integer(kind=i4_kind)                :: message_s(JLENGTH), message_r(JLENGTH)
     !------------ Executable code --------------------------------
 
     rec_buff = 0
@@ -872,7 +871,7 @@ contains
 
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: req
-    integer(kind=i4_kind), save          :: message(1+JLENGTH) ! message may only be
+    integer(kind=i4_kind), save          :: message(JLENGTH) ! message may only be
      ! changed or rewritten after communication finished, thus it is saved here in order
      ! to still be present when the subroutine finishes
      ! as this routine is only called once each process in each dlb call
@@ -881,7 +880,7 @@ contains
 
     ! FIXME: maybe use MPI_SOURCE status field on receiving side?
     message(:) = 0
-    message(2) = my_rank
+    message(1) = my_rank
 
     call isend(message, termination_master, RESP_DONE, req)
 
@@ -950,7 +949,7 @@ contains
         ! (hopefully after an MPI_CANCEL we can reuse the buffer)
         !
         messages(:, owner1) = 0
-        messages(2, owner1) = reported_to(owner)
+        messages(1, owner1) = reported_to(owner)
 
         call isend(messages(:, owner1), owner, DONE_JOB, req_dj(owner1))
 
@@ -991,7 +990,7 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, i, alloc_stat
     integer(kind=i4_kind), allocatable   :: request(:), stats(:,:)
-    integer(kind=i4_kind)                :: receiver, message(1+JLENGTH)
+    integer(kind=i4_kind)                :: receiver, message(JLENGTH)
     !------------ Executable code --------------------------------
 
     allocate(request(n_procs -1), stats(n_procs -1, MPI_STATUS_SIZE),&
@@ -1015,23 +1014,18 @@ contains
 
   subroutine isend(buf, rank, tag, req)
     !
-    ! Here buf(1) is set to "tag" and an ISEND request is posted
-    ! with an MPI tag duplicating buf(1)
-    !
-    ! FIXME: dont abuse buf(1) use MPI tags instead
+    ! Convenience wrapper around MPI_ISEND
     !
     implicit none
-    integer(i4_kind), intent(inout), target :: buf(:) ! (1+JLENGTH)
+    integer(i4_kind), intent(inout), target :: buf(:) ! (JLENGTH)
     integer(i4_kind), intent(in)            :: rank, tag
     integer(i4_kind), intent(out)           :: req
     ! *** end of interface ***
 
     integer(i4_kind) :: ierr
 
-    ASSERT(size(buf)==1+JLENGTH)
+    ASSERT(size(buf)==JLENGTH)
 
-    ! FIXME: use MPI tags instead:
-    buf(1) = tag
     call MPI_ISEND(buf, size(buf), MPI_INTEGER4, rank, tag, comm_world, req, ierr)
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine isend
@@ -1057,8 +1051,6 @@ contains
     !
     ! Convenience wrapper around MPI_RECV
     !
-    ! FIXME: dont abuse buf(1) use MPI tags instead
-    !
     implicit none
     integer(i4_kind), intent(out) :: buf(:) ! (1+JLENGTH)
     integer(i4_kind), intent(in)  :: rank, tag
@@ -1067,14 +1059,10 @@ contains
 
     integer(i4_kind) :: ierr
 
-    ASSERT(size(buf)==1+JLENGTH)
+    ASSERT(size(buf)==JLENGTH)
 
-    buf(1) = tag
     call MPI_RECV(buf, size(buf), MPI_INTEGER4, rank, tag, comm_world, stat, ierr)
     ASSERT(ierr==MPI_SUCCESS)
-
-    ! FIXME: this will change:
-    ASSERT(buf(1)==stat(MPI_TAG))
   end subroutine recv
 
 #ifdef DLB_MASTER_SERVER

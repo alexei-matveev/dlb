@@ -400,7 +400,7 @@ contains
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind)                :: message(1 + JLENGTH)
+    integer(kind=i4_kind)                :: message(JLENGTH)
     integer(kind=i4_kind)                :: src, tag
     !------------ Executable code --------------------------------
 
@@ -417,13 +417,13 @@ contains
 
         case ( DONE_JOB )
             ! someone finished stolen job slice
-            ASSERT(message(2)>0)
+            ASSERT(message(1)>0)
             ASSERT(src/=my_rank)
 
             !
             ! Handle a fresh cumulative report:
             !
-            call report_by(src, message(2))
+            call report_by(src, message(1))
 
             if ( reports_pending() == 0) then
                 if (my_rank == termination_master) then
@@ -438,7 +438,7 @@ contains
             ! finished responsibility
 
             if (my_rank == termination_master) then
-                call check_termination(message(2))
+                call check_termination(message(1))
             else ! give only warning, some other part of the code my use this message (but SHOULD NOT)
                 ! This message makes no sense in this context, thus give warning
                 ! and continue (maybe the actual calculation has used it)
@@ -448,7 +448,7 @@ contains
 
         case ( NO_WORK_LEFT )
             ! termination message from termination master
-            ASSERT(message(2)==0)
+            ASSERT(message(1)==0)
             ASSERT(src==termination_master)
 
             terminated = .true.

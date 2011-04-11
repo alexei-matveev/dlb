@@ -129,7 +129,7 @@ module dlb_impl_thread_common
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer :: alloc_stat
-    allocate(messagesJA(JLENGTH + 1,n_procs), stat = alloc_stat)
+    allocate(messagesJA(JLENGTH, n_procs), stat = alloc_stat)
     ASSERT(alloc_stat==0)
 
   end subroutine thread_setup
@@ -188,7 +188,7 @@ module dlb_impl_thread_common
       call split_at(job_storage(JLEFT) + w, job_storage, g_jobs, remaining)
       job_storage = remaining
     endif
-    messagesJA(2:,partner+1) = g_jobs
+    messagesJA(:, partner+1) = g_jobs
     call time_stamp("share jobs with other",5)
 
     call isend(messagesJA(:, partner+1), partner, tag, req)

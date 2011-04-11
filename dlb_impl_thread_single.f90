@@ -477,7 +477,7 @@ contains
     integer(kind=i4_kind),intent(out)     :: proc_asked_last
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: v
-    integer(kind=i4_kind), save          :: message(1 + JLENGTH) ! is made save to ensure
+    integer(kind=i4_kind), save          :: message(JLENGTH) ! is made save to ensure
                                              ! that it is not overwritten before message arrived
                                              ! there is always only one request sended, thus it will
                                              ! be for sure finished, when it is needed for the next request
@@ -507,7 +507,7 @@ contains
     ! send along the request-messge counter to identify the last received
     ! message of each proc in the termination phase
     message(:) = 0
-    message(2) = count_ask(v+1)
+    message(1) = count_ask(v+1)
 
     call isend(message, v, WORK_REQUEST, requ_wr)
 
@@ -547,7 +547,7 @@ contains
     integer(kind=i4_kind)                :: timeend
     !** End of interface *****************************************
 
-    integer(i4_kind) :: message(1 + JLENGTH), stat(MPI_STATUS_SIZE)
+    integer(i4_kind) :: message(JLENGTH), stat(MPI_STATUS_SIZE)
     integer(i4_kind) :: ierr
 
     call recv(message, src, tag, stat)
@@ -555,13 +555,13 @@ contains
     select case(tag)
 
     case (DONE_JOB) ! someone finished stolen job slice
-      ASSERT(message(2)>0)
+      ASSERT(message(1)>0)
       ASSERT(src/=my_rank)
 
       !
       ! Handle fresh cumulative report:
       !
-      call report_by(src, message(2))
+      call report_by(src, message(1))
 
       call test_resp_done(requ_m)
 
@@ -571,10 +571,10 @@ contains
           stop "my_rank /= termination_master"
       endif
 
-      call check_termination(message(2))
+      call check_termination(message(1))
 
     case (NO_WORK_LEFT) ! termination message from termination master
-      ASSERT(message(2)==0)
+      ASSERT(message(1)==0)
       ASSERT(src==termination_master)
 
       call print_statistics()
@@ -587,7 +587,7 @@ contains
       timeend = MPI_WTIME()
       if ((timeend - timestart) > timemax) timemax = timeend - timestart
       count_offers = count_offers + 1
-      my_jobs = message(2:)
+      my_jobs = message(:)
       if ( empty(my_jobs) .and. .not. termination() ) then
         timestart = MPI_WTIME()
         call send_request(requ_m, count_ask, proc_asked_last)
@@ -606,7 +606,7 @@ contains
       count_requests = count_requests + 1
       ! store the intern message number, needed for knowing at the end the
       ! status of the last messages on their way
-      lm_source(src + 1) = message(2)
+      lm_source(src + 1) = message(1)
       call divide_jobs(src, requ_m)
 
     case default
