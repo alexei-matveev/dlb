@@ -867,8 +867,9 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    !** End of interface *****************************************
     integer(kind=i4_kind), allocatable   :: requ(:)
+    !** End of interface *****************************************
+
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: ierr, req
     integer(kind=i4_kind), save          :: message(1+JLENGTH) ! message may only be
