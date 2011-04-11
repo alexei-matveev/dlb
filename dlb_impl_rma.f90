@@ -393,7 +393,8 @@ contains
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: report_by, reports_pending &
         , end_requests, send_resp_done, end_communication
-    use dlb_common, only: iprobe, print_statistics
+    use dlb_common, only: print_statistics
+    use dlb_common, only: iprobe, recv
     implicit none
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
@@ -409,12 +410,8 @@ contains
         src = stat(MPI_SOURCE)
         tag = stat(MPI_TAG)
 
-        call MPI_RECV(message, size(message), MPI_INTEGER4, src, tag, comm_world, stat,ierr)
-        !print *, time_stamp_prefix(MPI_Wtime()), "got message from", stat(MPI_SOURCE), "with", message
-        ASSERT(ierr==MPI_SUCCESS)
-
-        ! FIXME: this will change:
-        ASSERT(tag==message(1))
+        ! FIXME: specialize receives depending on tag:
+        call recv(message, src, tag, stat)
 
         select case ( tag )
 
