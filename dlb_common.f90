@@ -507,6 +507,7 @@ contains
     ASSERT(size(local)==JLENGTH)
     ASSERT(size(remaining)==JLENGTH)
     ASSERT(size(stolen)==JLENGTH)
+    ASSERT(m>=0)
 
     ! The give_grid function needs only up to m jobs at once:
     work = min(length(local), m)
