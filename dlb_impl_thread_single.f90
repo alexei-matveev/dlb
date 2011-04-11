@@ -400,6 +400,7 @@ contains
     !           then select the response to the content
     !           if no more messages are found it will finish the task
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: iprobe
     implicit none
     !------------ Declaration of formal parameters ---------------
     logical, intent(inout)               :: wait_answer
@@ -414,12 +415,8 @@ contains
     integer(i4_kind)                     :: src, tag
     !------------ Executable code --------------------------------
 
-    do ! while MPI_IPROBE returns flag == true
-        ! check for any message
-        call MPI_IPROBE(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_world, flag, stat, ierr)
-        ASSERT(ierr==MPI_SUCCESS)
-
-        if ( .not. flag ) exit ! do loop
+    ! check for any message
+    do while ( iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, stat) )
 
         src = stat(MPI_SOURCE)
         tag = stat(MPI_TAG)
