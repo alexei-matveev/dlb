@@ -253,7 +253,13 @@ contains
        call local_tgetm(n, jobs)
     enddo
     call th_mutex_unlock(LOCK_JS)
+
     call time_stamp("finished loop over local search",3)
+
+    ! only the start and endpoint of job slice are needed outside:
+    my_job(1) = jobs(JLEFT)
+    my_job(2) = jobs(JRIGHT)
+
     ! here we should have a valid job slice with at least one valid job
     ! or a terminated algorithm
     if ( empty(jobs) ) then
@@ -273,9 +279,6 @@ contains
        endif
     endif
 
-    ! only the start and endpoint of job slice are needed outside:
-    my_job(1) = jobs(JLEFT)
-    my_job(2) = jobs(JRIGHT)
     leave_timer = MPI_Wtime() ! for debugging
     num_jobs = num_jobs + 1 ! for debugging
   end subroutine dlb_give_more
