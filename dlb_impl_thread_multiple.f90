@@ -360,14 +360,10 @@ contains
     ! Context: entry to mailbox thread.
     !
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: output_border
-    use dlb_common, only: recv
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind)                :: ierr, alloc_stat
-    integer(kind=i4_kind)                :: message(1 + JLENGTH)
     integer(kind=i4_kind),allocatable    :: requ_m(:) !requests storages for MAILBOX
     integer(kind=i4_kind)                :: lm_source(n_procs) ! remember which job request
                                                    ! I got
@@ -375,13 +371,11 @@ contains
 
     lm_source = -1
     do while (.not. termination())
-      ! check and wait for any message with messagetag dlb
-      call recv(message, MPI_ANY_SOURCE, MPI_ANY_TAG, stat)
-
-      if (5 < output_border) print *, my_rank, "got message", message, "from", stat(MPI_SOURCE)
-      call time_stamp("got message", 4)
+      ! FIXME: can one move this below call check_messages(...)?
       count_messages = count_messages + 1
-      call check_messages(requ_m, message, stat, lm_source)
+
+      ! check and wait for any message with any message tag:
+      call check_messages(MPI_ANY_SOURCE, MPI_ANY_TAG, requ_m, lm_source)
       call test_requests(requ_m)
     enddo
 
@@ -552,7 +546,7 @@ contains
     call th_exit() ! will be joined on MAIN
   end subroutine thread_control
 
-  subroutine check_messages(requ_m, message, stat, lm_source)
+  subroutine check_messages(src, tag, requ_m, lm_source)
     !  Purpose: checks if any message has arrived, checks for messages:
     !          Someone finished stolen job slice
     !          Someone has finished its responsibilty (only termination_master)
@@ -573,16 +567,20 @@ contains
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: report_by, reports_pending
     use dlb_common, only: print_statistics
+    use dlb_common, only: recv
     implicit none
     !------------ Declaration of formal parameters ---------------
+    integer(i4_kind), intent(in) :: src, tag ! MPI_ANY_SOURCE, MPI_ANY_TAG
     integer, allocatable :: requ_m(:)
-    integer, intent(in) :: message(1 + JLENGTH), stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind), intent(inout) :: lm_source(:)
     !** End of interface *****************************************
 
+    integer(i4_kind) :: message(1 + JLENGTH), stat(MPI_STATUS_SIZE)
     integer(i4_kind) :: pending
 
-    select case(message(1))
+    call recv(message, src, tag, stat)
+
+    select case(stat(MPI_TAG))
 
     case (DONE_JOB) ! someone finished stolen job slice
       ASSERT(message(2)>0)
