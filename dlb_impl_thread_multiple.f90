@@ -375,7 +375,7 @@ contains
     lm_source = -1
     do while (.not. termination())
       ! check and wait for any message with messagetag dlb
-      call MPI_RECV(message, 1+JLENGTH, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
+      call MPI_RECV(message, size(message), MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
       ASSERT(ierr==MPI_SUCCESS)
 
       if (5 < output_border) print *, my_rank, "got message", message, "from", stat(MPI_SOURCE)

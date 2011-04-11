@@ -409,7 +409,7 @@ contains
         ASSERT(ierr==MPI_SUCCESS)
         if ( .not. flag ) exit ! while loop
 
-        call MPI_RECV(message, 1+JLENGTH, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG,comm_world, stat,ierr)
+        call MPI_RECV(message, size(message), MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat,ierr)
         !print *, time_stamp_prefix(MPI_Wtime()), "got message from", stat(MPI_SOURCE), "with", message
         ASSERT(ierr==MPI_SUCCESS)
 

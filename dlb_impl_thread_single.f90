@@ -419,7 +419,7 @@ contains
     do while (flag)!got a message
       call time_stamp("got message", 4)
       count_messages = count_messages + 1
-      call MPI_RECV(message, 1+JLENGTH, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
+      call MPI_RECV(message, size(message), MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
       !print *, my_rank, "received ",stat(MPI_SOURCE),"'s message", message
       call check_messages(requ, message, stat, wait_answer, lm_source, count_ask, proc_asked_last,&
           many_zeros, timestart, timemax)

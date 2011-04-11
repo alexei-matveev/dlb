@@ -776,7 +776,7 @@ contains
     ! Cycle over all left messages, blocking MPI_RECV, as there is nothing else to do
     if (count_req > 0) then
       do i =1, count_req
-        call MPI_RECV(message_r, 1+JLENGTH, MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
+        call MPI_RECV(message_r, size(message_r), MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
         select case(message_r(1))
         case (WORK_DONAT)
           cycle
