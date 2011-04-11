@@ -413,18 +413,20 @@ contains
     logical                              :: flag
     integer(kind=i4_kind)                :: message(1 + JLENGTH)
     !------------ Executable code --------------------------------
-    ! check for any message
-    call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
-    do while (flag)!got a message
+
+    do ! while MPI_IPROBE returns flag == true
+        ! check for any message
+        call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world, flag, stat, ierr)
+        ASSERT(ierr==MPI_SUCCESS)
+
+        if ( .not. flag ) exit ! do loop
+
       call time_stamp("got message", 4)
       count_messages = count_messages + 1
       call MPI_RECV(message, size(message), MPI_INTEGER4, MPI_ANY_SOURCE, MSGTAG, comm_world, stat, ierr)
       !print *, my_rank, "received ",stat(MPI_SOURCE),"'s message", message
       call check_messages(requ, message, stat, wait_answer, lm_source, count_ask, proc_asked_last,&
           many_zeros, timestart, timemax)
-      call MPI_IPROBE(MPI_ANY_SOURCE, MSGTAG, comm_world,flag, stat, ierr)
-      ASSERT(ierr==MPI_SUCCESS)
     enddo
   end subroutine task_messages
 
