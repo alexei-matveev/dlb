@@ -63,6 +63,7 @@ module dlb_common
   public :: reports_pending!() -> integer
 
   public :: isend!(buf, rank, tag, req)
+  public :: iprobe!(src, tag, stat) -> ok
 
   public :: clear_up
 
@@ -1033,6 +1034,22 @@ contains
     call MPI_ISEND(buf, size(buf), MPI_INTEGER4, rank, tag, comm_world, req, ierr)
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine isend
+
+  function iprobe(src, tag, stat) result(ok)
+    !
+    ! Convenience wrapper around MPI_IPROBE
+    !
+    implicit none
+    integer(i4_kind), intent(in)  :: src, tag
+    integer(i4_kind), intent(out) :: stat(MPI_STATUS_SIZE)
+    logical                       :: ok
+    ! *** end of interface ***
+
+    integer(i4_kind) :: ierr
+
+    call MPI_IPROBE(src, tag, comm_world, ok, stat, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+  end function iprobe
 
 #ifdef DLB_MASTER_SERVER
   pure function divide_work(jobs, np) result(n)
