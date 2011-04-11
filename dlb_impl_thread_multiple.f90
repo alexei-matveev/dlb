@@ -291,11 +291,10 @@ contains
     ! First try to get a job from local storage
     call th_mutex_lock(LOCK_JS)
     call local_tgetm(n, jobs)
-    call th_mutex_unlock(LOCK_JS)
+    ! do not unlock before checked for termination
     call time_stamp("finished first local search",3)
     ! if local storage only gives empty job: cycle under checking for termination
     ! only try new job from local_storage after JLEFT told that there are any
-    call th_mutex_lock(LOCK_JS)
     do while (jobs(JLEFT) >= jobs(JRIGHT) .and. .not. termination())
        ! found no job in first try, now wait for change before doing anything
        ! CONTROL will make a wake up
