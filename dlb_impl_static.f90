@@ -81,6 +81,7 @@ contains
   subroutine dlb_init()
     !  Purpose: initalization of needed stuff
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: OUTPUT_BORDER
     implicit none
     !** End of interface *****************************************
 

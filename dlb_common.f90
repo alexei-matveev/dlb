@@ -79,6 +79,8 @@ module dlb_common
 
   integer,  public, protected :: comm_world
 
+  integer(kind=i4_kind), parameter, public  :: OUTPUT_BORDER = FPP_OUTPUT_BORDER
+
   integer(kind=i4_kind), parameter, public  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 !for distingishuing the messages
   integer(kind=i4_kind), parameter, public  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
   integer(kind=i4_kind), parameter, public  :: JLENGTH = 3 ! Length of a single job in interface

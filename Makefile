@@ -43,7 +43,7 @@ endif
 CFLAGS = -Wall -g -O1 -std=c99 -D_XOPEN_SOURCE=500
 # set _XOPEN_SOURCE=500 to make rwlocks available
 
-CPP = cpp --traditional-cpp -DOUTPUT_BORDER=$(OUTPUT_BORDER)
+CPP = cpp --traditional-cpp -DFPP_OUTPUT_BORDER=$(OUTPUT_BORDER)
 #CPP = cpp --traditional-cpp  -I../include
 
 #

@@ -174,6 +174,7 @@ contains
     !  Purpose: initalization of needed stuff
     !           is in one thread context
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: OUTPUT_BORDER
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
@@ -211,7 +212,7 @@ contains
     !
     ! Context: main thread.
     !
-    use dlb_common, only: empty
+    use dlb_common, only: empty, OUTPUT_BORDER
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n

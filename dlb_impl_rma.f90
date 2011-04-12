@@ -136,7 +136,7 @@ contains
     !           It is also recommended to call this subroutine only once
     !           as it needs parallelization of all processes
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: dlb_common_init
+    use dlb_common, only: dlb_common_init, OUTPUT_BORDER
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
@@ -227,7 +227,7 @@ contains
     !  states, that everything is done
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: select_victim, steal_local, steal_remote &
-        , length, empty
+        , length, empty, OUTPUT_BORDER
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(i4_kind), intent(in)  :: n
