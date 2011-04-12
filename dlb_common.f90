@@ -956,27 +956,25 @@ contains
     !      At least here it is okay to have the message only during the routine
     !      as it will be wait for finishing before returning to the calling
     !      code
-    !------------ Modules used ------------------- ---------------
+    !
     implicit none
-    !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, i, alloc_stat
-    integer(kind=i4_kind), allocatable   :: request(:), stats(:,:)
-    integer(kind=i4_kind)                :: receiver, message(JLENGTH)
-    !------------ Executable code --------------------------------
 
-    allocate(request(n_procs -1), stats(n_procs -1, MPI_STATUS_SIZE),&
-    stat = alloc_stat)
-    ASSERT(alloc_stat==0)
+    integer(i4_kind) :: ierr, i
+    integer(i4_kind) :: receiver, message(JLENGTH)
+    integer(i4_kind) :: request(n_procs-1)
+    integer(i4_kind) :: stats(MPI_STATUS_SIZE, n_procs-1)
+
+    ASSERT(my_rank==termination_master)
+
+    call time_stamp("send termination", 5)
 
     ! FIXME: reusing the same buffer for non-blocking sends:
     message(:) = 0
     do i = 0, n_procs-2
         receiver = i
         ! skip the termination master itself:
-        if (i >= termination_master) receiver = i+1
-        call time_stamp("send termination", 5)
+        if (i >= my_rank) receiver = i+1
 
         ! FIXME: the tag is the only useful info sent:
         call isend(message, receiver, NO_WORK_LEFT, request(i+1))
