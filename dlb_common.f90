@@ -329,32 +329,7 @@ contains
      ! *** end of interface ***
 
      victim = select_victim_random(rank, np)
-     ! victim = select_victim_r(rank, np)
   end function select_victim
-
-  function select_victim_r(rank, np) result(victim)
-     ! Purpose: decide of who to try next to get any jobs
-     ! Each in a row
-     !
-     ! Context: 3 threads: control thread.
-     !          2 threads: secretary thread.
-     !
-     ! Not thread safe! Beware of "save :: count" without rwlock!
-     !
-     implicit none
-     integer(i4_kind), intent(in) :: rank, np
-     integer(i4_kind)             :: victim
-     ! *** end of interface ***
-
-     integer(kind=i4_kind), save :: count = 1
-
-     victim = mod(rank + count, np)
-     count = count + 1
-     if (victim == rank) then
-        victim = mod(rank + count, np)
-        count = count + 1
-     endif
-  end function select_victim_r
 
   pure function irand(i) result(p)
      ! Pseudorandom sequence:
