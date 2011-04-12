@@ -729,7 +729,9 @@ contains
 
     rec_buff = 0
     rec_buff(2 * my_rank + 1) = last_proc ! Last I sended to or -1
-    rec_buff(2 * my_rank + 2) = my_last(last_proc + 1) ! the request number I sended to him
+    if (last_proc > -1) then
+        rec_buff(2 * my_rank + 2) = my_last(last_proc + 1) ! the request number I sended to him
+    endif
     call MPI_ALLGATHER(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rec_buff, 2, MPI_INTEGER4, comm_world, ierr)
     ASSERT(ierr==MPI_SUCCESS)
     count_req = 0
