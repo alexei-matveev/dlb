@@ -436,15 +436,9 @@ contains
 
         case ( RESP_DONE )
             ! finished responsibility
+            ASSERT(my_rank==termination_master)
 
-            if (my_rank == termination_master) then
-                call check_termination(message(1))
-            else ! give only warning, some other part of the code my use this message (but SHOULD NOT)
-                ! This message makes no sense in this context, thus give warning
-                ! and continue (maybe the actual calculation has used it)
-                print *, time_stamp_prefix(MPI_Wtime()), "ERROR: got unexpected message (I'm no termination master):", message
-                call abort()
-            endif
+            call check_termination(message(1))
 
         case ( NO_WORK_LEFT )
             ! termination message from termination master
