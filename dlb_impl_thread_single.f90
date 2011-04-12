@@ -409,8 +409,7 @@ contains
     double precision, intent(inout)      :: timestart, timemax ! just for debugging
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)
-    logical                              :: flag
+    integer(kind=i4_kind)                :: stat(MPI_STATUS_SIZE)
     integer(i4_kind)                     :: src, tag
     !------------ Executable code --------------------------------
 
@@ -547,7 +546,6 @@ contains
     !** End of interface *****************************************
 
     integer(i4_kind) :: message(JLENGTH), stat(MPI_STATUS_SIZE)
-    integer(i4_kind) :: ierr
 
     call recv(message, src, tag, stat)
 
