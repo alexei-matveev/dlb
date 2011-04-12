@@ -1021,7 +1021,6 @@ contains
 
   subroutine recv(buf, rank, tag, stat)
     !
-    !
     ! Convenience wrapper around MPI_RECV
     !
     implicit none
