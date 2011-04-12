@@ -963,7 +963,6 @@ contains
     integer(i4_kind) :: ierr, i
     integer(i4_kind) :: receiver, message(JLENGTH)
     integer(i4_kind) :: request(n_procs-1)
-    integer(i4_kind) :: stats(MPI_STATUS_SIZE, n_procs-1)
 
     ASSERT(my_rank==termination_master)
 
@@ -979,7 +978,7 @@ contains
         ! FIXME: the tag is the only useful info sent:
         call isend(message, receiver, NO_WORK_LEFT, request(i+1))
     enddo
-    call MPI_WAITALL(size(request), request, stats, ierr)
+    call MPI_WAITALL(size(request), request, MPI_STATUSES_IGNORE, ierr)
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine send_termination
 
