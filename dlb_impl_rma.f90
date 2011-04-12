@@ -486,10 +486,13 @@ contains
     ! there will be only a send to the other procs, telling them to terminate
     ! thus the termination_master sets its termination here
     terminated = .true.
-    if (n_procs > 1) then
-      call print_statistics()
-      call send_termination()
-    endif
+
+    ! debug prints:
+    call print_statistics()
+
+    ! This is used by termination master to announce termination:
+    call send_termination()
+
     call end_requests(requ2)
     call end_communication()
   end subroutine check_termination
