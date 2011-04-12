@@ -358,7 +358,6 @@ contains
     ! Context: entry to mailbox thread.
     !
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: output_border
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
@@ -371,14 +370,11 @@ contains
     lm_source = -1
     do while (.not. termination())
       ! check and wait for any message with messagetag dlb
-      call recv(message, MPI_ANY_SOURCE, MPI_ANY_TAG, stat)
-
-      if (5 < output_border) print *, my_rank, "got message", message, "from", stat(MPI_SOURCE)
-      call time_stamp("got message", 4)
-      count_messages = count_messages + 1
 
       ! check and wait for any message with any message tag:
       call check_messages(MPI_ANY_SOURCE, MPI_ANY_TAG, requ_m, lm_source)
+      count_messages = count_messages + 1
+      call time_stamp("got message", 4)
       call test_requests(requ_m)
     enddo
 
