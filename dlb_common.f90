@@ -749,8 +749,7 @@ contains
     enddo
 
     ! Cycle over all left messages, blocking MPI_RECV, as there is nothing else to do
-    if (count_req > 0) then
-      do i =1, count_req
+    do i = 1, count_req
         call recv(message_r, MPI_ANY_SOURCE, MPI_ANY_TAG, stat)
         select case(stat(MPI_TAG))
         case (WORK_DONAT)
@@ -764,8 +763,7 @@ contains
           print *, my_rank, "got Message", message_r, ", which I wasn't waiting for"
           stop "got unexpected message"
         end select
-      enddo
-    endif
+    enddo
     ! Now all request are finished and could be ended
     call end_requests(requ)
   end subroutine clear_up
