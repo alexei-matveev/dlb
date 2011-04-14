@@ -6,7 +6,7 @@ module dlb_impl
   !
   !  Purpose: takes care about dynamical load balancing,
   !           uses an RMA (MPI) object to store the job informations
-  !           (only the number of the job) and allows other routines 
+  !           (only the number of the job) and allows other routines
   !           to steal them, if they have no own left
   !           unfortunatelly the MPI one-sided works different on different
   !           systems, this routine is only useful if the RMA can be accessed
@@ -39,9 +39,10 @@ module dlb_impl
   !          termination algorithm: called (at least once) "Fixed Energy Distributed Termination
   !                                 Algorithm"
   !                        to avoid confusion, here the term "energy" is not used, talking about
-  !                         respoinsibility (resp) instead, every system starts with a part of responsibility
+  !                         respoinsibility (resp) instead, every system starts with a part of
+  !                         responsibility
   !                         given to him, if procs steal from him, they have later to send him a
-  !                         message saying how many of his jobs, they've done, they always report to
+  !                         message saying how many of his jobs, they have done, they always report to
   !                         the proc who had the resp first, thus source is given away with job
   !                         each proc lowers his resp about the values given back from any proc and
   !                         about the jobs he has done himself, when finished them, if he has his resp
@@ -53,13 +54,13 @@ module dlb_impl
   !
   !
   !  References: "Scalable Work Stealing", James Dinan, D. Brian Larkins,
-  !              Sriram Krishnamoorthy, Jarek Nieplocha, P. Sadayappan, 
-  !             Proc. of 21st intl. Conference on Supercomputing (SC). 
+  !              Sriram Krishnamoorthy, Jarek Nieplocha, P. Sadayappan,
+  !             Proc. of 21st intl. Conference on Supercomputing (SC).
   !             Portland, OR, Nov. 14-20, 2009  (for work stealing algorithm)
   !             "Implementing Byte-Range Locks Using MPI One-Sided Communication",
   !             Rajeev Thakur, Robert Ross, and Robert Latham
   !             (in EuroPVM/MPI)  (read modify write algorithm with the same ideas)
-  ! 
+  !
   !
   !  Author: AN
   !  Date: 08/10->09/10
@@ -131,7 +132,7 @@ contains
     !           job scheduling, the most part is of setting up an RMA
     !           object with MPI to have it ready to use for the rest of the
     !           dlb model. It may be set up only once, even if there are
-    !           several dlb's wanted, the initalizing of a specific run
+    !           several dlbs wanted, the initalizing of a specific run
     !           should be done with dlb_setup
     !           It is also recommended to call this subroutine only once
     !           as it needs parallelization of all processes
@@ -157,7 +158,7 @@ contains
     call MPI_ALLOC_MEM(size_alloc, MPI_INFO_NULL, c_job_pointer, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    ! this connects a c'like pointer with our job_storage, as MPI can not handle our
+    ! this connects a c like pointer with our job_storage, as MPI can not handle our
     ! pointers as they are
     call c_f_pointer(c_job_pointer, job_storage, [jobs_len])
 
@@ -297,7 +298,7 @@ contains
             rank = select_victim(my_rank, n_procs)
 
             !
-            ! try to get jobs from rank, if rank's memory occupied by another or contains
+            ! try to get jobs from rank, if ranks memory occupied by another or contains
             ! nothing to steal, this will return false:
             !
             many_tries = many_tries + 1 ! just for debugging

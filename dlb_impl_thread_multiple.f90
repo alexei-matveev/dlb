@@ -37,7 +37,7 @@ module dlb_impl
   !                        to avoid confusion, here the term "energy" is not used, talking about
   !                         respoinsibility (resp) instead, every system starts with a part of responsibility
   !                         given to him, if procs steal from him, they have later to send him a
-  !                         message saying how many of his jobs, they've done, they always report to
+  !                         message saying how many of his jobs, they have done, they always report to
   !                         the proc who had the resp first, thus source is given away with job
   !                         each proc lowers his resp about the values given back from any proc and
   !                         about the jobs he has done himself, when finished them, if he has his resp
@@ -165,7 +165,7 @@ module dlb_impl
   !
   ! "BIG KERNEL LOCK", rwlock for global data (rdlock/wrlock/unlock):
   !
-  ! * terminated: this is the flag, telling everybody, that it's done
+  ! * terminated: this is the flag, telling everybody, that it is done
   !             read: ALL
   !             write: CONTROL, MAILBOX
   ! * reported_by, reported_to:

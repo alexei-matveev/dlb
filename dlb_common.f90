@@ -81,7 +81,7 @@ module dlb_common
 
   integer(kind=i4_kind), parameter, public  :: OUTPUT_BORDER = FPP_OUTPUT_BORDER
 
-  integer(kind=i4_kind), parameter, public  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 !for distingishuing the messages
+  integer(kind=i4_kind), parameter, public  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 ! message tags
   integer(kind=i4_kind), parameter, public  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
   integer(kind=i4_kind), parameter, public  :: JLENGTH = 3 ! Length of a single job in interface
   integer(kind=i4_kind), parameter, public  :: L_JOB = 2  ! Length of job to give back from interface
@@ -90,13 +90,14 @@ module dlb_common
   integer(kind=i4_kind), parameter, public  :: JRIGHT = 2 ! Number in job, where ep (end point) is stored
 
 #ifdef DLB_MASTER_SERVER
-    logical, parameter, public :: masterserver = .true. ! changes to different variant (master slave concept for comparision)
+    logical, parameter, public :: masterserver = .true.
+       ! changes to different variant (master slave concept for comparision)
 #else
-    logical, parameter, public :: masterserver = .false. ! changes to different variant (master slave concept for comparision)
+    logical, parameter, public :: masterserver = .false.
 #endif
 
-  integer(kind=i4_kind), public, protected :: my_rank, n_procs ! some synonyms, They will be initialized once and afterwards
-                                        ! be read only
+  integer(kind=i4_kind), public, protected :: my_rank, n_procs ! some synonyms, They will be initialized
+                                        !once and afterwards be read only
 
   !
   ! Termination master is the process that gathers completion reports
@@ -147,8 +148,9 @@ module dlb_common
   !------------ Declaration of constants and variables ----
 
   double precision :: time_offset = -1.0
-  logical, allocatable              :: all_done(:) ! only allocated on termination_master, stores which proc's
-                                                   ! jobs are finished. If with masterserver: which proc has terminated
+  logical, allocatable              :: all_done(:)
+    ! only allocated on termination_master, stores which procs
+    ! jobs are finished. If with masterserver: which proc has terminated
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
 contains
@@ -713,8 +715,8 @@ contains
     !          if he has already answered, but the answer has not yet arrived, or if he has
     !          to really wait for the message. If every proc now on how many messages he has to
     !          wait, he does so (responds if neccessary) and finishes.
-    !          A MPI_barrier in the main code ensures, that he won't get messges belonging to the
-    !          next mpi cycle.
+    !          A MPI_barrier in the main code ensures, that he will not get messges belonging
+    !          to the next mpi cycle.
     ! Context for 3Threads: mailbox thread.
     !             2 Threads: secretary thread
     !------------ Modules used ------------------- ---------------
@@ -738,7 +740,7 @@ contains
     ASSERT(ierr==MPI_SUCCESS)
     count_req = 0
 
-    ! If I'm waiting for a job donation also
+    ! If I am waiting for a job donation also
     if (last_proc > -1) count_req = 1
 
     do i = 1, n_procs
@@ -761,7 +763,7 @@ contains
            call isend(message_s, stat(MPI_SOURCE), WORK_DONAT, req)
            call add_request(req, requ)
         case default
-          print *, my_rank, "got Message", message_r, ", which I wasn't waiting for"
+          print *, my_rank, "got Message", message_r, ", which I was not waiting for"
           stop "got unexpected message"
         end select
     enddo
@@ -827,7 +829,7 @@ contains
     !
     ! is met, I should tell termination_master that jobs initially
     ! assigned to be have been scheduled by calling this sub.
-    ! Termination master will collect all the finished resp's
+    ! Termination master will collect all the finished resps
     ! untill it gots all of them back
     !
     ! Context 3Thread: mailbox  and control thread.

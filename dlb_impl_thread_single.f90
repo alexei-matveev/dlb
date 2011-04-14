@@ -34,7 +34,7 @@ module dlb_impl
   !                        to avoid confusion, here the term "energy" is not used, talking about
   !                         respoinsibility (resp) instead, every system starts with a part of responsibility
   !                         given to him, if procs steal from him, they have later to send him a
-  !                         message saying how many of his jobs, they've done, they always report to
+  !                         message saying how many of his jobs, they have done, they always report to
   !                         the proc who had the resp first, thus source is given away with job
   !                         each proc lowers his resp about the values given back from any proc and
   !                         about the jobs he has done himself, when finished them, if he has his resp
@@ -157,8 +157,8 @@ module dlb_impl
   !
   ! For debugging and counting trace
   ! used only on SECRETARY, but are written out lateron from MAIN (after
-  ! SECRETARY has terminated) we don't want concurently prints of different threads, so
-  ! secretary mustn't print them itsself
+  ! SECRETARY has terminated) we do not want concurently prints of different threads, so
+  ! secretary must not print them itsself
   integer(kind=i4_kind)             :: count_messages, count_requests, count_offers
   integer(kind=i4_kind)             :: many_tries, many_searches
   integer(kind=i4_kind)             :: many_zeros
@@ -241,7 +241,7 @@ contains
        ! found no job in first try, now wait for change before doing anything
        ! CONTROL will make a wake up
        start_timer = MPI_Wtime() ! for debugging
-       main_waits = .true. ! MAIN is waiting, control doesn't need to sleep
+       main_waits = .true. ! MAIN is waiting, control does not need to sleep
        call th_cond_wait(COND_JS2_UPDATE, LOCK_JS)
        main_waits = .false. ! MAIN is back again
        main_wait_last = MPI_Wtime() - start_timer ! for debugging
