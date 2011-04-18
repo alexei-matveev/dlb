@@ -31,7 +31,7 @@ module test
     integer, parameter :: LOOP = 7
     integer, parameter :: IMIN = LOOP - 3
     integer, parameter :: IMAX = LOOP + 3
-    integer(8) :: i8 ! long int
+    integer(selected_int_kind(18)) :: long ! long int
 
     integer :: random_cost
 
@@ -41,8 +41,8 @@ module test
     !
     ! A pseudo random number between IMIN and IMAX:
     !
-    i8 = i ! conversion to long int
-    random_cost = IMIN + mod(irand(irand(irand(i8))), IMAX - IMIN + 1)
+    long = i ! conversion to long int
+    random_cost = IMIN + mod(irand(irand(irand(long))), IMAX - IMIN + 1)
     ! print *, "random_cost(", i,") =", random_cost, "between", IMIN, "and", IMAX
 
     k = 0
