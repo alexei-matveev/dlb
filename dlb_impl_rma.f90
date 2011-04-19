@@ -180,6 +180,13 @@ contains
     job_storage = 0
 
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
+
+    ! if a dlb run would be too early after init, some processor might steal from
+    ! an undefined storage, after this at least it can only steal empty jobs
+    ! if a processor is not yet available
+    call MPI_WIN_FENCE(0, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+
     if (my_rank ==0 .and. 0 < OUTPUT_BORDER) then
         print *, "DLB init: using variant 'rma'"
         print *, "DLB init: This variant uses the remote memory access of MPI implementation"
