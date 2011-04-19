@@ -213,6 +213,7 @@ contains
     ! Context: main thread.
     !
     use dlb_common, only: empty, OUTPUT_BORDER
+    use dlb_common, only: set_empty_job, steal_local, length
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
@@ -220,37 +221,71 @@ contains
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(i4_kind), target             :: jobs(JLENGTH)
+    integer(i4_kind)                     :: remaining(JLENGTH)
     double precision                     :: start_timer
     double precision,save                :: leave_timer = -1
     !------------ Executable code --------------------------------
 
     ASSERT(size(my_job)==2)
+
     if (num_jobs > 0) then ! for debugging
         last_work = MPI_Wtime() - leave_timer
         if (last_work > max_work) max_work = last_work
         average_work = average_work + last_work
     endif
-    ! First try to get a job from local storage
+
+    ! in case we do not enter into the DO WHILE loop:
+    jobs = set_empty_job()
+
+    !
+    ! Modify local storage with this lock only:
+    !
     call th_mutex_lock(LOCK_JS)
-    call local_tgetm(n, jobs)
-    ! do not unlock before checked for termination
-    call time_stamp("finished first local search",3)
-    ! if local storage only gives empty job: cycle under checking for termination
-    ! only try new job from local_storage after JLEFT told that there are any
     do while ( empty(jobs) .and. .not. termination() )
-       ! found no job in first try, now wait for change before doing anything
-       ! CONTROL will make a wake up
-       start_timer = MPI_Wtime() ! for debugging
-       main_waits = .true. ! MAIN is waiting, control does not need to sleep
-       call th_cond_wait(COND_JS2_UPDATE, LOCK_JS)
-       main_waits = .false. ! MAIN is back again
-       main_wait_last = MPI_Wtime() - start_timer ! for debugging
-       ! store debugging information:
-       main_wait_all = main_wait_all + main_wait_last
-       if (main_wait_last > main_wait_max) main_wait_max = main_wait_last
-       ! end store debugging information
-       call local_tgetm(n, jobs)
+        !
+        ! Try getting jobs from local storage:
+        !
+        if ( steal_local(n, job_storage, remaining, jobs) ) then
+            !
+            ! Stealing successfull:
+            !
+            job_storage = remaining
+        else
+            !
+            ! Found no job in this try, now wait for change before doing anything.
+            ! CONTROL thread will wake MAIN thread up:
+            !
+            start_timer = MPI_Wtime() ! for debugging
+
+            main_waits = .true. ! MAIN is waiting, control does not need to sleep
+
+            !
+            ! This makes MAIN thread give up on storage lock and go to sleep
+            ! waiting to be woken up by CONTROL thread. Lock is aquired again on
+            ! waking up:
+            !
+            call th_cond_wait(COND_JS2_UPDATE, LOCK_JS)
+
+            main_waits = .false. ! MAIN is back again
+
+            !
+            ! The rest is time measurements for debugging
+            ! FIXME: maybe use FPP_TIMERs instead?
+            !
+            main_wait_last = MPI_Wtime() - start_timer ! for debugging
+            ! store debugging information:
+            main_wait_all = main_wait_all + main_wait_last
+            if (main_wait_last > main_wait_max) main_wait_max = main_wait_last
+            ! end store debugging information
+        endif
     enddo
+
+    !
+    ! This counter is used for reporting & termination detection:
+    ! (used by MAIN and CONTROL threads, should be protected by lock)
+    !
+    already_done = already_done + length(jobs)
+
     call th_mutex_unlock(LOCK_JS)
 
     call time_stamp("finished loop over local search",3)
@@ -652,41 +687,6 @@ contains
       call test_resp_done(requ)
     endif
   end subroutine report_or_store
-
-
-  subroutine local_tgetm(m, my_jobs)
-    !  Purpose: takes m jobs from the left from object job_storage
-    !           in the first try there is no need to wait for
-    !           something going on in the jobs
-    !
-    ! Context: MAIN thread.
-    !
-    ! Locks: complete function is locked by LOCK_JS from outside
-    !
-    !------------ Modules used ------------------- ---------------
-    use dlb_common, only: steal_local, length, set_empty_job
-    implicit none
-    !------------ Declaration of formal parameters ---------------
-    integer(i4_kind), intent(in)  :: m
-    integer(i4_kind), intent(out) :: my_jobs(JLENGTH)
-    !** End of interface *****************************************
-
-    integer(i4_kind) :: remaining(JLENGTH)
-
-    if ( steal_local(m, job_storage, remaining, my_jobs) ) then
-        !
-        ! Stealing successfull:
-        !
-        job_storage = remaining
-    else
-        !
-        ! It is OK to return an empty job range from here:
-        !
-        my_jobs = set_empty_job()
-    endif
-
-    already_done = already_done + length(my_jobs)
-  end subroutine local_tgetm
 
   subroutine dlb_setup(job)
     !  Purpose: initialization of a dlb run, each proc should call
