@@ -11,7 +11,7 @@ use dlb_common, only: time_stamp ! for debug prints
 implicit none
 !include 'mpif.h'
 
-integer            :: NJOBS = 20
+integer            :: NJOBS = -1 ! see default string in get_args(njobs)
 integer, parameter :: MAXJOBS = 1
 integer, parameter :: NTIMES = 3
 
