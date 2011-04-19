@@ -23,7 +23,7 @@ module test
   end function echo
 
   subroutine burn_cpu(i)
-    use dlb_common, only: irand
+    use dlb_common, only: irand, i8_kind
     implicit none
     integer, intent(in) :: i
     ! *** end of interface ***
@@ -31,7 +31,7 @@ module test
     integer, parameter :: LOOP = 7
     integer, parameter :: IMIN = LOOP - 3
     integer, parameter :: IMAX = LOOP + 3
-    integer(selected_int_kind(18)) :: long ! long int
+    integer(i8_kind) :: long ! long int
 
     integer :: random_cost
 

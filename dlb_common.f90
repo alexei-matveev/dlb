@@ -72,7 +72,7 @@ module dlb_common
   integer, parameter, public :: i4_kind = selected_int_kind(9)
 
   ! integer with 8 bytes, range 9 decimal digits
-  integer, parameter :: i8_kind = selected_int_kind(18)
+  integer, parameter, public :: i8_kind = selected_int_kind(18)
 
   ! real with 8 bytes, precision 15 decimal digits
   integer, parameter, public :: r8_kind = selected_real_kind(15)
