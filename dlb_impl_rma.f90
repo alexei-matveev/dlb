@@ -123,6 +123,7 @@ module dlb_impl
   integer(kind=i4_kind)             :: many_locked, many_zeros, self_many_locked
   double precision  :: main_wait_all, main_wait_max, main_wait_last
   double precision  :: max_work, last_work, average_work, num_jobs
+  double precision  :: dlb_time, min_work, second_last_work
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
 contains
@@ -254,8 +255,10 @@ contains
     !------------ Executable code --------------------------------
 
     if (num_jobs > 0) then ! for debugging
+        second_last_work = last_work
         last_work = MPI_Wtime() - leave_timer
         if (last_work > max_work) max_work = last_work
+        if (last_work < min_work) min_work = last_work
         average_work = average_work + last_work
     endif
 
@@ -376,13 +379,19 @@ contains
     !
     if ( empty(jobs)) then
        if (1 < OUTPUT_BORDER) then
+           dlb_time = MPI_Wtime() - dlb_time ! for debugging
            print *, my_rank, "tried", many_searches, "for new jobs and stealing", many_tries
            print *, my_rank, "was locked", many_locked, "got zero", many_zeros
            print *, my_rank, "was locked on own memory", self_many_locked
            write(*, '(I3, " M: waited (all, max, last)", G20.10, G20.10, G20.10) '), my_rank, &
                   main_wait_all, main_wait_max, main_wait_last
-           write(*, '(I3, " M: work slices lasted (average, max, last)", G20.10, G20.10, G20.10)'), my_rank,&
-              average_work/ num_jobs, max_work, last_work
+           write(*, '(I3, " M: work slices lasted (average, max, min)", G20.10, G20.10, G20.10)'), my_rank,&
+              average_work/ num_jobs, max_work, min_work
+           write(*, '(I3, " M: the two of my last work slices lasted", G20.10, G20.10)'), my_rank,&
+                            second_last_work, last_work
+
+           write(*, '(I3, " M: time spend in dlb", G20.10, "time processor was working " , G20.10)'), my_rank,&
+              dlb_time, average_work
        endif
        call MPI_BARRIER(comm_world, ierr)
        ASSERT(ierr==MPI_SUCCESS)
@@ -821,6 +830,7 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: start_job(JLENGTH)
     !------------ Executable code --------------------------------
+    dlb_time = MPI_Wtime() ! for debugging
 
     ! these variables are for the termination algorithm
     terminated = .false.
@@ -843,7 +853,9 @@ contains
     main_wait_max = 0
     main_wait_last = 0
     max_work = 0
+    min_work = dlb_time
     last_work = 0
+    second_last_work = 0
     average_work = 0
     num_jobs = 0
     ! end initalizing debug variables

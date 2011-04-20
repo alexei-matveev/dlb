@@ -223,6 +223,7 @@ module dlb_impl
   ! further for main
   double precision  :: main_wait_all, main_wait_max, main_wait_last
   double precision  :: max_work, last_work, average_work, num_jobs
+  double precision  :: dlb_time, second_last_work, min_work
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
 contains
@@ -284,8 +285,10 @@ contains
     ASSERT(size(my_job)==2)
 
     if (num_jobs > 0) then ! for debugging
+        second_last_work = last_work
         last_work = MPI_Wtime() - leave_timer
         if (last_work > max_work) max_work = last_work
+        if (last_work < min_work) min_work = last_work
         average_work = average_work + last_work
     endif
     ! First try to get a job from local storage
@@ -325,6 +328,7 @@ contains
        call th_join_all()
        ! now only one thread left, thus all variables belong him:
        if (1 < OUTPUT_BORDER) then
+           dlb_time = MPI_Wtime() - dlb_time ! for debugging
            print *, my_rank, "C: tried", many_searches, "for new jobs andstealing", many_tries
            print *, my_rank, "C: zeros", many_zeros
            print *, my_rank, "C: longest wait for answer", timemax
@@ -332,8 +336,12 @@ contains
            write(*, '(I3, " C: longest wait for answer", G20.10)'), my_rank, timemax
            write(*, '(I3, " M: waited (all, max, last)", G20.10, G20.10, G20.10) '), my_rank, &
                   main_wait_all, main_wait_max, main_wait_last
-           write(*, '(I3, " M: work slices lasted (average, max, last)", G20.10, G20.10, G20.10)'), my_rank,&
-              average_work/ num_jobs, max_work, last_work
+           write(*, '(I3, " M: work slices lasted (average, max, min)", G20.10, G20.10, G20.10)'), my_rank,&
+              average_work/ num_jobs, max_work, min_work
+           write(*, '(I3, " M: the two of my last work slices lasted", G20.10, G20.10)'), my_rank,&
+                  second_last_work, last_work
+           write(*, '(I3, " M: time spend in dlb", G20.10, "time processor was working " , G20.10)'), my_rank,&
+                  dlb_time, average_work
        endif
     endif
       ! if true means MAIN did not intent to come back (check termination is
@@ -754,6 +762,7 @@ contains
     !------------ Declaration of local variables -----------------
     integer :: alloc_stat
     !------------ Executable code --------------------------------
+    dlb_time = MPI_Wtime() ! for debugging
     ! these variables are for the termination algorithm
     terminated = .false.
     i_am_waiting = .false.
@@ -765,7 +774,9 @@ contains
     main_wait_max = 0
     main_wait_last = 0
     max_work = 0
+    min_work = dlb_time
     last_work = 0
+    second_last_work = 0
     average_work = 0
     num_jobs = 0
     ! end for debugging

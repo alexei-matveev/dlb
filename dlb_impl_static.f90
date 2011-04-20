@@ -76,6 +76,8 @@ public dlb_init, dlb_finalize, dlb_setup, dlb_give_more !for using the module
 ! Program from outside might want to know the thread-safety-level required form DLB
 integer(kind=i4_kind), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_SINGLE
 
+!for debugging:
+double precision  :: dlb_time
 contains
 
   subroutine dlb_init()
@@ -106,6 +108,7 @@ contains
     !  done by the procs should be jobs(JLEFT) + 1 to jobs(JRIGHT) in
     !  the related job list
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: OUTPUT_BORDER, empty
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
@@ -123,6 +126,11 @@ contains
     jobs(JRIGHT)  = jobs(JLEFT) + w
     job_storage(JLEFT) = jobs(JRIGHT)
     my_job = jobs(:L_JOB)
+    if (1 < OUTPUT_BORDER .and. empty(jobs)) then
+         ! output for debugging, only reduced inforamtions needed compared to
+         ! dynamical cases
+         write(*, '(I3, " M: time spend in dlb", G20.10)'), my_rank, MPI_Wtime() - dlb_time
+    endif
   end subroutine dlb_give_more
 
   subroutine dlb_setup(job)
@@ -138,7 +146,7 @@ contains
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
     !** End of interface *****************************************
-
+    dlb_time = MPI_Wtime() ! for debugging
     job_storage(:L_JOB) = job
   end subroutine dlb_setup
 
