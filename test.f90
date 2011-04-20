@@ -28,9 +28,9 @@ module test
     integer, intent(in) :: i
     ! *** end of interface ***
 
-    integer, parameter :: LOOP = 7
-    integer, parameter :: IMIN = LOOP - 3
-    integer, parameter :: IMAX = LOOP + 3
+    integer, parameter :: LOOP = 5
+    integer(i8_kind), parameter :: IMIN = LOOP - 3
+    integer(i8_kind), parameter :: IMAX = LOOP + 3
     integer(i8_kind) :: long ! long int
 
     integer :: random_cost
