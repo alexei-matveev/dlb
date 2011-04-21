@@ -129,7 +129,7 @@ contains
     if (1 < OUTPUT_BORDER .and. empty(jobs)) then
          ! output for debugging, only reduced inforamtions needed compared to
          ! dynamical cases
-         write(*, '(I3, " M: time spend in dlb", G20.10)'), my_rank, MPI_Wtime() - dlb_time
+         write(*, '(I3, " M: time spend in dlb", G20.10)') my_rank, MPI_Wtime() - dlb_time
     endif
   end subroutine dlb_give_more
 
