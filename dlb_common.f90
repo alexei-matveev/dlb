@@ -49,7 +49,6 @@ module dlb_common
 
   public :: irand!(long int) -> long int
 
-  public :: time_stamp_prefix
   public :: time_stamp
   public :: dlb_common_init, dlb_common_finalize, dlb_common_setup
   public :: add_request, test_requests, end_requests
@@ -156,15 +155,6 @@ module dlb_common
 contains
 
 ! ONLY FOR DEBBUGING (WITHOUT PARAGAUSS)
-  function time_stamp_prefix(time) result(prefix)
-    implicit none
-    double precision, intent(in) :: time
-    character(len=28) :: prefix
-    ! *** end of interface ***
-
-    write(prefix, '("#", I3, G20.10)') my_rank, time - time_offset
-  end function time_stamp_prefix
-
   subroutine time_stamp(msg, output_level)
     implicit none
     character(len=*), intent(in) :: msg
@@ -172,15 +162,18 @@ contains
     ! *** end of interface ***
 
     double precision :: time
+    character(len=28) :: prefix
+
+    write(prefix, '("#", I3, G20.10)') my_rank, time - time_offset
 
     time = MPI_Wtime()
     if ( time_offset < 0.0 ) then
       time_offset = 0.0
-      print *, time_stamp_prefix(time), "(BASE TIME)"
+      print *, prefix, "(BASE TIME)"
       time_offset = time
     endif
 
-   if(output_level < OUTPUT_BORDER) print *, time_stamp_prefix(time), msg
+   if(output_level < OUTPUT_BORDER) print *, prefix, msg
   end subroutine time_stamp
 ! END ONLY FOR DEBUGGING
 
