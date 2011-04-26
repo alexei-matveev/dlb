@@ -80,7 +80,6 @@ module dlb_impl
   !----------------------------------------------------------------
 # include "dlb.h"
   USE_MPI
-  use iso_c_binding
   use dlb_common, only: i4_kind, r8_kind, comm_world
   use dlb_common, only: time_stamp ! for debug only
   use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT
@@ -138,6 +137,7 @@ contains
     !           It is also recommended to call this subroutine only once
     !           as it needs parallelization of all processes
     !------------ Modules used ------------------- ---------------
+    use iso_c_binding, only: c_ptr, c_f_pointer
     use dlb_common, only: dlb_common_init, OUTPUT_BORDER
     implicit none
     !** End of interface *****************************************
