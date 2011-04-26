@@ -3,7 +3,7 @@ module dlb_impl_thread_common
   use iso_c_binding
   use dlb_common, only: dlb_common_init
   use dlb_common, only: i4_kind, r8_kind, comm_world, n_procs, termination_master
-  use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
+  use dlb_common, only: time_stamp ! for debug only
   use dlb_common, only: JLENGTH, JRIGHT, JLEFT, NO_WORK_LEFT
   use dlb_common, only: has_last_done, set_empty_job, add_request, send_termination
   use dlb_common, only: masterserver
