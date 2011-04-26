@@ -59,15 +59,13 @@ integer(i4_kind), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_SINGLE
 
 integer(i4_kind) :: job_storage(JLENGTH) ! store all the jobs, belonging to this processor
 
-!for debugging:
-double precision  :: dlb_time
 contains
 
   subroutine dlb_init()
     !  Purpose: initalization of needed stuff
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: set_empty_job, dlb_common_init
-    use dlb_common, only: OUTPUT_BORDER, my_rank
+    use dlb_common, only: my_rank, time_stamp
     implicit none
     !** End of interface *****************************************
 
@@ -75,9 +73,8 @@ contains
 
     call dlb_common_init()
 
-    if (my_rank == 0 .and. 0 < OUTPUT_BORDER) then
-        print *, "DLB init: using variant 'static'"
-        print *, "DLB init: This variant is a 'non-dynamical DLB' routine"
+    if ( my_rank == 0 ) then
+        call time_stamp("dlb_init: using variant 'static'", output_level=0)
     endif
   end subroutine dlb_init
 
@@ -96,9 +93,8 @@ contains
     !  done by the procs should be my_job(1) + 1 to my_job(2) in
     !  the related job list
     !------------ Modules used ------------------- ---------------
-    USE_MPI, only: MPI_Wtime
     use dlb_common, only: steal_local, JLEFT, JRIGHT
-    use dlb_common, only: OUTPUT_BORDER, empty, my_rank
+    use dlb_common, only: empty, time_stamp
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(i4_kind), intent(in)  :: n
@@ -124,10 +120,10 @@ contains
     my_job(1) = jobs(JLEFT)
     my_job(2) = jobs(JRIGHT)
 
-    if (1 < OUTPUT_BORDER .and. empty(jobs)) then
-         ! output for debugging, only reduced inforamtions needed compared to
-         ! dynamical cases
-         write(*, '(I3, " M: time spend in dlb", G20.10)') my_rank, MPI_Wtime() - dlb_time
+    if ( empty(jobs) ) then
+        ! output for debugging, only reduced inforamtions needed compared to
+        ! dynamical cases
+        call time_stamp("dlb_give_more: no jobs left", output_level=1)
     endif
   end subroutine dlb_give_more
 
@@ -140,8 +136,8 @@ contains
     !           all jobs should be the numbers from START to END, with
     !           START <= STP <= EP <= END
     !------------ Modules used ------------------- ---------------
-    USE_MPI, only: MPI_Wtime
     use dlb_common, only: JLEFT, JRIGHT, JOWNER, my_rank
+    use dlb_common, only: time_stamp
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(i4_kind), intent(in) :: job(:)
@@ -153,7 +149,7 @@ contains
     job_storage(JRIGHT) = job(2)
     job_storage(JOWNER) = my_rank ! FIXME: is this field ever used?
 
-    dlb_time = MPI_Wtime() ! for debugging
+    call time_stamp("dlb_setup: done", output_level=1)
   end subroutine dlb_setup
 
   !--------------- End of module ----------------------------------
