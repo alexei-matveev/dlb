@@ -44,34 +44,20 @@ module dlb_impl
 !
 !----------------------------------------------------------------
 # include "dlb.h"
-USE_MPI
-use dlb_common, only: dlb_common_init, dlb_common_finalize
-use dlb_common, only: my_rank
-use dlb_common, only: JLEFT, JRIGHT, JLENGTH, L_JOB, JOWNER
+USE_MPI, only: MPI_THREAD_SINGLE
+use dlb_common, only: i4_kind, JLENGTH
 implicit none
-! ONLY FOR DEBBUGING WITHOUT PARAGAUSS
-! END ONLY FOR DEBUGGING
 save            ! save all variables defined in this module
 private         ! by default, all names are private
-!== Interrupt end of public interface of module =================
- !------------ Declaration of types ------------------------------
-! ONLY FOR DEBBUGING WITHOUT PARAGAUSS
-! integer with 4 bytes, range 9 decimal digits
-integer, parameter :: integer_kind = selected_int_kind(9)
-integer, parameter :: i4_kind = integer_kind
-! real with 8 bytes, precision 15 decimal digits
-integer, parameter :: double_precision_kind = selected_real_kind(15)
-integer, parameter :: r8_kind = double_precision_kind
-double precision :: time_offset = -1.0
-! END ONLY FOR DEBUGGING
 
- integer(kind=i4_kind), parameter  :: JOBS_LEN = JLENGTH  ! Length of complete jobs storage
- integer(kind=i4_kind)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
-
-public dlb_init, dlb_finalize, dlb_setup, dlb_give_more !for using the module
+public :: dlb_init, dlb_finalize, dlb_setup, dlb_give_more !for using the module
 
 ! Program from outside might want to know the thread-safety-level required form DLB
-integer(kind=i4_kind), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_SINGLE
+integer(i4_kind), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_SINGLE
+
+!== Interrupt end of public interface of module =================
+
+integer(i4_kind) :: job_storage(JLENGTH) ! store all the jobs, belonging to this processor
 
 !for debugging:
 double precision  :: dlb_time
@@ -80,13 +66,15 @@ contains
   subroutine dlb_init()
     !  Purpose: initalization of needed stuff
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: OUTPUT_BORDER
-    use dlb_common, only: set_empty_job
+    use dlb_common, only: set_empty_job, dlb_common_init
+    use dlb_common, only: OUTPUT_BORDER, my_rank
     implicit none
     !** End of interface *****************************************
+
     job_storage = set_empty_job()
 
     call dlb_common_init()
+
     if (my_rank == 0 .and. 0 < OUTPUT_BORDER) then
         print *, "DLB init: using variant 'static'"
         print *, "DLB init: This variant is a 'non-dynamical DLB' routine"
@@ -96,35 +84,46 @@ contains
   subroutine dlb_finalize()
     !  Purpose: cleaning up everything, after last call
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: dlb_common_finalize
     implicit none
 
     call dlb_common_finalize()
   end subroutine dlb_finalize
 
   subroutine dlb_give_more(n, my_job)
-    !  Purpose: Returns next bunch of up to n jobs, if jobs(JRIGHT)<=
-    !  jobs(JLEFT) there are no more jobs there, else returns the jobs
-    !  done by the procs should be jobs(JLEFT) + 1 to jobs(JRIGHT) in
+    !  Purpose: Returns next bunch of up to n jobs, if my_job(1)<=
+    !  my_job(2) there are no more jobs there, else returns the jobs
+    !  done by the procs should be my_job(1) + 1 to my_job(2) in
     !  the related job list
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: OUTPUT_BORDER, empty
+    USE_MPI, only: MPI_Wtime
+    use dlb_common, only: steal_local, JLEFT, JRIGHT
+    use dlb_common, only: OUTPUT_BORDER, empty, my_rank
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: n
-    integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB)
+    integer(i4_kind), intent(in)  :: n
+    integer(i4_kind), intent(out) :: my_job(:)
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: w
-    integer(i4_kind), target             :: jobs(JLENGTH)
-    !------------ Executable code --------------------------------
 
-    ! First try to get a job from local storage
-    w = min(job_storage(JRIGHT) - job_storage(JLEFT), n)
-    w = max(w, 0)
-    jobs = job_storage(:JLENGTH) ! first JLENGTH hold the job
-    jobs(JRIGHT)  = jobs(JLEFT) + w
-    job_storage(JLEFT) = jobs(JRIGHT)
-    my_job = jobs(:L_JOB)
+    integer(i4_kind) :: jobs(JLENGTH), remaining(JLENGTH)
+
+    !
+    ! Return of an empty job interval will be interpreted as
+    ! "no jobs left", thus refuse requests for zero jobs:
+    !
+    ASSERT(n>0)
+    ASSERT(size(my_job)==2)
+
+    if ( steal_local(n, job_storage, remaining, jobs) ) then
+        job_storage = remaining
+    endif
+
+    !
+    ! Named constants are not known outside:
+    !
+    my_job(1) = jobs(JLEFT)
+    my_job(2) = jobs(JRIGHT)
+
     if (1 < OUTPUT_BORDER .and. empty(jobs)) then
          ! output for debugging, only reduced inforamtions needed compared to
          ! dynamical cases
@@ -141,13 +140,20 @@ contains
     !           all jobs should be the numbers from START to END, with
     !           START <= STP <= EP <= END
     !------------ Modules used ------------------- ---------------
+    USE_MPI, only: MPI_Wtime
+    use dlb_common, only: JLEFT, JRIGHT, JOWNER, my_rank
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
+    integer(i4_kind), intent(in) :: job(:)
     !** End of interface *****************************************
+
+    ASSERT(size(job)==2)
+
+    job_storage(JLEFT) = job(1)
+    job_storage(JRIGHT) = job(2)
+    job_storage(JOWNER) = my_rank ! FIXME: is this field ever used?
+
     dlb_time = MPI_Wtime() ! for debugging
-    job_storage(:L_JOB) = job
-    job_storage(JOWNER) = my_rank
   end subroutine dlb_setup
 
   !--------------- End of module ----------------------------------
