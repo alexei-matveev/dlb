@@ -415,7 +415,7 @@ contains
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, stat(MPI_STATUS_SIZE)
+    integer(kind=i4_kind)                :: stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind)                :: message(JLENGTH)
     integer(kind=i4_kind)                :: src, tag
     !------------ Executable code --------------------------------
