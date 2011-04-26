@@ -73,8 +73,14 @@ module dlb_common
   ! integer with 8 bytes, range 9 decimal digits
   integer, parameter, public :: i8_kind = selected_int_kind(18)
 
-  ! real with 8 bytes, precision 15 decimal digits
-  integer, parameter, public :: r8_kind = selected_real_kind(15)
+! ! real with 8 bytes, precision 15 decimal digits
+! integer, parameter, public :: r8_kind = selected_real_kind(15)
+!
+! FIXME: We do use "double precision" for time stamps/measurments.
+!        This could be replaced by reals of double precision kind:
+!
+!               dp_kind = kind(1.0D0)
+!
 
   integer,  public, protected :: comm_world
 
