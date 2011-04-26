@@ -80,7 +80,7 @@ module dlb_impl
   !----------------------------------------------------------------
 # include "dlb.h"
   USE_MPI
-  use dlb_common, only: i4_kind, r8_kind, comm_world
+  use dlb_common, only: i4_kind, comm_world
   use dlb_common, only: time_stamp ! for debug only
   use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT
   use dlb_common, only: my_rank, n_procs, termination_master
