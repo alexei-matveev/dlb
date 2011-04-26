@@ -71,6 +71,7 @@ contains
 
     job_storage = set_empty_job()
 
+    ! this also sets my_rank in dlb_common:
     call dlb_common_init()
 
     if ( my_rank == 0 ) then
@@ -83,6 +84,7 @@ contains
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: dlb_common_finalize
     implicit none
+    ! *** end of interface ***
 
     call dlb_common_finalize()
   end subroutine dlb_finalize
