@@ -47,6 +47,7 @@ module dlb_impl
 USE_MPI
 use dlb_common, only: dlb_common_init, dlb_common_finalize
 use dlb_common, only: my_rank
+use dlb_common, only: JLEFT, JRIGHT, JLENGTH, L_JOB, JOWNER
 implicit none
 ! ONLY FOR DEBBUGING WITHOUT PARAGAUSS
 ! END ONLY FOR DEBUGGING
@@ -64,10 +65,6 @@ integer, parameter :: r8_kind = double_precision_kind
 double precision :: time_offset = -1.0
 ! END ONLY FOR DEBUGGING
 
- integer(kind=i4_kind), parameter  :: L_JOB = 2  ! Length of job to give back from interface
- integer(kind=i4_kind), parameter  :: JLENGTH = L_JOB ! Length of a single job in interface
- integer(kind=i4_kind), parameter  :: JLEFT = 1 ! Number in job, where stp (start point) is stored
- integer(kind=i4_kind), parameter  :: JRIGHT = 2 ! Number in job, where ep (end point) is stored
  integer(kind=i4_kind), parameter  :: JOBS_LEN = JLENGTH  ! Length of complete jobs storage
  integer(kind=i4_kind)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
 
@@ -84,8 +81,10 @@ contains
     !  Purpose: initalization of needed stuff
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: OUTPUT_BORDER
+    use dlb_common, only: set_empty_job
     implicit none
     !** End of interface *****************************************
+    job_storage = set_empty_job()
 
     call dlb_common_init()
     if (my_rank == 0 .and. 0 < OUTPUT_BORDER) then
@@ -148,6 +147,7 @@ contains
     !** End of interface *****************************************
     dlb_time = MPI_Wtime() ! for debugging
     job_storage(:L_JOB) = job
+    job_storage(JOWNER) = my_rank
   end subroutine dlb_setup
 
   !--------------- End of module ----------------------------------
