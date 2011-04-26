@@ -224,11 +224,7 @@ contains
 
     call MPI_COMM_FREE(comm_world, ierr)
     ASSERT(ierr==0)
-
-    if (comm_world .ne. MPI_COMM_NULL) then
-      print *, my_rank, "MPI communicator was not freed correctly"
-      call abort()
-    endif
+    ASSERT(comm_world==MPI_COMM_NULL)
   end subroutine
 
   subroutine dlb_common_setup(resp)
