@@ -82,7 +82,7 @@ module dlb_impl
   USE_MPI
   use iso_c_binding
   use dlb_common, only: i4_kind, r8_kind, comm_world
-  use dlb_common, only: time_stamp, time_stamp_prefix ! for debug only
+  use dlb_common, only: time_stamp ! for debug only
   use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT
   use dlb_common, only: my_rank, n_procs, termination_master
   implicit none
@@ -469,7 +469,7 @@ contains
 
         case default
             ! This message makes no sense in this context:
-            print *, time_stamp_prefix(MPI_Wtime()), "ERROR: got message with unexpected content:", message
+            print *, "ERROR: got message with unexpected content:", message
             call abort()
         end select
     enddo
@@ -521,7 +521,7 @@ contains
     integer(i4_kind), intent(in) :: num_jobs_done
     !** End of interface *****************************************
 
-    !print *, time_stamp_prefix(MPI_Wtime()), "finished a job, now report or store", my_jobs
+    !print *, "finished a job, now report or store", my_jobs
     ! my_jobs hold recent last point, as proc started from beginning and
     ! steal from the back, this means that from the initial starting point on
     ! (stored in start_job) to this one, all jobs were done
