@@ -170,16 +170,16 @@ contains
     double precision :: time
     character(len=28) :: prefix
 
-    write(prefix, '("#", I3, G20.10)') my_rank, time - time_offset
-
     time = MPI_Wtime()
     if ( time_offset < 0.0 ) then
-      time_offset = 0.0
-      print *, prefix, "(BASE TIME)"
       time_offset = time
+      write(prefix, '("#", I3, G20.10)') my_rank, time_offset
+      if(output_level < OUTPUT_BORDER) print *, prefix, "(BASE TIME)"
     endif
 
-   if(output_level < OUTPUT_BORDER) print *, prefix, msg
+    write(prefix, '("#", I3, G20.10)') my_rank, time - time_offset
+
+    if(output_level < OUTPUT_BORDER) print *, prefix, msg
   end subroutine time_stamp
 ! END ONLY FOR DEBUGGING
 
