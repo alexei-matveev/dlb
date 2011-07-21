@@ -233,7 +233,8 @@ contains
     time_singles(11) = second_last_work
     time_singles(12) = num_jobs
 
-    call MPI_GATHER(time_singles, 12, MPI_DOUBLE_PRECISION, times, 12, MPI_DOUBLE_PRECISION, 0, comm_world, ierr)
+    call MPI_GATHER(time_singles, size(time_singles), MPI_DOUBLE_PRECISION,  &
+          times, size(time_singles), MPI_DOUBLE_PRECISION, 0, comm_world, ierr)
     ASSERT (ierr == 0)
 
     if (my_rank == 0) then
