@@ -100,6 +100,10 @@ module dlb_impl
   use dlb_common, only: clear_up
   use dlb_common, only: masterserver
   use dlb_common, only: end_communication
+  use dlb_common, only: main_wait_all, main_wait_max, main_wait_last
+  use dlb_common, only: max_work, last_work, average_work, num_jobs
+  use dlb_common, only: dlb_time, min_work, second_last_work
+  use dlb_common, only: timer_give_more, timer_give_more_last
   use iso_c_binding
   use dlb_impl_thread_common
   USE_MPI
@@ -220,10 +224,6 @@ module dlb_impl
   integer(kind=i4_kind)             :: many_tries, many_searches !how many times asked for jobs, CONTROL
   integer(kind=i4_kind)             :: many_zeros !how many times asked for jobs, CONTROL
   double precision  :: timemax
-  ! further for main
-  double precision  :: main_wait_all, main_wait_max, main_wait_last
-  double precision  :: max_work, last_work, average_work, num_jobs
-  double precision  :: dlb_time, second_last_work, min_work
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
 contains
@@ -279,8 +279,10 @@ contains
     !------------ Declaration of local variables -----------------
     integer(i4_kind), target             :: jobs(JLENGTH)
     double precision                     :: start_timer
+    double precision                     :: start_timer_gm
     double precision,save                :: leave_timer = -1
     !------------ Executable code --------------------------------
+    start_timer_gm = MPI_Wtime() ! for debugging
 
     ASSERT(size(my_job)==2)
 
@@ -327,8 +329,9 @@ contains
     if (jobs(JLEFT) >= jobs(JRIGHT)) then
        call th_join_all()
        ! now only one thread left, thus all variables belong him:
+       timer_give_more_last = MPI_Wtime() - start_timer_gm ! for debugging
+       dlb_time = MPI_Wtime() - dlb_time ! for debugging
        if (1 < OUTPUT_BORDER) then
-           dlb_time = MPI_Wtime() - dlb_time ! for debugging
            print *, my_rank, "C: tried", many_searches, "for new jobs andstealing", many_tries
            print *, my_rank, "C: zeros", many_zeros
            print *, my_rank, "C: longest wait for answer", timemax
@@ -349,6 +352,7 @@ contains
       ! would try to join the thread in the next cycle again
 
     leave_timer = MPI_Wtime() ! for debugging
+    timer_give_more = leave_timer - start_timer_gm ! for debugging
     num_jobs = num_jobs + 1 ! for debugging
   end subroutine dlb_give_more
 
@@ -770,15 +774,6 @@ contains
     count_messages = 0
     count_offers = 0
     count_requests = 0
-    main_wait_all = 0
-    main_wait_max = 0
-    main_wait_last = 0
-    max_work = 0
-    min_work = dlb_time
-    last_work = 0
-    second_last_work = 0
-    average_work = 0
-    num_jobs = 0
     ! end for debugging
     allocate(count_ask(n_procs), stat = alloc_stat)
     ASSERT (alloc_stat==0)

@@ -45,7 +45,9 @@ module dlb_impl
 !----------------------------------------------------------------
 # include "dlb.h"
 USE_MPI, only: MPI_THREAD_SINGLE
+USE_MPI, only: MPI_Wtime
 use dlb_common, only: i4_kind, JLENGTH
+use dlb_common, only: timer_give_more, timer_give_more_last
 implicit none
 save            ! save all variables defined in this module
 private         ! by default, all names are private
@@ -102,13 +104,14 @@ contains
     integer(i4_kind), intent(in)  :: n
     integer(i4_kind), intent(out) :: my_job(:)
     !** End of interface *****************************************
-
+    double precision              :: start_timer_gm
     integer(i4_kind) :: jobs(JLENGTH), remaining(JLENGTH)
 
     !
     ! Return of an empty job interval will be interpreted as
     ! "no jobs left", thus refuse requests for zero jobs:
     !
+    start_timer_gm = MPI_Wtime() ! for debugging
     ASSERT(n>0)
     ASSERT(size(my_job)==2)
 
@@ -125,8 +128,10 @@ contains
     if ( empty(jobs) ) then
         ! output for debugging, only reduced inforamtions needed compared to
         ! dynamical cases
+        timer_give_more_last = MPI_Wtime() - start_timer_gm ! for debugging
         call time_stamp("dlb_give_more: no jobs left", output_level=1)
     endif
+    timer_give_more = MPI_Wtime() - start_timer_gm ! for debugging
   end subroutine dlb_give_more
 
   subroutine dlb_setup(job)

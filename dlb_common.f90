@@ -67,6 +67,7 @@ module dlb_common
   public :: clear_up
 
   public :: print_statistics
+  public :: dlb_timers
   ! integer with 4 bytes, range 9 decimal digits
   integer, parameter, public :: i4_kind = selected_int_kind(9)
 
@@ -93,6 +94,14 @@ module dlb_common
   integer(kind=i4_kind), parameter, public  :: JOWNER = 3 ! Number in job, where rank of origin proc is stored
   integer(kind=i4_kind), parameter, public  :: JLEFT = 1 ! Number in job, where stp (start point) is stored
   integer(kind=i4_kind), parameter, public  :: JRIGHT = 2 ! Number in job, where ep (end point) is stored
+
+  ! Variables need for debug and efficiency testing
+  ! They are the timers, needed in all variants, in multithreaded variants only
+  ! MAIN is allowed to acces them
+  double precision, public  :: main_wait_all, main_wait_max, main_wait_last
+  double precision, public  :: max_work, last_work, average_work, num_jobs
+  double precision, public  :: dlb_time, min_work, second_last_work
+  double precision, public  :: timer_give_more, timer_give_more_last
 
 #ifdef DLB_MASTER_SERVER
     logical, parameter, public :: masterserver = .true.
@@ -182,6 +191,90 @@ contains
     if(output_level < OUTPUT_BORDER) print *, prefix, msg
   end subroutine time_stamp
 ! END ONLY FOR DEBUGGING
+
+  subroutine dlb_timers(output_level)
+    ! Purpose: Collects and prints some statistics of how the current dlb
+    !          run has been performed
+    !          For output_level = 0 exits without doing anything
+    !          For output_level = 1 time spend in dlb_give_more (split)
+    !          For output_level = 2 + wait for new tasks
+    !          For output_level = 3 + last work slice
+    !          For output_level = 4 + work length/task sizes + complete program
+    !------------ Modules used ------------------- ---------------
+    implicit none
+    !------------ Declaration of formal parameters ---------------
+    integer(i4_kind), intent(in)  :: output_level
+    !------------ Declaration of local variables -----------------
+    double precision, allocatable :: times(:,:), help_arr(:)
+    double precision              :: time_singles(12)
+    integer(i4_kind)              :: ierr
+    ! *** end of interface ***
+    ! Return if none output is wanted, then there is also no need to
+    ! send the output to the master
+    if (output_level == 0) RETURN
+
+    ! Master needs some place to store all results
+    if (my_rank == 0) then
+        allocate(times(12, n_procs), help_arr(n_procs), stat = ierr )
+        ASSERT (ierr == 0)
+        times = 0
+    endif
+
+    time_singles(1) = timer_give_more
+    time_singles(2) = timer_give_more_last
+    time_singles(3) = main_wait_all
+    time_singles(4) = main_wait_max
+    time_singles(5) = main_wait_last
+    time_singles(6) = dlb_time
+    time_singles(7) = max_work
+    time_singles(8) = min_work
+    time_singles(9) = average_work
+    time_singles(10) = last_work
+    time_singles(11) = second_last_work
+    time_singles(12) = num_jobs
+
+    call MPI_GATHER(time_singles, 12, MPI_DOUBLE_PRECISION, times, 12, MPI_DOUBLE_PRECISION, 0, comm_world, ierr)
+    ASSERT (ierr == 0)
+
+    if (my_rank == 0) then
+        print *, "--DLB-statistics--DLB-statistics--DLB-statistics--DLB-statistics--"
+        print *, "Statistics for last DLB loop (times in seconds):"
+        print *, "1. Time spend in DLB"
+        print *, "  DLB loop time (without terminating) = ", sum(times(1,:))
+        print *, "  DLB termination                     = ", minval(times(2,:)) * n_procs
+        print *, "  DLB last call - termination         = ", sum(times(2,:)) - n_procs * minval(times(2,:))
+        if (output_level > 1) then
+            print *, "2. Waiting times for new task"
+            print *, "  Maximum wait  min/max               =", minval(times(4,:)), maxval(times(4,:))
+            print *, "  Total wait                          =", sum(times(3,:))
+            print *, "  Total wait times without last       =", sum(times(3,:)) - sum(times(5,:))
+            print *, "  Number of tasks on proc.  min/max   =", minval(times(12,:)) , maxval(times(12,:))
+        endif
+        if (output_level > 2) then
+           print *, "3. Times of last work slices (time between 2 dlb_give_more calls)"
+           print *, "  Last work slice min/max             =", minval(times(10,:)) , maxval(times(10,:))
+           print *, "  Second last work slice min/max      =", minval(times(11,:)) , maxval(times(11,:))
+        endif
+        if (output_level > 3) then
+           print *, "  Maximum task on proc min/max        =", minval(times(7,:)) , maxval(times(7,:))
+           print *, "  Minimal task on proc min/max        =", minval(times(8,:)) , maxval(times(8,:))
+           help_arr = times(9,:) / times(12,:)
+           print *, "4. Average work load (time between the dlb calls / Number of tasks)" 
+           print *, "  Average work load all/min/max       =", sum(times(9,:)) / sum(times(12,:)), minval(help_arr) &
+                                                           , maxval(help_arr)
+           print *, "5. Complete Time (between dlb_setup and termination)"
+           print *, "  Complete Time all                   =", sum(times(6,:))
+           print *, "  Time for single proc min/max        =", minval(times(6,:)), maxval(times(6,:))
+        endif
+        print *, "----DLB-statistics-end--DLB-statistics-end--DLB-statistics-end----"
+        print *, ""
+        deallocate(times, stat = ierr)
+        ASSERT (ierr == 0)
+    endif
+
+
+  end subroutine
+
 
   subroutine dlb_common_init()
     ! Intialization of common stuff, needed by all routines
@@ -279,6 +372,20 @@ contains
     ! second entry which will be the number of jobs done
     messages(:, :) = 0
     message_on_way = .false.
+
+    !initalize some timers for debug output, can be accessed via output level
+    ! directly from the processors or via dlb_print_statistics
+    main_wait_all = 0
+    timer_give_more = 0
+    timer_give_more_last = 0
+    main_wait_max = 0
+    main_wait_last = 0
+    max_work = 0
+    min_work = huge(min_work)
+    last_work = 0
+    second_last_work = 0
+    average_work = 0
+    num_jobs = 0
   end subroutine dlb_common_setup
 
   ! To make it easier to add for example new job informations

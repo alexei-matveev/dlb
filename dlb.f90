@@ -82,6 +82,7 @@ module dlb
 use dlb_common, only: JLEFT, JRIGHT, L_JOB
 use dlb_common, only: i4_kind
 use dlb_impl, only: DLB_THREAD_REQUIRED
+use dlb_common, only: dlb_timers
 
 implicit none
 save            ! save all variables defined in this module
@@ -92,6 +93,7 @@ private         ! by default, all names are private
 public dlb_init, dlb_finalize, dlb_setup, dlb_setup_color, dlb_give_more
 public dlb_give_more_color
 public DLB_THREAD_REQUIRED
+public dlb_print_statistics
 
 ! storage for the distribution of jobs over the colors, should hold exactly
 ! the distr one has given in dlb_setup_color, start_color is a helpe varialbe
@@ -274,5 +276,27 @@ contains
     my_job(JRIGHT) = my_job(JLEFT) + w
     current_jobs(JLEFT) = current_jobs(JLEFT) + w
   end function dlb_give_more_color
+
+
+  subroutine dlb_print_statistics(output_level)
+     ! Purpose: Collects and prints some statistics of how the current dlb
+    !          run has been performed
+    !          For output_level = 0 exits without doing anything
+    !          For output_level = 1 time spend in dlb_give_more (split)
+    !          For output_level = 2 + wait for new tasks
+    !          For output_level = 3 + last work slice
+    !          For output_level = 4 + work length/task sizes + complete program
+    !          ATTENTION: gives always the statistics of the last DLB run
+    !                     if all statistics from several runs are wanted, has
+    !                     to be called before the next dlb_setup
+    !          The static backend provides only support for up to output_level 1
+    !          Output for higher output level will be start values (0 or infinity)
+    !------------ Modules used ------------------- ---------------
+    implicit none
+    !------------ Declaration of formal parameters ---------------
+    integer(i4_kind), intent(in)  :: output_level
+    !------------ Declaration of local variables -----------------
+    call dlb_timers(output_level)
+  end subroutine dlb_print_statistics
 
 end module dlb

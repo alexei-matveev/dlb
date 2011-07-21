@@ -84,6 +84,10 @@ module dlb_impl
   use dlb_common, only: time_stamp ! for debug only
   use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT
   use dlb_common, only: my_rank, n_procs, termination_master
+  use dlb_common, only: main_wait_all, main_wait_max, main_wait_last
+  use dlb_common, only: max_work, last_work, average_work, num_jobs
+  use dlb_common, only: dlb_time, min_work, second_last_work
+  use dlb_common, only: timer_give_more, timer_give_more_last
   implicit none
   save            ! save all variables defined in this module
   private         ! by default, all names are private
@@ -120,9 +124,6 @@ module dlb_impl
   ! Variables need for debug and efficiency testing
   integer(kind=i4_kind)             :: many_tries, many_searches !how many times asked for jobs
   integer(kind=i4_kind)             :: many_locked, many_zeros, self_many_locked
-  double precision  :: main_wait_all, main_wait_max, main_wait_last
-  double precision  :: max_work, last_work, average_work, num_jobs
-  double precision  :: dlb_time, min_work, second_last_work
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
 contains
@@ -251,9 +252,10 @@ contains
     integer(i4_kind) :: ok
     logical          :: ok_logical
     double precision                     :: start_timer
+    double precision                     :: start_timer_gm
     double precision,save                :: leave_timer = -1
     !------------ Executable code --------------------------------
-
+    start_timer_gm = MPI_Wtime() ! for debugging
     if (num_jobs > 0) then ! for debugging
         second_last_work = last_work
         last_work = MPI_Wtime() - leave_timer
@@ -378,8 +380,9 @@ contains
     ! call dlb_setup(...); do while ( dlb_give_more(...) ) ...
     !
     if ( empty(jobs)) then
+       dlb_time = MPI_Wtime() - dlb_time ! for debugging
+       timer_give_more_last = MPI_Wtime() - start_timer_gm ! for debugging
        if (1 < OUTPUT_BORDER) then
-           dlb_time = MPI_Wtime() - dlb_time ! for debugging
            print *, my_rank, "tried", many_searches, "for new jobs and stealing", many_tries
            print *, my_rank, "was locked", many_locked, "got zero", many_zeros
            print *, my_rank, "was locked on own memory", self_many_locked
@@ -398,6 +401,7 @@ contains
     endif
     call time_stamp("dlb_give_more: exit",3)
     leave_timer = MPI_Wtime() ! for debugging
+    timer_give_more = leave_timer - start_timer_gm ! for debugging
     num_jobs = num_jobs + 1 ! for debugging
   end subroutine dlb_give_more
 
@@ -849,15 +853,6 @@ contains
     many_locked = 0
     self_many_locked = 0
     many_zeros = 0
-    main_wait_all = 0
-    main_wait_max = 0
-    main_wait_last = 0
-    max_work = 0
-    min_work = dlb_time
-    last_work = 0
-    second_last_work = 0
-    average_work = 0
-    num_jobs = 0
     ! end initalizing debug variables
 
     already_done = 0

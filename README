@@ -47,7 +47,7 @@ Both functions have no arguments, thus use them by:
     ...
     call dlb_finalize()
 
-The calculation itself is done by the thow functions dlb_setup and
+The calculation itself is done by the two functions dlb_setup and
 dlb_give_more (or their counterpart with colors dlb_setup_color and
 dlb_give_more_color)
 
@@ -84,6 +84,26 @@ Usage:
 call dlb_setup_color(distr) ! distr is integer array of size (many_colors, 3)
 while dlb_give_more_color(MAXJOBS, color, jobs) ! MAXJOBS and color are integers, jobs(2)
 is integer array
+
+additionally there is a function for printing statistics. It is possible to not print the output
+directly (see output_level below) but also to give them summarized with the function
+dlb_print_statistics. The output of this function is independent on the output_level of the
+DLB module but the amount of output is specified by an variable, givend directly to it.
+This functions need some reude functions, thus it could cuase some overhead. In case the function
+gets level = 0 this step is also omitted and dlb_print_statistics will return immediatelly.
+For the static backend of DLB only level 0 and 1 give reasonable results.
+The output specified with the level is always including all smaller levels:
+level  | new output
+0      | None
+1      | SUM(time spend in dlb_give_more)  [last time separated]
+2      | About how long waited for new tasks
+3      | Time of last two batches spend outside DLB
+4      | Statistics about task length (time between dlb_give_more calls) + complete time
+         between dlb_setup and the finish of DLB
+
+Usage:
+
+call dlb_print_statistics(level) ! level is an integer
 
 DLB AND THREAD SAFETY:
 

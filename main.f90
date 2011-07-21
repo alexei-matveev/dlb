@@ -2,7 +2,7 @@ program main
 ! Purpose: starts tests
 
 use dlb, only: dlb_init, dlb_finalize, dlb_setup, dlb_give_more
-use dlb, only: DLB_THREAD_REQUIRED
+use dlb, only: DLB_THREAD_REQUIRED, dlb_print_statistics
 use test, only: echo
 # include "dlb.h"
 USE_MPI
@@ -117,6 +117,7 @@ do k = 1, NTIMES
         ! increment working time by this slice:
         times(rank, 2) = times(rank, 2) + (MPI_WTIME() - time)
     enddo
+    call dlb_print_statistics(4)
 enddo
 
 
