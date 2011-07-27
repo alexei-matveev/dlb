@@ -130,8 +130,9 @@ contains
         ! dynamical cases
         timer_give_more_last = MPI_Wtime() - start_timer_gm ! for debugging
         call time_stamp("dlb_give_more: no jobs left", output_level=1)
+    else
+        timer_give_more = MPI_Wtime() - start_timer_gm ! for debugging
     endif
-    timer_give_more = MPI_Wtime() - start_timer_gm ! for debugging
   end subroutine dlb_give_more
 
   subroutine dlb_setup(job)

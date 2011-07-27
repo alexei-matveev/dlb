@@ -322,11 +322,12 @@ contains
            write(*, '(I3, " M: time spend in dlb", G20.10, "time processor was working " , G20.10)'), my_rank,&
                          dlb_time, average_work
        endif
+    else
+       leave_timer = MPI_Wtime() ! for debugging
+       timer_give_more = leave_timer - start_timer_gm ! for debugging
+       num_jobs = num_jobs + my_job(2) - my_job(1) ! for debugging
     endif
 
-    leave_timer = MPI_Wtime() ! for debugging
-    timer_give_more = leave_timer - start_timer_gm ! for debugging
-    num_jobs = num_jobs + 1 ! for debugging
   end subroutine dlb_give_more
 
   subroutine thread_secretary() bind(C)
