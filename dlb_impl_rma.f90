@@ -646,6 +646,7 @@ contains
 
     integer(i4_kind)          :: ierr
     integer(i4_kind), target  :: win_data(jobs_len) ! FIXME: why target?
+    integer(i4_kind), target  :: win_data2(jobs_len-JLENGTH -my_rank -1)
     integer(MPI_ADDRESS_KIND) :: displacement
     integer(MPI_ADDRESS_KIND), parameter :: zero = 0
 
@@ -656,26 +657,35 @@ contains
     ! There are two function calls inside: one to get the data and check if it may be accessed
     ! second one to show to other procs, that this one is interested in modifing the data
 
-    !
-    ! FIXME: GET/PUT of the same data item in a single epoch is illegal:
-    !
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    call MPI_GET(win_data, size(win_data), MPI_INTEGER4, rank, zero, size(win_data), MPI_INTEGER4, win, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
-
+    ! consider that my_rank starts with 0
     displacement = my_rank + JLENGTH ! for getting it in the correct kind
 
+    ! get all before my own lock
+    call MPI_GET(win_data, displacement, MPI_INTEGER4, rank, zero, displacement, MPI_INTEGER4, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+
+    ! set my own lock
     call MPI_PUT(ON, 1, MPI_INTEGER4, rank, displacement, 1, MPI_INTEGER4, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
+
+    displacement = displacement +1
+    ! get all after my own lock (but only if I'm not the last one)
+    ! as size(win_data2) has been given correctly, this should be no problem
+    if (size(win_data2) > 0) then
+        call MPI_GET(win_data2, size(win_data2), MPI_INTEGER4, rank, displacement, &
+                       size(win_data2), MPI_INTEGER4, win, ierr)
+        ASSERT(ierr==MPI_SUCCESS)
+    endif
 
     call MPI_WIN_UNLOCK(rank, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    !
-    ! FIXME: this is the data item that was GET/PUT in the same epoch:
-    !
+    if (size(win_data2) > 0) then
+        win_data(displacement + 1:) = win_data2
+    endif
     win_data(my_rank + 1 + JLENGTH) = OFF
 
     !
