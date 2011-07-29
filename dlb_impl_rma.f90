@@ -140,6 +140,7 @@ contains
     !------------ Modules used ------------------- ---------------
     use iso_c_binding, only: c_ptr, c_f_pointer
     use dlb_common, only: dlb_common_init, OUTPUT_BORDER
+    use dlb_common, only: set_empty_job
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
@@ -176,10 +177,11 @@ contains
     call MPI_WIN_FENCE(0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    ! put the complete storage content to 0
+    ! initalize the job storage: not yet any task but ensure no lock
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
 
-    job_storage = 0
+    job_storage = OFF
+    job_storage(:JLENGTH) = set_empty_job()
 
     call MPI_WIN_UNLOCK(my_rank, win, ierr)
 
@@ -860,7 +862,10 @@ contains
 
     ! Job storage holds all the jobs currently in use
     ! direct storage, because in own memory used here
-    call write_and_unlock(my_rank, start_job)
+    ! Other processors might already be active and trying to steal
+    ! Thus lock might already be set
+    ASSERT (storage_is_empty(my_rank))
+    call write_unsafe(my_rank, start_job)
   end subroutine dlb_setup
 
   logical function storage_is_empty(rank)
