@@ -178,12 +178,7 @@ contains
     ASSERT(ierr==MPI_SUCCESS)
 
     ! initalize the job storage: not yet any task but ensure no lock
-    call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, my_rank, 0, win, ierr)
-
-    job_storage = OFF
-    job_storage(:JLENGTH) = set_empty_job()
-
-    call MPI_WIN_UNLOCK(my_rank, win, ierr)
+    call write_and_unlock(my_rank, set_empty_job())
 
     ! if a dlb run would be too early after init, some processor might steal from
     ! an undefined storage, after this at least it can only steal empty jobs
