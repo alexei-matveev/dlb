@@ -751,6 +751,10 @@ contains
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
+    !
+    ! FIXME: should we avoid two branches and always invoke
+    !        MPI_PUT(..., rank, ...) even for rank == my_rank?
+    !
     if (rank == my_rank) then
       job_storage = win_data
     else
