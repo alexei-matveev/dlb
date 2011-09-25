@@ -885,10 +885,10 @@ contains
 
     if (1 < OUTPUT_BORDER) then
         ! executed by me, sorted by owner:
-        write(*, '("[", I3, "] REPORTED_TO =", 128I4)")') my_rank, reported_to
+        write(*, '("[", I3, "] REPORTED_TO =", 128I4)') my_rank, reported_to
 
         ! assigned to me, sorted by execution host:
-        write(*, '("[", I3, "] REPORTED_BY =", 128I4)")') my_rank, reported_by
+        write(*, '("[", I3, "] REPORTED_BY =", 128I4)') my_rank, reported_by
     endif
 
     !
