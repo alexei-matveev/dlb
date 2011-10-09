@@ -840,12 +840,14 @@ contains
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: dlb_common_setup, set_start_job, length
     implicit none
-    !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
-    !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: start_job(JLENGTH)
-    !------------ Executable code --------------------------------
+    integer(i4_kind), intent(in) :: job(:) ! (2)
+    ! *** end of interface ***
+
+    integer(i4_kind) :: start_job(JLENGTH)
+
+    ASSERT(size(job)==2)
+    ASSERT(2==L_JOB)
+
     dlb_time = MPI_Wtime() ! for debugging
 
     ! these variables are for the termination algorithm

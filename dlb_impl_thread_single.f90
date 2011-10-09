@@ -714,12 +714,14 @@ contains
     use dlb_common, only: length
     use dlb_impl_thread_common, only: thread_setup, th_create_one
     implicit none
-    !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: job(L_JOB)
-    !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: start_job(JLENGTH)
-    !------------ Executable code --------------------------------
+    integer(i4_kind), intent(in) :: job(:) ! (2)
+    ! *** end of interface ***
+
+    integer(i4_kind) :: start_job(JLENGTH)
+
+    ASSERT(size(job)==2)
+    ASSERT(2==L_JOB)
+
     dlb_time = MPI_Wtime() ! for debugging
     ! these variables are for the termination algorithm
     terminated = .false.
