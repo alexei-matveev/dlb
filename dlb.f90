@@ -106,14 +106,15 @@ integer(i4_kind)              :: current_jobs(L_JOB)
 
 contains
 
-  subroutine dlb_init()
+  subroutine dlb_init(world)
     !  Purpose: initalization of needed stuff
     !------------ Modules used ------------------- ---------------
     use dlb_impl, only: dlb_impl_init => dlb_init
     implicit none
+    integer, intent(in) :: world
     !** End of interface *****************************************
 
-    call dlb_impl_init()
+    call dlb_impl_init(world)
     current_jobs = 0
   end subroutine dlb_init
 

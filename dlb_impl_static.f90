@@ -63,18 +63,19 @@ integer(i4_kind) :: job_storage(JLENGTH) ! store all the jobs, belonging to this
 
 contains
 
-  subroutine dlb_init()
+  subroutine dlb_init(world)
     !  Purpose: initalization of needed stuff
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: set_empty_job, dlb_common_init
     use dlb_common, only: my_rank, time_stamp
     implicit none
-    !** End of interface *****************************************
+    integer, intent(in) :: world
+    ! *** end of interface ***
 
     job_storage = set_empty_job()
 
     ! this also sets my_rank in dlb_common:
-    call dlb_common_init()
+    call dlb_common_init(world)
 
     if ( my_rank == 0 ) then
         call time_stamp("dlb_init: using variant 'static'", output_level=0)

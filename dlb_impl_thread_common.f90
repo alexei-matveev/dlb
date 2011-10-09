@@ -109,16 +109,18 @@ module dlb_impl_thread_common
       call th_rwlock_unlock(0)
     end subroutine unlock
 
-  subroutine dlb_thread_init()
+  subroutine dlb_thread_init(world)
     !  Purpose: initalization of needed stuff
     !           is in one thread context
     !           does not start the threads yet
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: dlb_common_init
     implicit none
-    !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    call dlb_common_init()
+    integer, intent(in) :: world
+    ! *** end of interface ***
+
+    call dlb_common_init(world)
+
     call th_inits()
   end subroutine dlb_thread_init
 

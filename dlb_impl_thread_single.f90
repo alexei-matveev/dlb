@@ -172,15 +172,17 @@ module dlb_impl
   !------------ Subroutines ---------------------------------------
 contains
 
-  subroutine dlb_init()
+  subroutine dlb_init(world)
     !  Purpose: initalization of needed stuff
     !           is in one thread context
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: OUTPUT_BORDER
     implicit none
-    !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    call dlb_thread_init()
+    integer, intent(in) :: world
+    ! *** end of interface ***
+
+    call dlb_thread_init(world)
+
     if (my_rank == 0 .and. 0 < OUTPUT_BORDER) then
         print *, "DLB init: using variant 'thread single'"
         print *, "DLB init: This variant needs an additinal thread for mpi messages"

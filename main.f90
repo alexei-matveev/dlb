@@ -85,7 +85,7 @@ times(rank, 1) = MPI_WTIME()
 !
 ! Needs to be done once:
 !
-call dlb_init()
+call dlb_init(MPI_COMM_WORLD)
 
 
 !

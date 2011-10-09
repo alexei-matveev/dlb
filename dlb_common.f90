@@ -277,14 +277,18 @@ contains
   end subroutine
 
 
-  subroutine dlb_common_init()
+  subroutine dlb_common_init(world)
     ! Intialization of common stuff, needed by all routines
     implicit none
+    integer, intent(in) :: world
     ! *** end of interface ***
 
     integer :: ierr, alloc_stat
 
-    call MPI_COMM_DUP(MPI_COMM_WORLD, comm_world, ierr)
+    !
+    ! Set global communicator as a DUP of the world:
+    !
+    call MPI_COMM_DUP(world, comm_world, ierr)
     ASSERT(ierr==0)
 
     call MPI_COMM_RANK( comm_world, my_rank, ierr )

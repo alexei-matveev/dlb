@@ -128,7 +128,7 @@ module dlb_impl
   !------------ Subroutines ---------------------------------------
 contains
 
-  subroutine dlb_init()
+  subroutine dlb_init(world)
     !  Purpose: Initialization of the objects needed for running the dlb
     !           job scheduling, the most part is of setting up an RMA
     !           object with MPI to have it ready to use for the rest of the
@@ -142,15 +142,15 @@ contains
     use dlb_common, only: dlb_common_init, OUTPUT_BORDER
     use dlb_common, only: set_empty_job
     implicit none
-    !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
+    integer, intent(in) :: world
+    ! *** end of interface ***
+
     type(c_ptr) :: c_job_pointer ! needed for MPI RMA handling (for c pseudo pointer)
     integer(kind=i4_kind)                :: ierr, sizeofint
     integer(kind=MPI_ADDRESS_KIND)       :: size_alloc, size_all
-    !------------ Executable code --------------------------------
 
     ! some aliases, highly in use during the whole module
-    call dlb_common_init()
+    call dlb_common_init(world)
 
     ! find out, how much there is to store and allocate (with MPI) the memory
     call MPI_TYPE_EXTENT(MPI_INTEGER4, sizeofint, ierr)
