@@ -6,25 +6,25 @@ module dlb
 !
 !  Purpose: takes care about dynamical load balancing, there are two
 !           different cases possible: one where all jobs are equal in
-!           name and a second one where each job has a special colour
+!           name and a second one where each job has a special color
 !           It is assumed that several succeeding jobs have the same
 !           color, thus the color is wanted in ranges, It is assured
 !           that all the jobs given back have the same color, color
-!           should be given as an integer There are several dlb
+!           should be given as an integer There are several DLB
 !           routines possible, which could be used to generate the
 !           dynamical balancing themselves
 !
 !  Interface:
 !
-!           call dlb_init() - once before first acces
+!           call dlb_init() - once before first access
 !
-!           call dlb_finalize() - once after last acces
+!           call dlb_finalize() - once after last access
 !
 !           There are two choices for the actual DLB run, they can be
-!           used alternatly but routines of them may not be mixed up.
+!           used alternately but routines of them may not be mixed up.
 !           First WITHOUT COLORS (e.g. all jobs are equal):
 !
-!           call dlb_setup(N) - once every time a dlb should
+!           call dlb_setup(N) - once every time a DLB should
 !              be used, N should be the number of jobs
 !
 !           dlb_give_more(n, jobs) - n should be the number of jobs
@@ -35,17 +35,17 @@ module dlb
 !              other, it should be done the error slice from jobs(0)
 !              +1 to jobs(1) if dlb_give_more returns jobs(0)==jobs(1)
 !              there is no chance that this proc will get any job
-!              during this dlb-round
+!              during this DLB-round
 !
-!           Second WITH COLORS (e.ge. each job has an integer number
+!           Second WITH COLORS (e.g. each job has an integer number
 !           attached to it, which gives the "color" of the job. It is
 !           supposed that several succeeding jobs have the same color,
 !           thus the color is given for job slices)
 !
-!           call dlb_setup_color(distr) - once every time a dlb should
+!           call dlb_setup_color(distr) - once every time a DLB should
 !              be used, distr is an array containing elements like:
 !              (/color, startnumber, endnumber/), it is possible to
-!              have several not succeeding jobsi with the same color,
+!              have several not succeeding jobs with the same color,
 !              then for each one the number has to be given in its own
 !              array element startnumber and endnumber of each color
 !              are independent of each other, they may have
@@ -91,7 +91,7 @@ module dlb
 !
 
 # include "dlb.h"
-! Need here some stuff, that is already defined elsewere
+! Need here some stuff, that is already defined elsewhere
 use dlb_common, only: JLEFT, JRIGHT, L_JOB
 use dlb_common, only: i4_kind
 use dlb_impl, only: DLB_THREAD_REQUIRED
@@ -109,7 +109,7 @@ public DLB_THREAD_REQUIRED
 public dlb_print_statistics
 
 ! storage for the distribution of jobs over the colors, should hold exactly
-! the distr one has given in dlb_setup_color, start_color is a helpe varialbe
+! the distr one has given in dlb_setup_color, start_color is a helper variable
 ! for linking the intern job-numbers (succeeding ones) on the job-ids of the
 ! job distribution
 integer(i4_kind), allocatable :: start_color(:)
@@ -120,7 +120,7 @@ integer(i4_kind)              :: current_jobs(L_JOB)
 contains
 
   subroutine dlb_init(world)
-    !  Purpose: initalization of needed stuff
+    !  Purpose: initialization of needed stuff
     !------------ Modules used ------------------- ---------------
     use dlb_impl, only: dlb_impl_init => dlb_init
     implicit none
@@ -152,9 +152,9 @@ contains
   end subroutine dlb_finalize
 
   subroutine dlb_setup(N)
-    !  Purpose: initialization of a dlb run, each proc should call
-    !           it with the number of jobs alltogether. This is the
-    !           version without color distingishing, thus this information
+    !  Purpose: initialization of a DLB run, each proc should call
+    !           it with the number of jobs altogether. This is the
+    !           version without color distinguishing, thus this information
     !           is enough
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: distribute_jobs, n_procs, my_rank
@@ -173,9 +173,9 @@ contains
   end subroutine dlb_setup
 
   subroutine dlb_setup_color(N)
-    !  Purpose: initialization of a dlb run, each proc should call
-    !           it with the number of jobs alltogether. This is the
-    !           version with color distingishing, thus the distribution
+    !  Purpose: initialization of a DLB run, each proc should call
+    !           it with the number of jobs altogether. This is the
+    !           version with color distinguishing, thus the distribution
     !           of the jobs over the color have to be given
     !------------ Modules used ------------------- ---------------
     implicit none
@@ -197,8 +197,10 @@ contains
     allocate(start_color(size(N) + 1), stat = ierr)
     ASSERT(ierr==0)
 
-    ! start_color just keeps for every internal color the information with wich of the internal
-    ! job-numbers this color will start. The last entry point gives the number of all jobs altogether
+    ! start_color just keeps for every internal color the information
+    ! with which of the internal job-numbers this color will
+    ! start. The last entry point gives the number of all jobs
+    ! altogether
     start_color(1) = 0
     do i = 2, size(N) + 1
       start_color(i) = start_color(i - 1) + N(i - 1)
@@ -258,7 +260,7 @@ contains
     ! ATTENTION: this if statement contains a return
     !
     if ( .not. more ) then
-        ! got empty job from dlb, thus all done, quit
+        ! got empty job from DLB, thus all done, quit
         my_job = current_jobs
         color = 0
 
@@ -293,7 +295,7 @@ contains
 
 
   subroutine dlb_print_statistics(output_level)
-    ! Purpose: Collects and prints some statistics of how the current dlb
+    ! Purpose: Collects and prints some statistics of how the current DLB
     !          run has been performed
     !          For output_level = 0 exits without doing anything
     !          For output_level = 1 time spend in dlb_give_more (split)
