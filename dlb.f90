@@ -4,50 +4,63 @@
 module dlb
 !---------------------------------------------------------------
 !
-!  Purpose: takes care about dynamical load balancing, there are two different
-!           cases possible: one where all jobs are equal in name and a second
-!           one where each job has a special colour
-!           It is assumed that several succeeding jobs have the same color, thus
-!           the color is wanted in ranges, It is assured that all the jobs given back
-!           have the same color, color should be given as an integer
-!           There are several dlb routines possible, which could be used to generate
-!           the dynamical balancing themselves
-!           INTERFACE to others:
+!  Purpose: takes care about dynamical load balancing, there are two
+!           different cases possible: one where all jobs are equal in
+!           name and a second one where each job has a special colour
+!           It is assumed that several succeeding jobs have the same
+!           color, thus the color is wanted in ranges, It is assured
+!           that all the jobs given back have the same color, color
+!           should be given as an integer There are several dlb
+!           routines possible, which could be used to generate the
+!           dynamical balancing themselves
+!
+!  Interface:
+!
 !           call dlb_init() - once before first acces
+!
 !           call dlb_finalize() - once after last acces
 !
-!           There are two choices for the actual DLB run, they can be used alternatly
-!           but routines of them may not be mixed up.
+!           There are two choices for the actual DLB run, they can be
+!           used alternatly but routines of them may not be mixed up.
 !           First WITHOUT COLORS (e.g. all jobs are equal):
+!
 !           call dlb_setup(N) - once every time a dlb should
-!                               be used, N should be the number of jobs
-!           dlb_give_more(n, jobs) :
-!              n should be the number of jobs requested at once, the next
-!              time dlb_give_more is called again, all jobs from jobs should
-!              be finished, jobs are at most n, they are just the number of the
-!              jobs, which still have to be transformed between each other,
-!              it should be done the error slice from jobs(0) +1 to jobs(1)
-!              if dlb_give_more returns jobs(0)==jobs(1) there is no chance that
-!              this proc will get any job during this dlb-round
-!           Second WITH COLORS (e.ge. each job has an integer number attached to it, which
-!              gives the "color" of the job. It is supposed that several succeeding jobs have
-!              the same color, thus the color is given for job slices)
-!           call dlb_setup_color(distr) - once every time a dlb should be used,
-!                                distr is an array containing elements
-!                                like: (/color, startnumber, endnumber/),
-!                                it is possible to have several not succeeding
-!                                 jobsi with the same color, then for each one the
-!                                number has to be given in its own array element
-!                                startnumber and endnumber of each color are independent of
-!                                each other, they may have overlapping intervals, in this
-!                                case one has to ensure, that the right jobs are done, as
-!                                the DLB routine gives back the numbers of the array
-!           dlb_give_more_color(n, color, jobs):
-!              the same as dlb_give_more, but for the color case
-!              gives back the numbers between startnumber and endnumber of the
-!              element color, it only gives jobs of the same color, even if it
-!              still has some left but from another color, but it also will only give
-!              back empty jobs if all is finished
+!              be used, N should be the number of jobs
+!
+!           dlb_give_more(n, jobs) - n should be the number of jobs
+!              requested at once, the next time dlb_give_more is
+!              called again, all jobs from jobs should be finished,
+!              jobs are at most n, they are just the number of the
+!              jobs, which still have to be transformed between each
+!              other, it should be done the error slice from jobs(0)
+!              +1 to jobs(1) if dlb_give_more returns jobs(0)==jobs(1)
+!              there is no chance that this proc will get any job
+!              during this dlb-round
+!
+!           Second WITH COLORS (e.ge. each job has an integer number
+!           attached to it, which gives the "color" of the job. It is
+!           supposed that several succeeding jobs have the same color,
+!           thus the color is given for job slices)
+!
+!           call dlb_setup_color(distr) - once every time a dlb should
+!              be used, distr is an array containing elements like:
+!              (/color, startnumber, endnumber/), it is possible to
+!              have several not succeeding jobsi with the same color,
+!              then for each one the number has to be given in its own
+!              array element startnumber and endnumber of each color
+!              are independent of each other, they may have
+!              overlapping intervals, in this case one has to ensure,
+!              that the right jobs are done, as the DLB routine gives
+!              back the numbers of the array
+!
+!           dlb_give_more_color(n, color, jobs) - the same as
+!              dlb_give_more, but for the color case gives back the
+!              numbers between startnumber and endnumber of the
+!              element color, it only gives jobs of the same color,
+!              even if it still has some left but from another color,
+!              but it also will only give back empty jobs if all is
+!              finished
+!
 !  Module called by: ...
 !
 !
@@ -280,7 +293,7 @@ contains
 
 
   subroutine dlb_print_statistics(output_level)
-     ! Purpose: Collects and prints some statistics of how the current dlb
+    ! Purpose: Collects and prints some statistics of how the current dlb
     !          run has been performed
     !          For output_level = 0 exits without doing anything
     !          For output_level = 1 time spend in dlb_give_more (split)
