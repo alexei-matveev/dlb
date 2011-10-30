@@ -2,7 +2,7 @@
 The library created in this subfolder (called libdlb.a) takes care about
 dynamical load balancing.  There are two different cases possible: one where
 all jobs are equal in name and a second one where each job has a special
-colour.  There are 6 different functions alltogether, where two are commmon
+color.  There are 6 different functions altogether, where two are common
 ones, while of the other each two belong to the case with and without color.
 
 
@@ -13,7 +13,7 @@ DLB_VARIANT. In the case of DLB_VARIANT = 0 there is a static distribution,
 where no communication between the processors is used.
 
 DLB_VARIANT = 1: is a remote memory access (RMA) method. When RMA is really
-    asynchornous, or done by the hardware, this method can be uses.
+    asynchronous, or done by the hardware, this method can be uses.
 
 DLB_VARIANT = 2 and DLB_VARIANT = 3: Both methods use threads for making the
     DLB algorithm work. They need a higher level of thread safety than the
@@ -38,9 +38,9 @@ INTERFACE
 
 All functions have to be called on all processors.  The two common functions
 are: dlb_init and dlb_finalize. They have to surround the use of the other
-functions.  When calling dlb_init MPI has to be already initalized, also dlb
+functions.  When calling dlb_init MPI has to be already initialized, also dlb
 finalize has to be called before MPI_FINALIZE. Other than the MPI counterparts
-there is the possibility to finalize and initalize dlb in between some uses.
+there is the possibility to finalize and initialize dlb in between some uses.
 Both functions have no arguments, thus use them by:
 
     call dlb_init()
@@ -60,7 +60,7 @@ processor should now work on. The work the processor should then do is between
 jobs(1) + 1 and jobs(2). dlb_give_more is a function, which will return true as
 long as there a jobs and false if there are none. In the last case there will
 be also jobs(1) >= jobs(2). If it returns true there is always at least one
-job.  But there may be also fewer, if the proccessor has only few, this has
+job.  But there may be also fewer, if the processor has only few, this has
 nothing to do with the amount of jobs, all processors have.  If it returns
 false, all processors have terminated (except in case DLB_VARIANT = 0).
 Otherwise it will wait in the function dlb_give_more if the termination has not
@@ -76,7 +76,7 @@ The difference of the color case, is that here the color is also considered.
 In dlb_setup_color one gives a distribution, with the colors, thus it gets an
 integer array containing elements like (/startnumber, endnumber, color/).
 Where startnumber +1 to endnumber a the jobsnumber on element color.
-dlb_give_more_color will give in adition to the jobs their color. Furhermore it
+dlb_give_more_color will give in addition to the jobs their color. Furthermore it
 ensures that all jobs it gives back have the same color.
 
 Usage:
@@ -88,9 +88,9 @@ is integer array
 additionally there is a function for printing statistics. It is possible to not print the output
 directly (see output_level below) but also to give them summarized with the function
 dlb_print_statistics. The output of this function is independent on the output_level of the
-DLB module but the amount of output is specified by an variable, givend directly to it.
-This functions need some reude functions, thus it could cuase some overhead. In case the function
-gets level = 0 this step is also omitted and dlb_print_statistics will return immediatelly.
+DLB module but the amount of output is specified by an variable, given directly to it.
+This functions need some reude functions, thus it could cause some overhead. In case the function
+gets level = 0 this step is also omitted and dlb_print_statistics will return immediately.
 For the static backend of DLB only level 0 and 1 give reasonable results.
 The output specified with the level is always including all smaller levels:
 level  | new output
@@ -108,7 +108,7 @@ call dlb_print_statistics(level) ! level is an integer
 DLB AND THREAD SAFETY:
 
 different implementations have different requirements concerning thread safety, especially
-as some of the implementations build explicitely on them. MPI provides some different
+as some of the implementations build explicitly on them. MPI provides some different
 MPI_THREAD_LEVELS, which show what could be expected in that regard from the current implementation.
 Each dlb variant can show the required thread level, as it is stored in the variable
 DLB_THREAD_REQUIRED, which is also handed over to the general dlb wrapper.
@@ -167,12 +167,12 @@ top of the DLB Makefile.
 OUTPUT LEVEL:
 
 DLB is able to run without producing output. But it may also provide some informations
-and statistics up to very detailed informations about its behaviour.
+and statistics up to very detailed informations about its behavior.
 What it will print of them is selected by the output level.
 The output level is defined by parameter OUTPUT_BORDER in the Makefile.
 
 OUTPUT_BORDER = 0 : no output at all
-OUTPUT_BORDER = 1 : at initalization it will be printed which DLB variant is used
+OUTPUT_BORDER = 1 : at initialization it will be printed which DLB variant is used
 OUTPUT_BORDER = 2 : the DLB variants  will also provide some more
                     statistics with summarized informations about the run of DLB
 OUTPUT_BORDER > 2 : additional output will appear with time stamps at some selected places
