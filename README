@@ -1,13 +1,15 @@
 
-The library created in this subfolder (called libdlb.a) takes care
-about dynamical load balancing.  There are two different cases
+* DYNAMIC LOAD BALANCING
+
+The library created in this subfolder (called libdlb.a) takes carea
+bout dynamical load balancing.  There are two different cases
 possible: one where all jobs are equal in name and a second one where
 each job has a special color.  There are 6 different functions
 altogether, where two are common ones, while of the other each two
 belong to the case with and without color.
 
 
-DIFFERENT VARIANTS
+* DIFFERENT VARIANTS
 
 Which of the different variants of the DLB implementions is used is
 selected by DLB_VARIANT. In the case of DLB_VARIANT = 0 there is a
@@ -32,7 +34,7 @@ DLB_VARIANT = 2 and DLB_VARIANT = 3: Both methods use threads for
     easily doubles the time requirement.  The variants need also POSIX
     Threads available.
 
-ACTING OF DLB:
+* ACTING OF DLB
 
 DLB takes care about the available job numbers. On request it gives
 several of this to a processor to work on. It takes care that each of
@@ -40,7 +42,7 @@ them is given back exactly once.  If a processor runs out of jobs, he
 can, for DLB_VARIANT > 0, ask the other processors to give them some
 of theirs.
 
-INTERFACE
+* INTERFACE
 
 All functions have to be called on all processors.  The two common
 functions are: dlb_init and dlb_finalize. They have to surround the
@@ -128,7 +130,7 @@ Usage:
 
 Here level is an integer.
 
-DLB AND THREAD SAFETY:
+* DLB AND THREAD SAFETY
 
 Different implementations have different requirements concerning
 thread safety, especially as some of the implementations build
@@ -148,7 +150,7 @@ but MPI_THREAD_SERIALIZED should then be raised to
 MPI_THREAD_MULTIPLE.
 
 
-EXAMPLE:
+* EXAMPLE
 
   use mpi
   use dlb
@@ -186,12 +188,12 @@ EXAMPLE:
 
   call MPI_FINALIZE(ierr)
 
-COMPILATION:
+* COMPILATION
 
 If DLB is used external from the ParaGauss repository set DLB_EXTERNAL = 1 on
 top of the DLB Makefile.
 
-OUTPUT LEVEL:
+* OUTPUT LEVEL
 
 DLB is able to run without producing output. But it may also provide
 some informations and statistics up to very detailed informations
