@@ -193,7 +193,7 @@ MPI_THREAD_MULTIPLE.
 If DLB is used external from the ParaGauss repository set DLB_EXTERNAL = 1 on
 top of the DLB Makefile.
 
-* OUTPUT LEVEL
+** OUTPUT LEVEL
 
 DLB is able to run without producing output. But it may also provide
 some informations and statistics up to very detailed informations
