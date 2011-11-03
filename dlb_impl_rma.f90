@@ -60,14 +60,16 @@ module dlb_impl
   !  Module called by: ...
   !
   !
-  !  References: "Scalable Work Stealing", James Dinan, D. Brian Larkins,
-  !              Sriram Krishnamoorthy, Jarek Nieplocha, P. Sadayappan,
-  !             Proc. of 21st intl. Conference on Supercomputing (SC).
-  !             Portland, OR, Nov. 14-20, 2009  (for work stealing algorithm)
-  !             "Implementing Byte-Range Locks Using MPI One-Sided Communication",
-  !             Rajeev Thakur, Robert Ross, and Robert Latham
-  !             (in EuroPVM/MPI)  (read modify write algorithm with the same ideas)
+  !  References: "Scalable Work Stealing", James Dinan, D. Brian
+  !              Larkins, Sriram Krishnamoorthy, Jarek Nieplocha,
+  !              P. Sadayappan, Proc. of 21st intl. Conference on
+  !              Supercomputing (SC).  Portland, OR, Nov. 14-20, 2009
+  !              (for work stealing algorithm)
   !
+  !              "Implementing Byte-Range Locks Using MPI One-Sided
+  !              Communication", Rajeev Thakur, Robert Ross, and
+  !              Robert Latham (in EuroPVM/MPI) (read modify write
+  !              algorithm with the same ideas)
   !
   !  Author: AN
   !  Date: 08/10->09/10
@@ -136,15 +138,16 @@ module dlb_impl
 contains
 
   subroutine dlb_init(world)
-    !  Purpose: Initialization of the objects needed for running the dlb
-    !           job scheduling, the most part is of setting up an RMA
-    !           object with MPI to have it ready to use for the rest of the
-    !           dlb model. It may be set up only once, even if there are
-    !           several dlbs wanted, the initalizing of a specific run
-    !           should be done with dlb_setup
-    !           It is also recommended to call this subroutine only once
-    !           as it needs parallelization of all processes
-    !------------ Modules used ------------------- ---------------
+    !
+    !  Purpose: Initialization of the objects needed for running the
+    !           dlb job scheduling, the most part is of setting up an
+    !           RMA object with MPI to have it ready to use for the
+    !           rest of the dlb model. It may be set up only once,
+    !           even if there are several dlbs wanted, the initalizing
+    !           of a specific run should be done with dlb_setup It is
+    !           also recommended to call this subroutine only once as
+    !           it needs parallelization of all processes
+    !
     use iso_c_binding, only: c_ptr, c_f_pointer
     use dlb_common, only: dlb_common_init, OUTPUT_BORDER
     use dlb_common, only: set_empty_job
@@ -159,7 +162,8 @@ contains
     ! some aliases, highly in use during the whole module
     call dlb_common_init(world)
 
-    ! find out, how much there is to store and allocate (with MPI) the memory
+    ! find out, how much there is to store and allocate (with MPI) the
+    ! memory
     call MPI_TYPE_EXTENT(MPI_INTEGER4, sizeofint, ierr)
 
     jobs_len = JLENGTH + n_procs
@@ -168,28 +172,30 @@ contains
     call MPI_ALLOC_MEM(size_alloc, MPI_INFO_NULL, c_job_pointer, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    ! this connects a c like pointer with our job_storage, as MPI can not handle our
-    ! pointers as they are
+    ! this connects a c like pointer with our job_storage, as MPI can
+    ! not handle our pointers as they are
     call c_f_pointer(c_job_pointer, job_storage, [jobs_len])
 
     size_all = jobs_len * sizeofint ! for having it in the correct kind
 
-    ! win (an integer) is set up, so that the RMA-processes can call on it
-    ! they will then get acces to the local stored job_storage of the corresponding proc
+    ! win (an integer) is set up, so that the RMA-processes can call
+    ! on it they will then get acces to the local stored job_storage
+    ! of the corresponding proc
     call MPI_WIN_CREATE(job_storage, size_all, sizeofint, MPI_INFO_NULL, &
                         comm_world, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    ! needed to make certain, that in the next steps, all the procs have all the informations
+    ! needed to make certain, that in the next steps, all the procs
+    ! have all the informations
     call MPI_WIN_FENCE(0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
     ! initalize the job storage: not yet any task but ensure no lock
     call write_and_unlock(my_rank, set_empty_job())
 
-    ! if a dlb run would be too early after init, some processor might steal from
-    ! an undefined storage, after this at least it can only steal empty jobs
-    ! if a processor is not yet available
+    ! if a dlb run would be too early after init, some processor might
+    ! steal from an undefined storage, after this at least it can only
+    ! steal empty jobs if a processor is not yet available
     call MPI_WIN_FENCE(0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
@@ -201,10 +207,11 @@ contains
   end subroutine dlb_init
 
   subroutine dlb_finalize()
+    !
     !  Purpose: shuts down the dlb objects (especially job_storage)
-    !  when it is not further needed, should be called, after ALL
-    !  dlb runs have complete
-    !------------ Modules used ------------------- ---------------
+    !  when it is not further needed, should be called, after ALL dlb
+    !  runs have complete
+    !
     use dlb_common, only: dlb_common_finalize
     implicit none
     !** End of interface *****************************************
@@ -231,15 +238,15 @@ contains
   end subroutine dlb_finalize
 
   subroutine dlb_give_more(n, slice)
-    !  Purpose: Returns next bunch of up to n jobs.
-    !  If slice(2) <= slice(1) there are no more jobs there, else returns the jobs
-    !  done by the procs should be slice(1) + 1 to slice(2) in
-    !  the related job list
-    !  first the jobs are tried to get from the local storage of the
-    !  current proc, if there are no more, it will try to steal some
-    !  more work from others, till the separate termination algorithm
-    !  states, that everything is done
-    !------------ Modules used ------------------- ---------------
+    !
+    !  Purpose: Returns next bunch of up to n jobs.  If slice(2) <=
+    !  slice(1) there are no more jobs there, else returns the jobs
+    !  done by the procs should be slice(1) + 1 to slice(2) in the
+    !  related job list first the jobs are tried to get from the local
+    !  storage of the current proc, if there are no more, it will try
+    !  to steal some more work from others, till the separate
+    !  termination algorithm states, that everything is done
+    !
     use dlb_common, only: select_victim, steal_local, steal_remote &
         , length, empty, OUTPUT_BORDER
     implicit none
@@ -292,11 +299,11 @@ contains
         ASSERT(storage_is_empty(my_rank))
 
         !
-        ! This is the place to report how much of the work
-        ! has been completed so far and reset the counters.
-        ! For a report we need an "owner" of the jobs that we were
-        ! executing, get this by looking into the (empty) local queue,
-        ! that is suposed to keep a valid owner field:
+        ! This is the place to report how much of the work has been
+        ! completed so far and reset the counters.  For a report we
+        ! need an "owner" of the jobs that we were executing, get this
+        ! by looking into the (empty) local queue, that is suposed to
+        ! keep a valid owner field:
         !
         many_searches = many_searches + 1 ! just for debugging
         call read_unsafe(my_rank, jobs)
@@ -304,18 +311,20 @@ contains
         already_done = 0
 
         !
-        ! Try stealing from random workers
-        ! until termination is announced:
+        ! Try stealing from random workers until termination is
+        ! announced:
         !
         start_timer = MPI_Wtime() ! for debugging
         do while ( .not. check_messages() )
-            ! check like above but also for termination message from termination master
+            ! check like above but also for termination message from
+            ! termination master
 
             rank = select_victim(my_rank, n_procs)
 
             !
-            ! try to get jobs from rank, if ranks memory occupied by another or contains
-            ! nothing to steal, this will return false:
+            ! try to get jobs from rank, if ranks memory occupied by
+            ! another or contains nothing to steal, this will return
+            ! false:
             !
             many_tries = many_tries + 1 ! just for debugging
             ok = try_read_modify_write(rank, steal_remote, n, stolen_jobs)
@@ -355,32 +364,33 @@ contains
             ASSERT(ok_logical)
 
             !
-            ! This stores the rest for later delivery in the OWN job-storage
+            ! This stores the rest for later delivery in the OWN
+            ! job-storage
             !
             call write_unsafe(my_rank, local_jobs)
         endif
     endif
 
     !
-    ! Increment the counter for delivered jobs.
-    ! It is somewhat too early to declare them "completed",
-    ! but once delivered to "userspace" these jobs cannot
-    ! be stolen anymore and may be considered
-    ! "scheduled for execution":
+    ! Increment the counter for delivered jobs.  It is somewhat too
+    ! early to declare them "completed", but once delivered to
+    ! "userspace" these jobs cannot be stolen anymore and may be
+    ! considered "scheduled for execution":
     !
     already_done = already_done + length(jobs)
 
-    ! NOTE: named constants are not known outside.
-    ! Return only the start and endpoint of the job slice:
+    ! NOTE: named constants are not known outside.  Return only the
+    ! start and endpoint of the job slice:
     slice(1) = jobs(JLEFT)
     slice(2) = jobs(JRIGHT)
 
     !
-    ! Here a syncronization feature, the very last call to dlb_give_more(...)
-    ! does not return until all workers pass this barrier.
+    ! Here a syncronization feature, the very last call to
+    ! dlb_give_more(...)  does not return until all workers pass this
+    ! barrier.
     !
-    ! FIXME: this is a speciality of RMA implementation, to avoid
-    ! the case of others stealing unrelated jobs from the next round of
+    ! FIXME: this is a speciality of RMA implementation, to avoid the
+    ! case of others stealing unrelated jobs from the next round of
     ! call dlb_setup(...); do while ( dlb_give_more(...) ) ...
     !
     if ( empty(jobs)) then
@@ -411,11 +421,13 @@ contains
   end subroutine dlb_give_more
 
   logical function check_messages()
-    !  Purpose: checks if any message has arrived, checks for messages:
-    !          Someone finished stolen job slice
-    !          Someone has finished its responsibilty (only termination_master)
-    !          There are no more jobs (message from termination_master to finish)
-    !------------ Modules used ------------------- ---------------
+    !
+    !  Purpose: checks if any message has arrived, checks for
+    !           messages: Someone finished stolen job slice. Someone
+    !           has finished its responsibilty (only termination
+    !           master). There are no more jobs (message from
+    !           termination_master to finish)
+    !
     use dlb_common, only: report_by, reports_pending &
         , end_requests, send_resp_done, end_communication
     use dlb_common, only: print_statistics
@@ -490,9 +502,10 @@ contains
   end function check_messages
 
   subroutine check_termination(proc)
-    !  Purpose: only on termination_master, checks if all procs
-    !           have reported termination
-    !------------ Modules used ------------------- ---------------
+    !
+    !  Purpose: only on termination_master, checks if all procs have
+    !           reported termination
+    !
     use dlb_common, only: has_last_done, send_termination, end_requests, end_communication
     use dlb_common, only: print_statistics
     implicit none
@@ -502,8 +515,8 @@ contains
 
     if (.not. has_last_done(proc)) RETURN
 
-    ! there will be only a send to the other procs, telling them to terminate
-    ! thus the termination_master sets its termination here
+    ! there will be only a send to the other procs, telling them to
+    ! terminate thus the termination_master sets its termination here
     terminated = .true.
 
     ! debug prints:
@@ -517,13 +530,13 @@ contains
   end subroutine check_termination
 
   subroutine report_or_store(owner, num_jobs_done)
-    !  Purpose: If a job is finished, this cleans up afterwards
-    !           Needed for termination algorithm, there are two
-    !           cases, it was a job of the own responsibilty or
-    !           one from another, first case just change my number
-    !            second case, send to victim, how many of his jobs
-    !            were finished
-    !------------ Modules used ------------------- ---------------
+    !
+    !  Purpose: If a job is finished, this cleans up afterwards Needed
+    !           for termination algorithm, there are two cases, it was
+    !           a job of the own responsibilty or one from another,
+    !           first case just change my number second case, send to
+    !           victim, how many of his jobs were finished
+    !
     use dlb_common, only: report_to, reports_pending, send_resp_done
     implicit none
     integer(i4_kind), intent(in) :: owner
@@ -558,8 +571,8 @@ contains
 
   function try_read_modify_write(rank, modify, iarg, jobs) result(error)
     !
-    ! Perform read-modify-write sequence
-    ! returns error code, 0 means success, else describes reasons for failure
+    ! Perform read-modify-write sequence returns error code, 0 means
+    ! success, else describes reasons for failure
     !
     use dlb_common, only: set_empty_job
     implicit none
@@ -567,12 +580,13 @@ contains
     integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
     integer(i4_kind)              :: error ! resulting error code 0 == success
     !
-    ! Input argument "modify(...)" is a procedure that takes an integer argument
-    ! "iarg", a jobs descriptor "orig" and produces two job descriptors
-    ! "left" and "right" of which one is written back in a "write_and_unloc"
-    ! step and the other is returned as the result of "try_read_modify_write".
-    ! If the (logical) return status of "modify(...)" is false, the
-    ! "write" step of "read-modify-write" is aborted:
+    ! Input argument "modify(...)" is a procedure that takes an
+    ! integer argument "iarg", a jobs descriptor "orig" and produces
+    ! two job descriptors "left" and "right" of which one is written
+    ! back in a "write_and_unloc" step and the other is returned as
+    ! the result of "try_read_modify_write".  If the (logical) return
+    ! status of "modify(...)" is false, the "write" step of
+    ! "read-modify-write" is aborted:
     !
     interface
         logical function modify(iarg, orig, left, right)
@@ -596,16 +610,15 @@ contains
 
     !
     ! NOTE: size(jobs) is JLENGTH, (jobs(JLEFT), jobs(JRIGHT)] specify
-    ! the interval, the rest is metadata that should be copied
-    ! around.
+    ! the interval, the rest is metadata that should be copied around.
     !
     ASSERT(size(jobs)==JLENGTH)
 
     jobs = set_empty_job()
 
     !
-    ! Try reading job info from "rank" into "orig" job descriptor, returns false
-    ! if not successfull:
+    ! Try reading job info from "rank" into "orig" job descriptor,
+    ! returns false if not successfull:
     !
     error = try_lock_and_read(rank, orig)
 
@@ -616,8 +629,8 @@ contains
     ok = modify(iarg, orig, left, jobs)
 
     !
-    ! If "modify" step failed then skip "modify-write" in "read-modify-write",
-    ! only do unlock:
+    ! If "modify" step failed then skip "modify-write" in
+    ! "read-modify-write", only do unlock:
     !
     if ( .not. ok ) then
         call unlock(rank)
@@ -626,9 +639,12 @@ contains
         RETURN
     endif
 
-    ! succeeded therefore no error:
-    ! needed for more than only debugging
+    !
+    ! Succeeded therefore no error, needed for more than only
+    ! debugging:
+    !
     error = RMW_SUCCESS
+
     !
     ! Write back and release the lock:
     !
@@ -641,8 +657,8 @@ contains
 
   function try_lock_and_read(rank, jobs) result(error)
     !
-    ! Try getting a lock indexed by rank and if that succeeds,
-    ! read data into jobs(1:2)
+    ! Try getting a lock indexed by rank and if that succeeds, read
+    ! data into jobs(1:2)
     !
     use dlb_common, only: my_rank, n_procs
     implicit none
@@ -661,9 +677,10 @@ contains
     ASSERT(size(jobs)==JLENGTH)
 
     ! First GET-PUT round, MPI only ensures taht after MPI_UNLOCK the
-    ! MPI-RMA accesses are finished, thus modify has to be done out of this lock
-    ! There are two function calls inside: one to get the data and check if it may be accessed
-    ! second one to show to other procs, that this one is interested in modifing the data
+    ! MPI-RMA accesses are finished, thus modify has to be done out of
+    ! this lock There are two function calls inside: one to get the
+    ! data and check if it may be accessed second one to show to other
+    ! procs, that this one is interested in modifing the data
 
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
@@ -680,8 +697,9 @@ contains
     ASSERT(ierr==MPI_SUCCESS)
 
     displacement = displacement +1
-    ! get all after my own lock (but only if I'm not the last one)
-    ! as size(win_data2) has been given correctly, this should be no problem
+    ! get all after my own lock (but only if I'm not the last one) as
+    ! size(win_data2) has been given correctly, this should be no
+    ! problem
     if (size(win_data2) > 0) then
         call MPI_GET(win_data2, size(win_data2), MPI_INTEGER4, rank, displacement, &
                        size(win_data2), MPI_INTEGER4, win, ierr)
@@ -697,7 +715,8 @@ contains
     win_data(my_rank + 1 + JLENGTH) = OFF
 
     !
-    ! Check if there are any procs, saying that they want to acces the memory
+    ! Check if there are any procs, saying that they want to acces the
+    ! memory
     !
     if ( all(win_data(JLENGTH+1:) == OFF) ) then
         jobs(:) = win_data(1:JLENGTH)
@@ -705,9 +724,10 @@ contains
     else
         jobs(:) = -1 ! junk
         error = RMW_LOCKED
-        ! Do nothing. Dont even try to undo our attempt to acquire the lock
-        ! as the one that is holding the lock will overwrite the lock
-        ! data structure when finished. See unlock/write_and_unlock below.
+        ! Do nothing. Dont even try to undo our attempt to acquire the
+        ! lock as the one that is holding the lock will overwrite the
+        ! lock data structure when finished. See
+        ! unlock/write_and_unlock below.
     endif
   end function try_lock_and_read
 
@@ -738,7 +758,8 @@ contains
 
   subroutine write_and_unlock(rank, jobs)
     !
-    ! Update job range description and release previousely acquired lock.
+    ! Update job range description and release previousely acquired
+    ! lock.
     !
     implicit none
     integer(i4_kind), intent(in) :: rank
@@ -764,7 +785,8 @@ contains
     win_data(JLENGTH+1:) = OFF
 
     !
-    ! PUT data and overwrite lock data structure with zeros in one epoch:
+    ! PUT data and overwrite lock data structure with zeros in one
+    ! epoch:
     !
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
@@ -838,14 +860,15 @@ contains
   end subroutine write_unsafe
 
   subroutine dlb_setup(job)
-    !  Purpose: initialization of a dlb run, each proc should call
-    !           it with inital jobs. The inital jobs should be a
-    !           static distribution of all available jobs, each job
-    !           should be given to one and only one of the procs
-    !           jobs should be given as a job range (STP, EP), where
-    !           all jobs should be the numbers from START to END, with
-    !           START <= STP <= EP <= END
-    !------------ Modules used ------------------- ---------------
+    !
+    !  Purpose: initialization of a dlb run, each proc should call it
+    !           with inital jobs. The inital jobs should be a static
+    !           distribution of all available jobs, each job should be
+    !           given to one and only one of the procs jobs should be
+    !           given as a job range (STP, EP), where all jobs should
+    !           be the numbers from START to END, with START <= STP <=
+    !           EP <= END
+    !
     use dlb_common, only: dlb_common_setup, set_start_job, length
     implicit none
     integer(i4_kind), intent(in) :: job(:) ! (2)
@@ -863,8 +886,8 @@ contains
 
     ! set starting values for the jobs, needed also in this way for
     ! termination, as they will be stored also in the job_storage
-    ! start_job should only be changed if all current jobs are finished
-    ! and there is a try to steal new ones
+    ! start_job should only be changed if all current jobs are
+    ! finished and there is a try to steal new ones
     start_job = set_start_job(job)
 
     call dlb_common_setup(length(start_job))
@@ -879,10 +902,9 @@ contains
 
     already_done = 0
 
-    ! Job storage holds all the jobs currently in use
-    ! direct storage, because in own memory used here
-    ! Other processors might already be active and trying to steal
-    ! Thus lock might already be set
+    ! Job storage holds all the jobs currently in use direct storage,
+    ! because in own memory used here Other processors might already
+    ! be active and trying to steal thus lock might already be set
     ASSERT (storage_is_empty(my_rank))
     call write_unsafe(my_rank, start_job)
   end subroutine dlb_setup
