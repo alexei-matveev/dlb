@@ -993,7 +993,7 @@ contains
 
     ! FIXME: for compatibility reasons:
     if ( num_jobs_done == 0 ) then
-        print *, "report_to: why reporting nothing?"
+        ! print *, "report_to: why reporting nothing?"
         RETURN
     endif
     ASSERT(num_jobs_done>=0)
