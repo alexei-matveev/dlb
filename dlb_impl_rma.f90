@@ -4,51 +4,58 @@
 module dlb_impl
   !---------------------------------------------------------------
   !
-  !  Purpose: takes care about dynamical load balancing,
-  !           uses an RMA (MPI) object to store the job informations
-  !           (only the number of the job) and allows other routines
-  !           to steal them, if they have no own left
-  !           unfortunatelly the MPI one-sided works different on different
-  !           systems, this routine is only useful if the RMA can be accessed
-  !           while the target proc is not in MPI-context
+  !  Purpose: takes care about dynamical load balancing, uses an RMA
+  !           (MPI) object to store the job informations (only the
+  !           number of the job) and allows other routines to steal
+  !           them, if they have no own left unfortunatelly the MPI
+  !           one-sided works different on different systems, this
+  !           routine is only useful if the RMA can be accessed while
+  !           the target proc is not in MPI-context
   !
-  !           INTERFACE to others:
+  ! Interface:
+  !
   !           call dlb_init() - once before first acces
+  !
   !           call dlb_setup(init_job) - once every time a dlb should
-  !                               be used, init_job should be the part
-  !                               of the current proc of an initial job
-  !                               distribution
-  !           dlb_give_more(n, jobs) :
-  !              n should be the number of jobs requested at once, the next
-  !              time dlb_give_more is called again, all jobs from jobs should
-  !              be finished, jobs are at most n, they are jsut the number of the
-  !              jobs, which still have to be transformed between each other,
-  !              it should be done the error slice from jobs(0) +1 to jobs(1)
-  !              if dlb_give_more returns jobs(0)==jobs(1) there are on no proc
-  !              any jobs left
+  !              be used, init_job should be the part of the current
+  !              proc of an initial job distribution
   !
-  !          the algorithm: it follows in principle the Algorithm 2 from the
-  !                         first reference, each proc has an local RMA memory containing
-  !                         job informations, it takes jobs form the left (stp values
-  !                         are increased, till stp == ep) then it searches the
-  !                         job storages of the other procs for jobs left, this is done
-  !                         by a code similar to the one descriebed in the second reference,
-  !                         but here on each proc and without specifieng the ranges to work on
-  !                         stolen work is put in the own storage, after taking the current job
+  !           dlb_give_more(n, jobs) - n should be the number of jobs
+  !              requested at once, the next time dlb_give_more is
+  !              called again, all jobs from jobs should be finished,
+  !              jobs are at most n, they are jsut the number of the
+  !              jobs, which still have to be transformed between each
+  !              other, it should be done the error slice from jobs(0)
+  !              +1 to jobs(1) if dlb_give_more returns
+  !              jobs(0)==jobs(1) there are on no proc any jobs left
   !
-  !          termination algorithm: called (at least once) "Fixed Energy Distributed Termination
-  !                                 Algorithm"
-  !                        to avoid confusion, here the term "energy" is not used, talking about
-  !                         respoinsibility (resp) instead, every system starts with a part of
-  !                         responsibility
-  !                         given to him, if procs steal from him, they have later to send him a
-  !                         message saying how many of his jobs, they have done, they always report to
-  !                         the proc who had the resp first, thus source is given away with job
-  !                         each proc lowers his resp about the values given back from any proc and
-  !                         about the jobs he has done himself, when finished them, if he has his resp
-  !                         at zero, he sends a message to termination_master
-  !                         if termination master has a message from all the procs, that their resp is 0
-  !                         he sends a message to all procs, telling them to terminated the algorithm
+  !          The algorithm: it follows in principle the Algorithm 2
+  !              from the first reference, each proc has an local RMA
+  !              memory containing job informations, it takes jobs
+  !              form the left (stp values are increased, till stp ==
+  !              ep) then it searches the job storages of the other
+  !              procs for jobs left, this is done by a code similar
+  !              to the one descriebed in the second reference, but
+  !              here on each proc and without specifieng the ranges
+  !              to work on stolen work is put in the own storage,
+  !              after taking the current job
+  !
+  !          Termination algorithm: called (at least once) "Fixed
+  !              Energy Distributed Termination Algorithm" to avoid
+  !              confusion, here the term "energy" is not used,
+  !              talking about respoinsibility (resp) instead, every
+  !              system starts with a part of responsibility given to
+  !              him, if procs steal from him, they have later to send
+  !              him a message saying how many of his jobs, they have
+  !              done, they always report to the proc who had the resp
+  !              first, thus source is given away with job each proc
+  !              lowers his resp about the values given back from any
+  !              proc and about the jobs he has done himself, when
+  !              finished them, if he has his resp at zero, he sends a
+  !              message to termination_master if termination master
+  !              has a message from all the procs, that their resp is
+  !              0 he sends a message to all procs, telling them to
+  !              terminated the algorithm
   !
   !  Module called by: ...
   !
