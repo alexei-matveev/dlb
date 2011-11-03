@@ -530,7 +530,8 @@ contains
     ! if my_jobs(JRIGHT)/= start-job(JRIGHT) someone has stolen jobs
 
     !
-    ! Report the number of scheduled jobs:
+    ! Report the number of scheduled jobs, report_to() is not doing
+    ! anything usefull if num_jobs_done == 0 anyway:
     !
     call report_to(owner, num_jobs_done)
 
@@ -538,7 +539,7 @@ contains
     ! Here we apparenly try to detect the termination early:
     !
     if ( owner == my_rank ) then
-      if ( reports_pending() == 0) then
+      if ( reports_pending() == 0 ) then
         if (my_rank == termination_master) then
           call check_termination(my_rank)
         else
