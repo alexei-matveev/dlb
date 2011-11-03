@@ -972,14 +972,13 @@ contains
 
   subroutine report_to(owner, num_jobs_done)
     !
-    ! Handles reporting scheduled jobs, expects an increment
-    ! and an owner rank.
+    ! Handles reporting scheduled jobs, expects an increment and an
+    ! owner rank.
     !
-    ! Needed for termination algorithm, there are two
-    ! cases, it was a job of the own responsibilty or
-    ! one from another, first case just change my number
-    ! second case, send a cumulative report on how many of
-    ! his jobs were scheduled.
+    ! Needed for termination algorithm, there are two cases, it was a
+    ! job of the own responsibilty or one from another, first case
+    ! just change my number second case, send a cumulative report on
+    ! how many of his jobs were scheduled.
     !
     ! Context: control thread.
     !             2 Threads: secretary thread
