@@ -270,9 +270,7 @@ contains
         deallocate(times, stat = ierr)
         ASSERT (ierr == 0)
     endif
-
-
-  end subroutine
+  end subroutine dlb_timers
 
 
   subroutine dlb_common_init(world)
@@ -289,7 +287,7 @@ contains
     call MPI_COMM_DUP(world, comm_world, ierr)
     ASSERT(ierr==0)
 
-    call MPI_COMM_RANK( comm_world, my_rank, ierr )
+    call MPI_COMM_RANK(comm_world, my_rank, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
     call MPI_COMM_SIZE(comm_world, n_procs, ierr)
@@ -307,7 +305,7 @@ contains
       allocate(all_done(n_procs), stat = alloc_stat)
       ASSERT(alloc_stat==0)
     endif
-  end subroutine
+  end subroutine dlb_common_init
 
   subroutine dlb_common_finalize()
     ! shut down the common stuff, as needed
@@ -327,7 +325,7 @@ contains
     call MPI_COMM_FREE(comm_world, ierr)
     ASSERT(ierr==0)
     ASSERT(comm_world==MPI_COMM_NULL)
-  end subroutine
+  end subroutine dlb_common_finalize
 
   subroutine dlb_common_setup(resp)
     ! Termination master start of a new dlb run
