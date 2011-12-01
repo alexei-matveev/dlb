@@ -2,12 +2,11 @@ module dlb_impl_thread_common
 # include "dlb.h"
   use iso_c_binding
   use dlb_common, only: dlb_common_init
-  use dlb_common, only: i4_kind, comm_world, n_procs, termination_master
+  use dlb_common, only: i4_kind, n_procs, termination_master
   use dlb_common, only: time_stamp ! for debug only
   use dlb_common, only: JLENGTH, JRIGHT, JLEFT, NO_WORK_LEFT
   use dlb_common, only: has_last_done, set_empty_job, add_request, send_termination
   use dlb_common, only: masterserver
-  use dlb_common, only: WORK_DONAT, WORK_REQUEST
   implicit none
 
   interface
@@ -80,6 +79,8 @@ module dlb_impl_thread_common
     end subroutine
   end interface
 
+  public :: clear_up
+
   !------------ Declaration of types ------------------------------
 
   !------------ Declaration of constants and variables ----
@@ -151,6 +152,7 @@ module dlb_impl_thread_common
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: divide_work
     use dlb_common, only: split_at, isend
+    use dlb_common, only: WORK_DONAT
     USE_MPI
     implicit none
     !------------ Declaration of formal parameters ---------------
@@ -257,5 +259,75 @@ module dlb_impl_thread_common
        ASSERT(alloc_stat==0)
      endif
    end subroutine end_threads
+
+  subroutine clear_up(my_last, last_proc, arrived, requ)
+    ! Purpose: clear_up will finish the still outstanding communications of the
+    !          thread variants, after the flag termination was set. The most computational
+    !          costy part of this is a MPI_ALLGATHER.
+    !          Each proc tells threre from which proc he waits for an answer and gives the
+    !          number of his message counter to this proc. This number tells the other proc,
+    !          if he has already answered, but the answer has not yet arrived, or if he has
+    !          to really wait for the message. If every proc now on how many messages he has to
+    !          wait, he does so (responds if neccessary) and finishes.
+    !          A MPI_barrier in the main code ensures, that he will not get messges belonging
+    !          to the next mpi cycle.
+    ! Context for 3Threads: mailbox thread.
+    !             2 Threads: secretary thread
+    USE_MPI, only: MPI_IN_PLACE, MPI_DATATYPE_NULL, MPI_INTEGER4, &
+         MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_TAG, MPI_SOURCE, MPI_STATUS_SIZE, &
+         MPI_SUCCESS
+    use dlb_common, only: comm_world, my_rank
+    use dlb_common, only: WORK_DONAT, WORK_REQUEST
+    use dlb_common, only: end_requests, isend, recv
+    implicit none
+    integer(kind=i4_kind), intent(in) :: my_last(:), arrived(:), last_proc
+    integer, allocatable  :: requ(:)
+    !** End of interface *****************************************
+
+    integer(i4_kind) :: ierr, i, count_req, req
+    integer(i4_kind) :: rec_buff(n_procs * 2)
+    integer(i4_kind) :: stat(MPI_STATUS_SIZE)
+    integer(i4_kind) :: message_s(JLENGTH), message_r(JLENGTH)
+    !------------ Executable code --------------------------------
+
+    rec_buff = 0
+    rec_buff(2 * my_rank + 1) = last_proc ! Last I sended to or -1
+    if (last_proc > -1) then
+        rec_buff(2 * my_rank + 2) = my_last(last_proc + 1) ! the request number I sended to him
+    endif
+    call MPI_ALLGATHER(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rec_buff, 2, MPI_INTEGER4, comm_world, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+    count_req = 0
+
+    ! If I am waiting for a job donation also
+    if (last_proc > -1) count_req = 1
+
+    do i = 1, n_procs
+      if (rec_buff(2*i-1) == my_rank) then
+         ! This one sended it last message to me
+         ! now check if it has already arrived (answerded)
+         if (rec_buff(2*i) .NE. arrived(i)) count_req = count_req + 1
+      endif
+    enddo
+
+    ! Cycle over all left messages, blocking MPI_RECV, as there is nothing else to do
+    do i = 1, count_req
+        call recv(message_r, MPI_ANY_SOURCE, MPI_ANY_TAG, stat)
+        select case(stat(MPI_TAG))
+        case (WORK_DONAT)
+          cycle
+        case (WORK_REQUEST)
+           ! FIXME: tag is the only info we send:
+           message_s(:) = 0
+           call isend(message_s, stat(MPI_SOURCE), WORK_DONAT, req)
+           call add_request(req, requ)
+        case default
+          print *, my_rank, "got Message", message_r, ", which I was not waiting for"
+          stop "got unexpected message"
+        end select
+    enddo
+    ! Now all request are finished and could be ended
+    call end_requests(requ)
+  end subroutine clear_up
 
 end module dlb_impl_thread_common

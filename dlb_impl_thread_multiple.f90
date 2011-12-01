@@ -97,7 +97,6 @@ module dlb_impl
   use dlb_common, only: WORK_DONAT, WORK_REQUEST
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
-  use dlb_common, only: clear_up
   use dlb_common, only: masterserver
   use dlb_common, only: end_communication
   use dlb_common, only: main_wait_all, main_wait_max, main_wait_last
@@ -105,6 +104,7 @@ module dlb_impl
   use dlb_common, only: dlb_time, min_work, second_last_work
   use dlb_common, only: timer_give_more, timer_give_more_last
   use iso_c_binding
+  use dlb_impl_thread_common, only: clear_up
   use dlb_impl_thread_common
   USE_MPI
   implicit none

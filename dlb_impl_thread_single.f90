@@ -96,12 +96,12 @@ module dlb_impl
   use dlb_common, only: dlb_common_setup
   use dlb_common, only: masterserver
   use dlb_common, only: end_communication
-  use dlb_common, only: clear_up
   use dlb_common, only: main_wait_all, main_wait_max, main_wait_last
   use dlb_common, only: max_work, last_work, average_work, num_jobs
   use dlb_common, only: dlb_time, min_work, second_last_work
   use dlb_common, only: timer_give_more, timer_give_more_last
   use iso_c_binding
+  use dlb_impl_thread_common, only: clear_up
   use dlb_impl_thread_common
   USE_MPI
   implicit none

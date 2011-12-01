@@ -64,8 +64,6 @@ module dlb_common
   public :: iprobe!(src, tag, stat) -> ok
   public :: recv!(buf, rank, tag, stat)
 
-  public :: clear_up
-
   public :: print_statistics
   public :: dlb_timers
   ! integer with 4 bytes, range 9 decimal digits
@@ -812,71 +810,6 @@ contains
     deallocate(req_dj, reported_by, reported_to, stat=alloc_stat)
     ASSERT(alloc_stat==0)
   end subroutine end_communication
-
-  subroutine clear_up(my_last, last_proc, arrived, requ)
-    ! Purpose: clear_up will finish the still outstanding communications of the
-    !          thread variants, after the flag termination was set. The most computational
-    !          costy part of this is a MPI_ALLGATHER.
-    !          Each proc tells threre from which proc he waits for an answer and gives the
-    !          number of his message counter to this proc. This number tells the other proc,
-    !          if he has already answered, but the answer has not yet arrived, or if he has
-    !          to really wait for the message. If every proc now on how many messages he has to
-    !          wait, he does so (responds if neccessary) and finishes.
-    !          A MPI_barrier in the main code ensures, that he will not get messges belonging
-    !          to the next mpi cycle.
-    ! Context for 3Threads: mailbox thread.
-    !             2 Threads: secretary thread
-    !------------ Modules used ------------------- ---------------
-    implicit none
-    !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer, allocatable  :: requ(:)
-    integer(kind=i4_kind), intent(in) :: my_last(:), arrived(:), last_proc
-    integer(kind=i4_kind) :: ierr, i, count_req, req
-    integer(kind=i4_kind) :: rec_buff(n_procs * 2)
-    integer(kind=i4_kind)                :: stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind)                :: message_s(JLENGTH), message_r(JLENGTH)
-    !------------ Executable code --------------------------------
-
-    rec_buff = 0
-    rec_buff(2 * my_rank + 1) = last_proc ! Last I sended to or -1
-    if (last_proc > -1) then
-        rec_buff(2 * my_rank + 2) = my_last(last_proc + 1) ! the request number I sended to him
-    endif
-    call MPI_ALLGATHER(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rec_buff, 2, MPI_INTEGER4, comm_world, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
-    count_req = 0
-
-    ! If I am waiting for a job donation also
-    if (last_proc > -1) count_req = 1
-
-    do i = 1, n_procs
-      if (rec_buff(2*i-1) == my_rank) then
-         ! This one sended it last message to me
-         ! now check if it has already arrived (answerded)
-         if (rec_buff(2*i) .NE. arrived(i)) count_req = count_req + 1
-      endif
-    enddo
-
-    ! Cycle over all left messages, blocking MPI_RECV, as there is nothing else to do
-    do i = 1, count_req
-        call recv(message_r, MPI_ANY_SOURCE, MPI_ANY_TAG, stat)
-        select case(stat(MPI_TAG))
-        case (WORK_DONAT)
-          cycle
-        case (WORK_REQUEST)
-           ! FIXME: tag is the only info we send:
-           message_s(:) = 0
-           call isend(message_s, stat(MPI_SOURCE), WORK_DONAT, req)
-           call add_request(req, requ)
-        case default
-          print *, my_rank, "got Message", message_r, ", which I was not waiting for"
-          stop "got unexpected message"
-        end select
-    enddo
-    ! Now all request are finished and could be ended
-    call end_requests(requ)
-  end subroutine clear_up
 
   subroutine print_statistics()
     ! Purpose: end all of the stored requests in requ
