@@ -1,10 +1,5 @@
 # -*- makefile -*-
 #  ### Makefile for dlb library
-# if used without PG, set DLB_EXTERNAL = 1
-# else it will take the comilers and
-# other needed variables from the machine.inc
-# file of PG
-DLB_EXTERNAL = 0
 
 # This value specifes the amount of output (of DLB).
 # See output level in README for description.
@@ -26,18 +21,22 @@ test_dlb = test_dlb
 #
 all: $(libdlb.a) $(test_dlb)
 
-ifeq ($(DLB_EXTERNAL), 0)
-# for inclusion of for example the right fortran (or C) compiler
-# But be aware that the compiler flags will be reset
-include ../machine.inc
-else
-FC = mpif90
-FFLAGS =  -g -O2
-CC = mpicc
-AR = ar
-RANLIB = ranlib
-DLB_VARIANT = 0
-endif
+#
+# For inclusion of for example the right fortran (or C) compiler.  But
+# be aware that the CFLAGS will be reset, see below:
+#
+-include ../machine.inc
+
+#
+# If the file is missing or does not set any of the variables, use
+# these settings:
+#
+FC ?= mpif90
+FFLAGS ?=  -g -O2
+CC ?= mpicc
+AR ?= ar
+RANLIB ?= ranlib
+DLB_VARIANT ?= 0
 
 #### RESET COMPILER FLAGS ####
 CFLAGS = -Wall -g -O1 -std=c99 -D_XOPEN_SOURCE=500
@@ -49,12 +48,6 @@ CPP = cpp --traditional-cpp -DFPP_OUTPUT_BORDER=$(OUTPUT_BORDER)
 #
 # Depending on the target set $(dlb_objs):
 #
-
-ifndef DLB_VARIANT
-	# default variant DLB_VARIANT = 0 should work in any case
-	DLB_VARIANT = 0
-endif
-
 ifeq ($(DLB_VARIANT), 0)
 	dlb_objs = dlb_impl_static.o
 endif
