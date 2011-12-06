@@ -11,8 +11,8 @@ module dlb_impl_thread_common
 
   interface
     !
-    ! These interfaces need to be consistent with implementations
-    ! in thread_wrapper.c
+    ! These interfaces need to be consistent with implementations in
+    ! thread_wrapper.c
     !
     subroutine th_inits() bind(C)
     end subroutine th_inits
@@ -111,10 +111,10 @@ module dlb_impl_thread_common
     end subroutine unlock
 
   subroutine dlb_thread_init(world)
-    !  Purpose: initalization of needed stuff
-    !           is in one thread context
+    !
+    !  Purpose: initalization of needed stuff is in one thread context
     !           does not start the threads yet
-    !------------ Modules used ------------------- ---------------
+    !
     use dlb_common, only: dlb_common_init
     implicit none
     integer, intent(in) :: world
@@ -126,21 +126,23 @@ module dlb_impl_thread_common
   end subroutine dlb_thread_init
 
   subroutine thread_setup()
-    !  Purpose: initalization of needed stuff
-    !           is in one thread context
+    !
+    !  Purpose: initalization of needed stuff is in one thread context
     !           does not start the threads yet
+    !
+    implicit none
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
+
     integer :: alloc_stat
     allocate(messagesJA(JLENGTH, n_procs), stat = alloc_stat)
     ASSERT(alloc_stat==0)
-
   end subroutine thread_setup
 
 
   subroutine divide_jobs(partner, requ)
-    !  Purpose: share jobs from job_storage with partner, tell
-    !           partner what he got
+    !
+    !  Purpose: share jobs from job_storage with partner, tell partner
+    !           what he got
     !
     ! Context: mailbox thread.
     !          2 threads: secretary thread
@@ -174,19 +176,20 @@ module dlb_impl_thread_common
     tag = WORK_DONAT
     if (w == 0) then ! nothing to give, set empty
 
-      !!! variant with master, if master cannot give work back, there is no more
-      ! work for the proc, thus tell him to terminate
+      ! variant with master, if master cannot give work back, there is
+      ! no more work for the proc, thus tell him to terminate
       if (masterserver) then
          tag = NO_WORK_LEFT
          call check_termination(partner)
-         ! don't send too many messages to myself, anyhow, termination master
-         ! has to wait, till all procs got termination send back
+         ! don't send too many messages to myself, anyhow, termination
+         ! master has to wait, till all procs got termination send
+         ! back
          if (partner == termination_master) then
            call th_mutex_unlock(LOCK_JS)
            return
          endif
       endif
-      !!! end variant with master
+      ! end variant with master
       g_jobs = set_empty_job()
     else ! take the last w jobs of the job-storage
       call split_at(job_storage(JLEFT) + w, job_storage, g_jobs, remaining)
@@ -202,8 +205,9 @@ module dlb_impl_thread_common
   end subroutine divide_jobs
 
   subroutine check_termination(proc)
-    !  Purpose: only on termination_master, checks if all procs
-    !           have reported termination
+    !
+    !  Purpose: only on termination_master, checks if all procs have
+    !           reported termination
     !
     ! Context: mailbox thread. (termination master only)
     !          2 Threads: secretary thread
@@ -222,22 +226,24 @@ module dlb_impl_thread_common
     !------------ Executable code --------------------------------
     if (.not. has_last_done(proc)) RETURN
 
-    ! there will be only a send to the other procs, telling them to terminate
-    ! thus the termination_master sets its termination here
+    ! there will be only a send to the other procs, telling them to
+    ! terminate thus the termination_master sets its termination here
     call print_statistics()
     call wrlock()
     terminated = .true.
     call unlock()
 
-    ! masterserver handles termination seperatly, this here is only for its own termination
-    ! I'm not sure what MPI does with requests of the size 0, thus quit if there is only one
-    ! processor
+    ! masterserver handles termination seperatly, this here is only
+    ! for its own termination I'm not sure what MPI does with requests
+    ! of the size 0, thus quit if there is only one processor
     if (.not. (masterserver .or. n_procs == 1)) call send_termination()
 
   end subroutine check_termination
 
   logical function termination()
-    ! Purpose: make lock around terminated, but have it as one function
+    !
+    ! Purpose: make lock around terminated, but have it as one
+    ! function
     !
     ! Context: main, control, and mailbox threads.
     !          2 threads: main and secretary thread
@@ -261,18 +267,23 @@ module dlb_impl_thread_common
    end subroutine end_threads
 
   subroutine clear_up(my_last, last_proc, arrived, requ)
-    ! Purpose: clear_up will finish the still outstanding communications of the
-    !          thread variants, after the flag termination was set. The most computational
-    !          costy part of this is a MPI_ALLGATHER.
-    !          Each proc tells threre from which proc he waits for an answer and gives the
-    !          number of his message counter to this proc. This number tells the other proc,
-    !          if he has already answered, but the answer has not yet arrived, or if he has
-    !          to really wait for the message. If every proc now on how many messages he has to
-    !          wait, he does so (responds if neccessary) and finishes.
-    !          A MPI_barrier in the main code ensures, that he will not get messges belonging
-    !          to the next mpi cycle.
-    ! Context for 3Threads: mailbox thread.
+    !
+    ! Purpose:   clear_up   will    finish   the   still   outstanding
+    !   communications  of   the  thread  variants,   after  the  flag
+    !   termination  was set.   The most  computational costy  part of
+    !   this is  a MPI_ALLGATHER.  Each  proc tells threre  from which
+    !   proc  he waits  for  an answer  and  gives the  number of  his
+    !   message  counter to  this proc.  This number  tells  the other
+    !   proc, if he  has already answered, but the  answer has not yet
+    !   arrived,  or if he  has to  really wait  for the  message.  If
+    !   every proc now on how many messages he has to wait, he does so
+    !   (responds if  neccessary) and finishes.  A  MPI_barrier in the
+    !   main code ensures,  that he will not get  messges belonging to
+    !   the next mpi cycle.
+    !
+    ! Context for 3 Threads: mailbox thread.
     !             2 Threads: secretary thread
+    !
     USE_MPI, only: MPI_IN_PLACE, MPI_DATATYPE_NULL, MPI_INTEGER4, &
          MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_TAG, MPI_SOURCE, MPI_STATUS_SIZE, &
          MPI_SUCCESS
@@ -310,7 +321,8 @@ module dlb_impl_thread_common
       endif
     enddo
 
-    ! Cycle over all left messages, blocking MPI_RECV, as there is nothing else to do
+    ! Cycle over all left messages, blocking MPI_RECV, as there is
+    ! nothing else to do
     do i = 1, count_req
         call recv(message_r, MPI_ANY_SOURCE, MPI_ANY_TAG, stat)
         select case(stat(MPI_TAG))
