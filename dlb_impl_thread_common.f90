@@ -284,12 +284,13 @@ module dlb_impl_thread_common
     ! Context for 3 Threads: mailbox thread.
     !             2 Threads: secretary thread
     !
-    USE_MPI, only: MPI_IN_PLACE, MPI_DATATYPE_NULL, MPI_INTEGER4, &
+    USE_MPI, only: MPI_IN_PLACE, MPI_DATATYPE_NULL, &
          MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_TAG, MPI_SOURCE, MPI_STATUS_SIZE, &
          MPI_SUCCESS
     use dlb_common, only: comm_world, my_rank
     use dlb_common, only: WORK_DONAT, WORK_REQUEST
     use dlb_common, only: end_requests, isend, recv
+    use dlb_common, only: i4_kind_mpi
     implicit none
     integer(kind=i4_kind), intent(in) :: my_last(:), arrived(:), last_proc
     integer, allocatable  :: requ(:)
@@ -306,7 +307,7 @@ module dlb_impl_thread_common
     if (last_proc > -1) then
         rec_buff(2 * my_rank + 2) = my_last(last_proc + 1) ! the request number I sended to him
     endif
-    call MPI_ALLGATHER(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rec_buff, 2, MPI_INTEGER4, comm_world, ierr)
+    call MPI_ALLGATHER(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rec_buff, 2, i4_kind_mpi, comm_world, ierr)
     ASSERT(ierr==MPI_SUCCESS)
     count_req = 0
 

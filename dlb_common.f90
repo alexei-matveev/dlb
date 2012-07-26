@@ -67,7 +67,11 @@ module dlb_common
   public :: print_statistics
   public :: dlb_timers
   ! integer with 4 bytes, range 9 decimal digits
-  integer, parameter, public :: i4_kind = selected_int_kind(9)
+  integer, parameter :: kind_of_i4_kind = 9
+  integer, parameter, public :: i4_kind = selected_int_kind(kind_of_i4_kind)
+  ! MPI has its own convention for types, it needs its own
+  ! version of the integer to send
+  integer, public, protected :: i4_kind_mpi
 
   ! integer with 8 bytes, range 9 decimal digits
   integer, parameter, public :: i8_kind = selected_int_kind(18)
@@ -300,6 +304,8 @@ contains
     call MPI_COMM_SIZE(comm_world, n_procs, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
+    call MPI_TYPE_CREATE_F90_INTEGER(kind_of_i4_kind, i4_kind_mpi, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
     !
     ! FIXME: This is just a choice, not a requirement, right?
     !
@@ -1043,7 +1049,7 @@ contains
 
     ASSERT(size(buf)==JLENGTH)
 
-    call MPI_ISEND(buf, size(buf), MPI_INTEGER4, rank, tag, comm_world, req, ierr)
+    call MPI_ISEND(buf, size(buf), i4_kind_mpi, rank, tag, comm_world, req, ierr)
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine isend
 
@@ -1077,7 +1083,7 @@ contains
 
     ASSERT(size(buf)==JLENGTH)
 
-    call MPI_RECV(buf, size(buf), MPI_INTEGER4, rank, tag, comm_world, stat, ierr)
+    call MPI_RECV(buf, size(buf), i4_kind_mpi, rank, tag, comm_world, stat, ierr)
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine recv
 

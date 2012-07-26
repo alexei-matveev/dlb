@@ -97,6 +97,7 @@ module dlb_impl
   use dlb_common, only: max_work, last_work, average_work, num_jobs
   use dlb_common, only: dlb_time, min_work, second_last_work
   use dlb_common, only: timer_give_more, timer_give_more_last
+  use dlb_common, only: i4_kind_mpi
   implicit none
   save            ! save all variables defined in this module
   private         ! by default, all names are private
@@ -164,7 +165,7 @@ contains
 
     ! find out, how much there is to store and allocate (with MPI) the
     ! memory
-    call MPI_TYPE_EXTENT(MPI_INTEGER4, sizeofint, ierr)
+    call MPI_TYPE_EXTENT(i4_kind_mpi, sizeofint, ierr)
 
     jobs_len = JLENGTH + n_procs
     size_alloc = jobs_len * sizeofint
@@ -689,20 +690,20 @@ contains
     ! the same lock area
 
     N =  my_rank + JLENGTH ! Number of tasks to get before own lock place
-    call MPI_GET(win_data(1:N), N, MPI_INTEGER4, rank, zero, N, MPI_INTEGER4, win, ierr)
+    call MPI_GET(win_data(1:N), N, i4_kind_mpi, rank, zero, N, i4_kind_mpi, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
     ! get all after my own lock ...{my_lock}]...]
     displacement = my_rank + JLENGTH + 1
     N = (jobs_len-JLENGTH) - my_rank - 1
-    call MPI_GET(win_data(jobs_len-N+1:jobs_len), N, MPI_INTEGER4, rank, displacement, &
-                   N, MPI_INTEGER4, win, ierr)
+    call MPI_GET(win_data(jobs_len-N+1:jobs_len), N, i4_kind_mpi, rank, displacement, &
+                N, i4_kind_mpi, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
     ! set my own lock ...[{my_lock}]...
     N = 1
     displacement = my_rank + JLENGTH ! for getting it in the correct kind
-    call MPI_PUT(ON, N, MPI_INTEGER4, rank, displacement, N, MPI_INTEGER4, win, ierr)
+    call MPI_PUT(ON, N, i4_kind_mpi, rank, displacement, N, i4_kind_mpi, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
     call MPI_WIN_UNLOCK(rank, win, ierr)
@@ -745,7 +746,7 @@ contains
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    call MPI_PUT(zeros, size(zeros), MPI_INTEGER4, rank, displacement, size(zeros), MPI_INTEGER4, win, ierr)
+    call MPI_PUT(zeros, size(zeros), i4_kind_mpi, rank, displacement, size(zeros), i4_kind_mpi, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
     call MPI_WIN_UNLOCK(rank, win, ierr)
@@ -794,7 +795,7 @@ contains
     if (rank == my_rank) then
       job_storage = win_data
     else
-      call MPI_PUT(win_data, size(win_data), MPI_INTEGER4, rank, zero, size(win_data), MPI_INTEGER4, win, ierr)
+      call MPI_PUT(win_data, size(win_data), i4_kind_mpi, rank, zero, size(win_data), i4_kind_mpi, win, ierr)
       ASSERT(ierr==MPI_SUCCESS)
     endif
 
