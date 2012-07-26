@@ -16,7 +16,8 @@ module dlb
 !
 !  Interface:
 !
-!           call dlb_init() - once before first access
+!           call dlb_init(world) - once before first access
+!                 world is an integer specifying an MPI_WORLD
 !
 !           call dlb_finalize() - once after last access
 !
