@@ -670,13 +670,13 @@ contains
 
     integer(i4_kind)          :: ierr
     integer(i4_kind), target  :: win_data(jobs_len) ! FIXME: why target?
-    integer(i4_kind), target  :: win_data2(jobs_len-JLENGTH -my_rank -1)
+    integer(i4_kind)          :: N
     integer(MPI_ADDRESS_KIND) :: displacement
     integer(MPI_ADDRESS_KIND), parameter :: zero = 0
 
     ASSERT(size(jobs)==JLENGTH)
 
-    ! First GET-PUT round, MPI only ensures taht after MPI_UNLOCK the
+    ! First GET-PUT round, MPI only ensures that after MPI_UNLOCK the
     ! MPI-RMA accesses are finished, thus modify has to be done out of
     ! this lock There are two function calls inside: one to get the
     ! data and check if it may be accessed second one to show to other
@@ -685,33 +685,29 @@ contains
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    ! consider that my_rank starts with 0
+    ! divide the storage in pieces to avoid illegal two operations on the same storage in
+    ! the same lock area
+
+    N =  my_rank + JLENGTH ! Number of tasks to get before own lock place
+    call MPI_GET(win_data(1:N), N, MPI_INTEGER4, rank, zero, N, MPI_INTEGER4, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+
+    ! get all after my own lock ...{my_lock}]...]
+    displacement = my_rank + JLENGTH + 1
+    N = (jobs_len-JLENGTH) - my_rank - 1
+    call MPI_GET(win_data(jobs_len-N+1:jobs_len), N, MPI_INTEGER4, rank, displacement, &
+                   N, MPI_INTEGER4, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
+
+    ! set my own lock ...[{my_lock}]...
+    N = 1
     displacement = my_rank + JLENGTH ! for getting it in the correct kind
-
-    ! get all before my own lock
-    call MPI_GET(win_data, displacement, MPI_INTEGER4, rank, zero, displacement, MPI_INTEGER4, win, ierr)
+    call MPI_PUT(ON, N, MPI_INTEGER4, rank, displacement, N, MPI_INTEGER4, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
-
-    ! set my own lock
-    call MPI_PUT(ON, 1, MPI_INTEGER4, rank, displacement, 1, MPI_INTEGER4, win, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
-
-    displacement = displacement +1
-    ! get all after my own lock (but only if I'm not the last one) as
-    ! size(win_data2) has been given correctly, this should be no
-    ! problem
-    if (size(win_data2) > 0) then
-        call MPI_GET(win_data2, size(win_data2), MPI_INTEGER4, rank, displacement, &
-                       size(win_data2), MPI_INTEGER4, win, ierr)
-        ASSERT(ierr==MPI_SUCCESS)
-    endif
 
     call MPI_WIN_UNLOCK(rank, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    if (size(win_data2) > 0) then
-        win_data(displacement + 1:) = win_data2
-    endif
     win_data(my_rank + 1 + JLENGTH) = OFF
 
     !
