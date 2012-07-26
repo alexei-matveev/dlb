@@ -97,13 +97,13 @@ module dlb_impl
   use dlb_common, only: max_work, last_work, average_work, num_jobs
   use dlb_common, only: dlb_time, min_work, second_last_work
   use dlb_common, only: timer_give_more, timer_give_more_last
-  use dlb_common, only: i4_kind_mpi
+  use dlb_common, only: i4_kind_mpi, i4_kind_1
   implicit none
   save            ! save all variables defined in this module
   private         ! by default, all names are private
   !== Interrupt end of public interface of module =================
   ! Program from outside might want to know the thread-safety-level required form DLB
-  integer(kind=i4_kind), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_SINGLE
+  integer(kind=i4_kind_1), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_SINGLE
 
   !------------ public functions and subroutines ------------------
   public :: dlb_init, dlb_finalize, dlb_setup, dlb_give_more
@@ -117,7 +117,7 @@ module dlb_impl
   !------------ Declaration of constants and variables ----
   integer(kind=i4_kind), parameter  :: ON = 1, OFF = 0 ! For read-modify-write
   integer(kind=i4_kind)             :: jobs_len  ! Length of complete jobs storage
-  integer(kind=i4_kind)            :: win ! for the RMA object
+  integer(kind=i4_kind_1)            :: win ! for the RMA object
 
   ! Read Modify Write Error codes:
   integer(kind=i4_kind), parameter  :: RMW_SUCCESS = 0
@@ -130,7 +130,7 @@ module dlb_impl
   integer(kind=i4_kind)             :: already_done ! stores how many jobs the proc has done from
                                       ! the current interval
   logical                           :: terminated!, finishedjob ! for termination algorithm
-  integer(kind=i4_kind),allocatable :: requ2(:) ! requests of send are stored till relaese
+  integer(kind=i4_kind_1),allocatable :: requ2(:) ! requests of send are stored till relaese
   ! Variables need for debug and efficiency testing
   integer(kind=i4_kind)             :: many_tries, many_searches !how many times asked for jobs
   integer(kind=i4_kind)             :: many_locked, many_zeros, self_many_locked
@@ -153,11 +153,12 @@ contains
     use dlb_common, only: dlb_common_init, OUTPUT_BORDER
     use dlb_common, only: set_empty_job
     implicit none
-    integer, intent(in) :: world
+    integer(kind=i4_kind_1), intent(in) :: world
     ! *** end of interface ***
 
     type(c_ptr) :: c_job_pointer ! needed for MPI RMA handling (for c pseudo pointer)
-    integer(kind=i4_kind)                :: ierr, sizeofint
+    integer(kind=i4_kind_1)              :: sizeofint
+    integer(kind=i4_kind_1)              :: ierr
     integer(kind=MPI_ADDRESS_KIND)       :: size_alloc, size_all
 
     ! some aliases, highly in use during the whole module
@@ -166,6 +167,7 @@ contains
     ! find out, how much there is to store and allocate (with MPI) the
     ! memory
     call MPI_TYPE_EXTENT(i4_kind_mpi, sizeofint, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
 
     jobs_len = JLENGTH + n_procs
     size_alloc = jobs_len * sizeofint
@@ -217,7 +219,7 @@ contains
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr
+    integer(kind=i4_kind_1)              :: ierr
     !------------ Executable code --------------------------------
 
     call MPI_WIN_FENCE(0, win, ierr)
@@ -257,11 +259,13 @@ contains
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(i4_kind) :: rank, ierr
+    integer(i4_kind_1) :: rank
+    integer(i4_kind_1) :: ierr
     integer(i4_kind) :: jobs(JLENGTH)
     integer(i4_kind) :: stolen_jobs(JLENGTH)
     integer(i4_kind) :: local_jobs(JLENGTH)
     integer(i4_kind) :: ok
+    integer(i4_kind_1) :: owner
     logical          :: ok_logical
     double precision                     :: start_timer
     double precision                     :: start_timer_gm
@@ -308,7 +312,8 @@ contains
         !
         many_searches = many_searches + 1 ! just for debugging
         call read_unsafe(my_rank, jobs)
-        call report_or_store(jobs(JOWNER), already_done)
+        owner = jobs(JOWNER)
+        call report_or_store(owner, already_done)
         already_done = 0
 
         !
@@ -437,9 +442,10 @@ contains
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: stat(MPI_STATUS_SIZE)
+    integer(kind=i4_kind_1)              :: stat(MPI_STATUS_SIZE)
     integer(kind=i4_kind)                :: message(JLENGTH)
-    integer(kind=i4_kind)                :: src, tag
+    integer(kind=i4_kind_1)              :: src, tag
+    integer(kind=i4_kind_1)              :: your_rank
     !------------ Executable code --------------------------------
 
     ! check for any message
@@ -476,7 +482,8 @@ contains
             ! finished responsibility
             ASSERT(my_rank==termination_master)
 
-            call check_termination(message(1))
+            your_rank = message(1)
+            call check_termination(your_rank)
 
         case ( NO_WORK_LEFT )
             ! termination message from termination master
@@ -511,7 +518,7 @@ contains
     use dlb_common, only: print_statistics
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in)    :: proc
+    integer(kind=i4_kind_1), intent(in)    :: proc
     !** End of interface *****************************************
 
     if (.not. has_last_done(proc)) RETURN
@@ -540,7 +547,7 @@ contains
     !
     use dlb_common, only: report_to, reports_pending, send_resp_done
     implicit none
-    integer(i4_kind), intent(in) :: owner
+    integer(i4_kind_1), intent(in) :: owner
     integer(i4_kind), intent(in) :: num_jobs_done
     !** End of interface *****************************************
 
@@ -577,7 +584,8 @@ contains
     !
     use dlb_common, only: set_empty_job
     implicit none
-    integer(i4_kind), intent(in)  :: rank, iarg
+    integer(i4_kind_1), intent(in):: rank
+    integer(i4_kind), intent(in)  :: iarg
     integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
     integer(i4_kind)              :: error ! resulting error code 0 == success
     !
@@ -664,14 +672,13 @@ contains
     use dlb_common, only: my_rank, n_procs
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(i4_kind), intent(in)  :: rank
+    integer(i4_kind_1), intent(in)  :: rank
     integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
     integer(i4_kind)              :: error ! error code
     ! *** end of interface ***
-
-    integer(i4_kind)          :: ierr
+    integer(i4_kind_1)          :: N
+    integer(i4_kind_1)        :: ierr
     integer(i4_kind), target  :: win_data(jobs_len) ! FIXME: why target?
-    integer(i4_kind)          :: N
     integer(MPI_ADDRESS_KIND) :: displacement
     integer(MPI_ADDRESS_KIND), parameter :: zero = 0
 
@@ -688,11 +695,11 @@ contains
 
     ! divide the storage in pieces to avoid illegal two operations on the same storage in
     ! the same lock area
-
+    ! consider that my_rank starts with 0
+    ! get all before my own lock [...[{my_lock}...
     N =  my_rank + JLENGTH ! Number of tasks to get before own lock place
     call MPI_GET(win_data(1:N), N, i4_kind_mpi, rank, zero, N, i4_kind_mpi, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
-
     ! get all after my own lock ...{my_lock}]...]
     displacement = my_rank + JLENGTH + 1
     N = (jobs_len-JLENGTH) - my_rank - 1
@@ -710,7 +717,6 @@ contains
     ASSERT(ierr==MPI_SUCCESS)
 
     win_data(my_rank + 1 + JLENGTH) = OFF
-
     !
     ! Check if there are any procs, saying that they want to acces the
     ! memory
@@ -734,10 +740,10 @@ contains
     !
     use dlb_common, only: n_procs
     implicit none
-    integer(i4_kind), intent(in) :: rank
+    integer(i4_kind_1), intent(in) :: rank
     ! *** end of interface ***
 
-    integer(i4_kind) :: ierr
+    integer(i4_kind_1) :: ierr
     integer(i4_kind), target :: zeros(n_procs) ! FIXME: why target?
     integer(MPI_ADDRESS_KIND), parameter :: displacement = JLENGTH ! long int
 
@@ -759,11 +765,11 @@ contains
     ! lock.
     !
     implicit none
-    integer(i4_kind), intent(in) :: rank
+    integer(i4_kind_1), intent(in) :: rank
     integer(i4_kind), intent(in) :: jobs(:)
     ! *** end of interface ***
 
-    integer(i4_kind)          :: ierr
+    integer(i4_kind_1)        :: ierr
     integer(i4_kind), target  :: win_data(jobs_len) ! FIXME: why target?
     integer(MPI_ADDRESS_KIND), parameter :: zero = 0
     !------------ Executable code --------------------------------
@@ -809,11 +815,11 @@ contains
     !
     use dlb_common, only: my_rank
     implicit none
-    integer(i4_kind), intent(in)  :: rank
+    integer(i4_kind_1), intent(in)  :: rank
     integer(i4_kind), intent(out) :: jobs(JLENGTH)
     ! *** end of interface ***
 
-    integer(i4_kind) :: ierr
+    integer(i4_kind_1) :: ierr
 
     !
     ! FIXME: so far only used to store into the local datastructure:
@@ -836,10 +842,11 @@ contains
     !
     use dlb_common, only: my_rank
     implicit none
-    integer(i4_kind), intent(in) :: rank, jobs(:)
+    integer(i4_kind_1), intent(in) :: rank
+    integer(i4_kind), intent(in)   :: jobs(:)
     ! *** end of interface ***
 
-    integer(i4_kind) :: ierr
+    integer(i4_kind_1) :: ierr
 
     !
     ! FIXME: so far only used to store into the local datastructure:
@@ -909,7 +916,7 @@ contains
   logical function storage_is_empty(rank)
     use dlb_common, only: empty, JLENGTH
     implicit none
-    integer(i4_kind), intent(in) :: rank
+    integer(i4_kind_1), intent(in) :: rank
     ! *** end of interface ***
 
     integer(i4_kind) :: jobs(JLENGTH)

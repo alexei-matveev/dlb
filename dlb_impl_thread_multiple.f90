@@ -91,6 +91,7 @@ module dlb_impl
   !----------------------------------------------------------------
 # include "dlb.h"
   use dlb_common, only: i4_kind, comm_world
+  use dlb_common, only: i4_kind_1
   use dlb_common, only: time_stamp ! for debug only
   use dlb_common, only: add_request, test_requests, end_requests, send_resp_done
   use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT
@@ -113,7 +114,7 @@ module dlb_impl
   private         ! by default, all names are private
   !== Interrupt end of public interface of module =================
   ! Program from outside might want to know the thread-safety-level required form DLB
-  integer(kind=i4_kind), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_MULTIPLE
+  integer(kind=i4_kind_1), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_MULTIPLE
 
   !------------ public functions and subroutines ------------------
   public :: dlb_init, dlb_finalize, dlb_setup, dlb_give_more
@@ -132,18 +133,18 @@ module dlb_impl
 
   !------------ Declaration of constants and variables ----
   ! IDs of mutexes, use base-0 indices:
-  integer(kind=i4_kind), parameter :: LOCK_NJ   = 1
+  integer(kind=i4_kind_1), parameter :: LOCK_NJ   = 1
 
   ! IDs for condition variables, use base-0 indices:
-  integer(kind=i4_kind), parameter :: COND_JS_UPDATE  = 0
-  integer(kind=i4_kind), parameter :: COND_NJ_UPDATE  = 1
-  integer(kind=i4_kind), parameter :: COND_JS2_UPDATE = 2
+  integer(kind=i4_kind_1), parameter :: COND_JS_UPDATE  = 0
+  integer(kind=i4_kind_1), parameter :: COND_NJ_UPDATE  = 1
+  integer(kind=i4_kind_1), parameter :: COND_JS2_UPDATE = 2
 
   ! thread IDs, use base-0 indices:
-  integer(kind=i4_kind), parameter :: MAILBOX = 0
-  integer(kind=i4_kind), parameter :: CONTROL = 1
+  integer(kind=i4_kind_1), parameter :: MAILBOX = 0
+  integer(kind=i4_kind_1), parameter :: CONTROL = 1
 
-   ! for the complete termination, count_ask will be filled by CONTROL and interpreted by MAILBOX, proc_asked_last 
+   ! for the complete termination, count_ask will be filled by CONTROL and interpreted by MAILBOX, proc_asked_last
    ! is used by both of them
    integer(kind=i4_kind),allocatable    :: count_ask(:)
    integer(kind=i4_kind)                :: proc_asked_last
@@ -379,8 +380,8 @@ contains
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, alloc_stat
-    integer(kind=i4_kind),allocatable    :: requ_m(:) !requests storages for MAILBOX
+    integer(kind=i4_kind_1)              :: ierr, alloc_stat
+    integer(kind=i4_kind_1),allocatable  :: requ_m(:) !requests storages for MAILBOX
     integer(kind=i4_kind)                :: lm_source(n_procs) ! remember which job request
                                                    ! I got
     !------------ Executable code --------------------------------
@@ -446,12 +447,14 @@ contains
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: v, ierr, stat(MPI_STATUS_SIZE)
+    integer(kind=i4_kind_1)              :: ierr, stat(MPI_STATUS_SIZE)
+    integer(kind=i4_kind_1)              :: v
     integer(kind=i4_kind)                :: message(JLENGTH) ! there will be always
                                                  ! only one job request around, thus saved
-    integer(kind=i4_kind)                :: requ_wr
+    integer(kind=i4_kind_1)              :: requ_wr
+    integer(kind=i4_kind_1)              :: owner
     integer(kind=i4_kind)                :: my_jobs(JLENGTH)
-    integer(kind=i4_kind),allocatable    :: requ_c(:) !requests storages for CONTROL
+    integer(kind=i4_kind_1),allocatable  :: requ_c(:) !requests storages for CONTROL
     double precision :: timestart, timeend
     !------------ Executable code --------------------------------
     many_tries = 0
@@ -477,7 +480,8 @@ contains
         ! not if masterserver is wanted, then there is no need for the termination algorithm, master knows
         ! where are all jobs by its own
         if (.not. masterserver) then
-           call report_or_store(job_storage(JOWNER), already_done, requ_c)
+           owner = job_storage(JOWNER)
+           call report_or_store(owner, already_done, requ_c)
            already_done = 0
         endif
 
@@ -587,12 +591,14 @@ contains
     use dlb_common, only: recv
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(i4_kind), intent(in) :: src, tag ! MPI_ANY_SOURCE, MPI_ANY_TAG
-    integer, allocatable :: requ_m(:)
+    integer(i4_kind_1), intent(in) :: src, tag ! MPI_ANY_SOURCE, MPI_ANY_TAG
+    integer(i4_kind_1), allocatable :: requ_m(:)
     integer(kind=i4_kind), intent(inout) :: lm_source(:)
     !** End of interface *****************************************
 
-    integer(i4_kind) :: message(JLENGTH), stat(MPI_STATUS_SIZE)
+    integer(i4_kind) :: message(JLENGTH)
+    integer(i4_kind_1) :: stat(MPI_STATUS_SIZE)
+    integer(i4_kind_1) :: your_rank
     integer(i4_kind) :: pending
 
     call recv(message, src, tag, stat)
@@ -624,7 +630,8 @@ contains
           stop "my_rank /= termination_master"
       endif
 
-      call check_termination(message(1))
+      your_rank = message(1)
+      call check_termination(your_rank)
 
     case (NO_WORK_LEFT) ! termination message from termination master
       ASSERT(message(1)==0)
@@ -643,7 +650,7 @@ contains
       new_jobs = message(:)
       proc_asked_last = -1 ! set back, which proc to wait for
       call th_cond_signal(COND_NJ_UPDATE)
-      call th_mutex_unlock( LOCK_NJ)  
+      call th_mutex_unlock( LOCK_NJ)
 
     case (WORK_REQUEST) ! other proc wants something from my jobs
       count_requests = count_requests + 1
@@ -651,6 +658,7 @@ contains
       ! status of the last messages on their way
       lm_source(stat(MPI_SOURCE)+1) = message(1)
 
+      ! consider the kind of the integer
       call divide_jobs(stat(MPI_SOURCE), requ_m)
 
     case default
@@ -720,9 +728,9 @@ contains
     use dlb_common, only: report_to, reports_pending
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(i4_kind), intent(in)   :: owner
+    integer(i4_kind_1), intent(in)   :: owner
     integer(i4_kind), intent(in)   :: num_jobs_done
-    integer(i4_kind), allocatable  :: requ(:)
+    integer(i4_kind_1), allocatable  :: requ(:)
     !** End of interface *****************************************
 
     integer(i4_kind) :: pending

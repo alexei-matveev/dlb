@@ -3,6 +3,7 @@ program main
 
 use dlb, only: dlb_init, dlb_finalize, dlb_setup, dlb_give_more
 use dlb, only: DLB_THREAD_REQUIRED, dlb_print_statistics
+use dlb, only: idlb_kind
 use test, only: echo
 # include "dlb.h"
 USE_MPI
@@ -11,8 +12,8 @@ use dlb_common, only: time_stamp ! for debug prints
 implicit none
 !include 'mpif.h'
 
-integer            :: NJOBS = -1 ! see default string in get_args(njobs)
-integer, parameter :: MAXJOBS = 1
+integer(kind=idlb_kind) :: NJOBS = -1 ! see default string in get_args(njobs)
+integer(kind=idlb_kind), parameter :: MAXJOBS = 1
 integer, parameter :: NTIMES = 3
 
 integer :: rank, n_procs
@@ -25,7 +26,7 @@ double precision, allocatable :: times(:, :)
 integer, allocatable :: jobs_done(:)
 integer, allocatable :: sub_total(:)
 
-integer :: interval(2)
+integer(kind=idlb_kind) :: interval(2)
 
 !call sleep(30)
 
@@ -165,7 +166,7 @@ contains
 
   subroutine get_args(njobs)
     implicit none
-    integer, intent(out) :: njobs
+    integer(kind=idlb_kind), intent(out) :: njobs
     ! *** end of interface ***
 
     character(len=128) :: arg

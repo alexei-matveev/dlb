@@ -40,6 +40,7 @@ pthread_rwlock_t rwlocks[NRWLOCKS];
 void th_inits()
 {
   int rc;
+  int i;
   pthread_mutexattr_t mutex_attr;
   pthread_condattr_t cond_attr;
   pthread_rwlockattr_t rwlock_attr;
@@ -51,7 +52,7 @@ void th_inits()
   rc = pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_PRIVATE);
   assert(!rc);
 
-  for (int i = 0; i < NMUTEXES; i++) {
+  for ( i = 0; i < NMUTEXES; i++) {
     rc = pthread_mutex_init(&mutexes[i], &mutex_attr);
     assert(!rc);
   }
@@ -67,11 +68,11 @@ void th_inits()
   assert(!rc);
 
 
-  for (int i = 0; i < NTHREADS; i++) {
+  for ( i = 0; i < NTHREADS; i++) {
     active_threads[i] = 0;
     }
 
-  for (int i = 0; i < NCONDS; i++) {
+  for ( i = 0; i < NCONDS; i++) {
     rc = pthread_cond_init(&conds[i], &cond_attr);
     assert(!rc);
     cond_active[i] = 0; // meaning false
@@ -84,7 +85,7 @@ void th_inits()
   rc = pthread_rwlockattr_init(&rwlock_attr);
   assert(!rc);
 
-  for (int i = 0; i < NRWLOCKS; i++) {
+  for ( i = 0; i < NRWLOCKS; i++) {
     rc = pthread_rwlock_init(&rwlocks[i], &rwlock_attr);
     assert(!rc);
   }
@@ -152,10 +153,11 @@ void th_exit()
 void th_join_all()
 {
   int rc;
+  int i;
   void *status;
 
 
-  for (int i = 0; i < NTHREADS; i++) {
+  for ( i = 0; i < NTHREADS; i++) {
     if (active_threads[i]) {
       rc = pthread_join(threads[i], &status);
       assert(!rc);

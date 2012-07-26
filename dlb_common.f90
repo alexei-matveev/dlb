@@ -72,6 +72,8 @@ module dlb_common
   ! MPI has its own convention for types, it needs its own
   ! version of the integer to send
   integer, public, protected :: i4_kind_mpi
+  ! for those which will stay 4 bytes no matter what changes around (fro example for statistics)
+  integer, parameter, public :: i4_kind_1 = selected_int_kind(9)
 
   ! integer with 8 bytes, range 9 decimal digits
   integer, parameter, public :: i8_kind = selected_int_kind(18)
@@ -87,15 +89,15 @@ module dlb_common
 
   integer,  public, protected :: comm_world
 
-  integer(kind=i4_kind), parameter, public  :: OUTPUT_BORDER = FPP_OUTPUT_BORDER
+  integer(kind=i4_kind_1), parameter, public  :: OUTPUT_BORDER = FPP_OUTPUT_BORDER
 
-  integer(kind=i4_kind), parameter, public  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 ! message tags
-  integer(kind=i4_kind), parameter, public  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
-  integer(kind=i4_kind), parameter, public  :: JLENGTH = 3 ! Length of a single job in interface
-  integer(kind=i4_kind), parameter, public  :: L_JOB = 2  ! Length of job to give back from interface
-  integer(kind=i4_kind), parameter, public  :: JOWNER = 3 ! Number in job, where rank of origin proc is stored
-  integer(kind=i4_kind), parameter, public  :: JLEFT = 1 ! Number in job, where stp (start point) is stored
-  integer(kind=i4_kind), parameter, public  :: JRIGHT = 2 ! Number in job, where ep (end point) is stored
+  integer(kind=i4_kind_1), parameter, public  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 ! message tags
+  integer(kind=i4_kind_1), parameter, public  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
+  integer(kind=i4_kind_1), parameter, public  :: JLENGTH = 3 ! Length of a single job in interface
+  integer(kind=i4_kind_1), parameter, public  :: L_JOB = 2  ! Length of job to give back from interface
+  integer(kind=i4_kind_1), parameter, public  :: JOWNER = 3 ! Number in job, where rank of origin proc is stored
+  integer(kind=i4_kind_1), parameter, public  :: JLEFT = 1 ! Number in job, where stp (start point) is stored
+  integer(kind=i4_kind_1), parameter, public  :: JRIGHT = 2 ! Number in job, where ep (end point) is stored
 
   ! Variables need for debug and efficiency testing
   ! They are the timers, needed in all variants, in multithreaded variants only
@@ -112,7 +114,7 @@ module dlb_common
     logical, parameter, public :: masterserver = .false.
 #endif
 
-  integer(kind=i4_kind), public, protected :: my_rank, n_procs ! some synonyms, They will be initialized
+  integer(kind=i4_kind_1), public, protected :: my_rank, n_procs ! some synonyms, They will be initialized
                                         !once and afterwards be read only
 
   !
@@ -120,7 +122,7 @@ module dlb_common
   ! and tells everyone to terminate. In case of the variant with master
   ! as server of jobs, its also the master.
   !
-  integer(i4_kind), public, protected :: termination_master
+  integer(i4_kind_1), public, protected :: termination_master
 
   !================================================================
   ! End of public interface of module
@@ -153,7 +155,8 @@ module dlb_common
   !
   integer(i4_kind), allocatable :: reported_to(:) ! (0:n_procs-1)
 
-  integer(kind=i4_kind), allocatable :: messages(:,:), req_dj(:) !need to store the messages for DONE_JOB,
+  integer(kind=i4_kind_1), allocatable :: req_dj(:) !need to store the messages for DONE_JOB,
+  integer(kind=i4_kind), allocatable :: messages(:,:) !need to store the messages for DONE_JOB,
                      ! as they may still be not finished, when the subroutine for generating them is finshed.
                      ! There may be a lot of them, message_on_way keeps track, to whom they are already on their way
                      ! the requests are handeled also separately, as it is needed to know, which one has finsished:
@@ -175,7 +178,7 @@ contains
   subroutine time_stamp(msg, output_level)
     implicit none
     character(len=*), intent(in) :: msg
-    integer(i4_kind), intent(in) :: output_level
+    integer(i4_kind_1), intent(in) :: output_level
     ! *** end of interface ***
 
     double precision :: time
@@ -212,11 +215,11 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(i4_kind), intent(in)  :: output_level
+    integer(i4_kind_1), intent(in)  :: output_level
     !------------ Declaration of local variables -----------------
     double precision, allocatable :: times(:,:), help_arr(:)
     double precision              :: time_singles(12)
-    integer(i4_kind)              :: ierr
+    integer(i4_kind_1)              :: ierr
     ! *** end of interface ***
     ! Return if none output is wanted, then there is also no need to
     ! send the output to the master
@@ -269,7 +272,7 @@ contains
            print *, "  Maximum task on proc min/max        =", minval(times(7,:)) , maxval(times(7,:))
            print *, "  Minimal task on proc min/max        =", minval(times(8,:)) , maxval(times(8,:))
            help_arr = times(9,:) / times(12,:)
-           print *, "4. Average work load (time between the dlb calls / Number of tasks)" 
+           print *, "4. Average work load (time between the dlb calls / Number of tasks)"
            print *, "  Average work load all/min/max       =", sum(times(9,:)) / sum(times(12,:)), minval(help_arr) &
                                                            , maxval(help_arr)
            print *, "5. Complete Time (between dlb_setup and termination)"
@@ -287,10 +290,10 @@ contains
   subroutine dlb_common_init(world)
     ! Intialization of common stuff, needed by all routines
     implicit none
-    integer, intent(in) :: world
+    integer(kind=i4_kind_1) ,  intent(in) :: world
     ! *** end of interface ***
 
-    integer :: ierr, alloc_stat
+    integer(kind=i4_kind_1) :: ierr, alloc_stat
 
     !
     ! Set global communicator as a DUP of the world:
@@ -325,7 +328,7 @@ contains
     implicit none
     ! *** end of interface ***
 
-    integer :: ierr, alloc_stat
+    integer(kind=i4_kind_1) :: ierr, alloc_stat
 
     !
     ! Only on termination master:
@@ -441,8 +444,8 @@ contains
      ! Context: for 3 threads: control thread.
      !          for 2 threads: secretary.
      implicit none
-     integer(i4_kind), intent(in) :: rank, np
-     integer(i4_kind)             :: victim
+     integer(i4_kind_1), intent(in) :: rank, np
+     integer(i4_kind_1)             :: victim
      ! *** end of interface ***
 
      victim = select_victim_random(rank, np)
@@ -475,8 +478,8 @@ contains
      ! Not thread safe! Beware of "save :: seed" without rwlock!
      !
      implicit none
-     integer(i4_kind), intent(in) :: rank, np
-     integer(i4_kind)             :: victim
+     integer(i4_kind_1), intent(in) :: rank, np
+     integer(i4_kind_1)             :: victim
      ! *** end of interface ***
 
      integer(i8_kind), save :: seed = -1
@@ -677,12 +680,13 @@ contains
     ! Locks: none.
     !
     implicit none
-    integer, intent(in) :: req
-    integer, allocatable :: requ(:)
+    integer(i4_kind_1),intent(in) :: req
+    integer(i4_kind_1), allocatable :: requ(:)
     ! *** end of interface ***
 
-    integer, allocatable :: req_int(:)
-    integer :: alloc_stat, len_req
+    integer(i4_kind_1), allocatable :: req_int(:)
+    integer(i4_kind) :: len_req
+    integer(i4_kind_1) :: alloc_stat
 
     len_req = 0
     if (allocated(requ)) then
@@ -711,10 +715,11 @@ contains
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer, allocatable :: requ(:)
-    integer(kind=i4_kind)                :: j,i,req, stat(MPI_STATUS_SIZE), len_req, len_new
-    integer(kind=i4_kind)                :: alloc_stat, ierr
-    integer(kind=i4_kind),allocatable :: requ_int(:)
+    integer(kind=i4_kind_1), allocatable :: requ(:)
+    integer(kind=i4_kind)                :: j,i, len_req, len_new
+    integer(kind=i4_kind_1)                :: req
+    integer(kind=i4_kind_1)                :: alloc_stat, ierr, stat(MPI_STATUS_SIZE)
+    integer(kind=i4_kind_1),allocatable :: requ_int(:)
     logical     :: flag
     logical, allocatable :: finished(:)
     !------------ Executable code --------------------------------
@@ -779,10 +784,10 @@ contains
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer, allocatable :: requ(:)
-    integer(kind=i4_kind)                :: i, ierr
-    integer(kind=i4_kind)                :: alloc_stat
-    integer(kind=i4_kind)                :: stat(MPI_STATUS_SIZE)
+    integer(kind=i4_kind_1), allocatable :: requ(:)
+    integer(kind=i4_kind)                  :: i
+    integer(kind=i4_kind_1)                :: alloc_stat, ierr
+    integer(kind=i4_kind_1)                :: stat(MPI_STATUS_SIZE)
     !------------ Executable code --------------------------------
     if (allocated(requ)) then
       do i = 1, size(requ,1)
@@ -804,9 +809,9 @@ contains
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: i, ierr
-    integer(kind=i4_kind)                :: alloc_stat
-    integer(kind=i4_kind)                :: stat(MPI_STATUS_SIZE)
+    integer(kind=i4_kind)                :: i
+    integer(kind=i4_kind_1)              :: alloc_stat, ierr
+    integer(kind=i4_kind_1)              :: stat(MPI_STATUS_SIZE)
     !------------ Executable code --------------------------------
     do i = 1, size(message_on_way)
       if (message_on_way(i)) then
@@ -853,7 +858,8 @@ contains
     ! scheduled by the source.
     !
     implicit none
-    integer(i4_kind), intent(in) :: n, source
+    integer(i4_kind_1), intent(in) :: source
+    integer(i4_kind), intent(in)   :: n
     ! *** end of interface ***
 
     reported_by(source) = n
@@ -867,9 +873,16 @@ contains
     !
     implicit none
     integer(i4_kind) :: pending
+    integer(i4_kind) :: i
     ! *** end of interface ***
 
-    pending = responsibility - sum(reported_by)
+    pending = responsibility
+    ! I am not sure if sum works for interger8 (and not only "normal" integer)
+    do i = 1, size(reported_by)
+       ! starts with processor 0
+       pending = pending - reported_by(i-1)
+    enddo
+
     ASSERT(pending>=0)
   end function reports_pending
 
@@ -893,11 +906,11 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), allocatable   :: requ(:)
+    integer(kind=i4_kind_1), allocatable :: requ(:)
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: req
+    integer(kind=i4_kind_1)              :: req
     integer(kind=i4_kind), save          :: message(JLENGTH) ! message may only be
      ! changed or rewritten after communication finished, thus it is saved here in order
      ! to still be present when the subroutine finishes
@@ -928,11 +941,12 @@ contains
     !             2 Threads: secretary thread
     !
     implicit none
-    integer(i4_kind), intent(in) :: owner, num_jobs_done
+    integer(i4_kind), intent(in) :: num_jobs_done
+    integer(i4_kind_1), intent(in) :: owner
     !** End of interface *****************************************
 
-    integer(i4_kind) :: ierr, stat(MPI_STATUS_SIZE)
-    integer(i4_kind) :: owner1 ! == owner + 1
+    integer(i4_kind_1) :: ierr, stat(MPI_STATUS_SIZE)
+    integer(i4_kind_1) :: owner1 ! == owner + 1
 
     ! FIXME: for compatibility reasons:
     if ( num_jobs_done == 0 ) then
@@ -992,7 +1006,7 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in)    :: proc
+    integer(kind=i4_kind_1), intent(in)    :: proc
     all_done(proc+1) = .true.
     has_last_done = all(all_done)
   end function has_last_done
@@ -1013,10 +1027,12 @@ contains
     implicit none
     !** End of interface *****************************************
 
-    integer(i4_kind) :: ierr, i
-    integer(i4_kind) :: receiver, message(JLENGTH)
-    integer(i4_kind) :: request(n_procs-1)
-
+    integer(i4_kind_1) :: ierr
+    integer(i4_kind_1)   :: i
+    integer(i4_kind_1)   :: receiver
+    integer(i4_kind)   :: message(JLENGTH)
+    integer(i4_kind_1)   :: request(n_procs-1)
+    integer(kind=i4_kind_1) :: stat(MPI_STATUS_SIZE)
     ASSERT(my_rank==termination_master)
 
     call time_stamp("send termination", 5)
@@ -1031,8 +1047,15 @@ contains
         ! FIXME: the tag is the only useful info sent:
         call isend(message, receiver, NO_WORK_LEFT, request(i+1))
     enddo
-    call MPI_WAITALL(size(request), request, MPI_STATUSES_IGNORE, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
+    ! FIXME: the routine MPI_WAITALL seems to have problems if used for
+    !       requests other than normal integer (and isend insitst to return
+    !       requests of i4_kind). Therefore the call
+    !       call MPI_WAITALL(size(request), request, MPI_STATUSES_IGNORE, ierr)
+    !       does not work for other than i4_kind = integer4
+    do i = 1, n_procs-1
+        call MPI_WAIT(request(i), stat, ierr)
+        ASSERT(ierr==MPI_SUCCESS)
+    enddo
   end subroutine send_termination
 
   subroutine isend(buf, rank, tag, req)
@@ -1041,11 +1064,11 @@ contains
     !
     implicit none
     integer(i4_kind), intent(inout), target :: buf(:) ! (JLENGTH)
-    integer(i4_kind), intent(in)            :: rank, tag
-    integer(i4_kind), intent(out)           :: req
+    integer(i4_kind_1), intent(in)          :: rank, tag
+    integer(i4_kind_1), intent(out)         :: req
     ! *** end of interface ***
 
-    integer(i4_kind) :: ierr
+    integer(i4_kind_1) :: ierr
 
     ASSERT(size(buf)==JLENGTH)
 
@@ -1058,12 +1081,12 @@ contains
     ! Convenience wrapper around MPI_IPROBE
     !
     implicit none
-    integer(i4_kind), intent(in)  :: src, tag
-    integer(i4_kind), intent(out) :: stat(MPI_STATUS_SIZE)
+    integer(i4_kind_1), intent(in)  :: src, tag
+    integer(i4_kind_1), intent(out) :: stat(MPI_STATUS_SIZE)
     logical                       :: ok
     ! *** end of interface ***
 
-    integer(i4_kind) :: ierr
+    integer(i4_kind_1) :: ierr
 
     call MPI_IPROBE(src, tag, comm_world, ok, stat, ierr)
     ASSERT(ierr==MPI_SUCCESS)
@@ -1075,11 +1098,11 @@ contains
     !
     implicit none
     integer(i4_kind), intent(out) :: buf(:) ! (1+JLENGTH)
-    integer(i4_kind), intent(in)  :: rank, tag
-    integer(i4_kind), intent(out) :: stat(MPI_STATUS_SIZE)
+    integer(i4_kind_1), intent(in)  :: rank, tag
+    integer(i4_kind_1), intent(out) :: stat(MPI_STATUS_SIZE)
     ! *** end of interface ***
 
-    integer(i4_kind) :: ierr
+    integer(i4_kind_1) :: ierr
 
     ASSERT(size(buf)==JLENGTH)
 
@@ -1094,7 +1117,7 @@ contains
     !          portion of division by the number of jobs
     implicit none
     integer(i4_kind), intent(in) :: jobs(2)
-    integer(i4_kind), intent(in) :: np
+    integer(i4_kind_1), intent(in) :: np
     integer(i4_kind)             :: n ! result
     !** End of interface *****************************************
 
@@ -1103,7 +1126,7 @@ contains
     if (n > (jobs(2) - jobs(1))) n = 0
   end function divide_work
 
-  function distribute_jobs(N, n_procs, my_rank) result(my_jobs)
+  function distribute_jobs(N, procs, rank) result(my_jobs)
     !  Purpose: given the number of jobs alltogether, decides how many
     !           will be done on each proc and where is start and endpoint
     !           in the global job range, this will be fed directly in
@@ -1113,12 +1136,15 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: N, n_procs, my_rank
+    integer(kind=i4_kind), intent(in   ) :: N
+    integer(kind=i4_kind_1), intent(in ) :: procs, rank
     integer(kind=i4_kind)                :: my_jobs(L_JOB)
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind) :: jobs_per_proc, rest
+    integer(kind=i4_kind) :: jobs_per_proc, rest, n_procs, my_rank
+    n_procs = procs
+    my_rank = rank
 
     jobs_per_proc = N / n_procs * 7 / 10
     my_jobs(JLEFT) = jobs_per_proc * my_rank
@@ -1135,7 +1161,7 @@ contains
     !          take less than half if could not equally divided
     implicit none
     integer(i4_kind), intent(in) :: jobs(2)
-    integer(i4_kind), intent(in) :: np ! unused
+    integer(i4_kind_1), intent(in) :: np ! unused
     integer(i4_kind)             :: n ! result
     !** End of interface *****************************************
 
@@ -1144,7 +1170,7 @@ contains
     n = max(n, 0)
   end function divide_work
 
-  function distribute_jobs(N, n_procs, my_rank) result(my_jobs)
+  function distribute_jobs(N, procs, rank) result(my_jobs)
     !  Purpose: given the number of jobs alltogether, decides how many
     !           will be done on each proc and where is start and endpoint
     !           in the global job range, this will be fed directly in
@@ -1155,13 +1181,17 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: N, n_procs, my_rank
+    integer(kind=i4_kind), intent(in   ) :: N
+    integer(kind=i4_kind_1), intent(in ) :: procs, rank
     integer(kind=i4_kind)                :: my_jobs(L_JOB)
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
+    integer(kind=i4_kind) :: n_procs, my_rank
     integer(kind=i4_kind) :: jobs_per_proc
     integer(kind=i4_kind) :: rest
+    n_procs = procs
+    my_rank = rank
 
     ! jobs_per_proc = minimum number of jobs per processes
     ! first rest jobs will get one more job

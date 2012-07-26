@@ -93,7 +93,7 @@ module dlb
 # include "dlb.h"
 ! Need here some stuff, that is already defined elsewhere
 use dlb_common, only: JLEFT, JRIGHT, L_JOB
-use dlb_common, only: i4_kind
+use dlb_common, only: i4_kind, i4_kind_1
 use dlb_impl, only: DLB_THREAD_REQUIRED
 use dlb_common, only: dlb_timers
 
@@ -112,6 +112,7 @@ public dlb_print_statistics
 ! the distr one has given in dlb_setup_color, start_color is a helper variable
 ! for linking the intern job-numbers (succeeding ones) on the job-ids of the
 ! job distribution
+integer, public, parameter :: idlb_kind = i4_kind
 integer(i4_kind), allocatable :: start_color(:)
 
 ! in the color case one may not be able to hand over all jobs at once, thus store them here
@@ -124,7 +125,7 @@ contains
     !------------ Modules used ------------------- ---------------
     use dlb_impl, only: dlb_impl_init => dlb_init
     implicit none
-    integer, intent(in) :: world
+    integer(i4_kind_1), intent(in) :: world
     !** End of interface *****************************************
 
     call dlb_impl_init(world)
@@ -135,10 +136,11 @@ contains
     !  Purpose: cleaning up everything, after last call
     !------------ Modules used ------------------- ---------------
     use dlb_impl, only: dlb_impl_finalize => dlb_finalize
+    use dlb_common, only: i4_kind_1
     implicit none
     ! *** end of interface ***
 
-    integer(i4_kind)              :: ierr
+    integer(i4_kind_1)              :: ierr
 
     !
     ! Only if colored-version was in use:
@@ -178,13 +180,15 @@ contains
     !           version with color distinguishing, thus the distribution
     !           of the jobs over the color have to be given
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: i4_kind_1
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: N(:)
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: ierr, i
+    integer(kind=i4_kind_1)              :: ierr
+    integer(kind=i4_kind)                :: i, number_jobs
 
     if (allocated(start_color)) then
       deallocate(start_color, stat = ierr)
@@ -209,7 +213,8 @@ contains
     !
     ! Internally jobs are treated as equal by DLB:
     !
-    call dlb_setup(sum(N))
+    number_jobs = sum(N)
+    call dlb_setup(number_jobs)
   end subroutine dlb_setup_color
 
   logical function dlb_give_more(n, my_job)
@@ -238,6 +243,7 @@ contains
     !  that the jobs given back all have the same color
     !  it keeps other colored jobs in its own storage
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: i4_kind_1
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
@@ -246,7 +252,8 @@ contains
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: i,  w, jobs_all, jobs_color, ierr
+    integer(kind=i4_kind)                :: i,  w, jobs_all, jobs_color
+    integer(kind=i4_kind_1)              :: ierr
 
     if (current_jobs(JLEFT) < current_jobs(JRIGHT)) then
         ! some are left over from the last time:
@@ -308,9 +315,10 @@ contains
     !          The static backend provides only support for up to output_level 1
     !          Output for higher output level will be start values (0 or infinity)
     !------------ Modules used ------------------- ---------------
+    use dlb_common, only: i4_kind_1
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(i4_kind), intent(in)  :: output_level
+    integer(i4_kind_1), intent(in)  :: output_level
     !------------ Declaration of local variables -----------------
     call dlb_timers(output_level)
   end subroutine dlb_print_statistics

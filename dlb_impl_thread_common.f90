@@ -7,6 +7,7 @@ module dlb_impl_thread_common
   use dlb_common, only: JLENGTH, JRIGHT, JLEFT, NO_WORK_LEFT
   use dlb_common, only: has_last_done, set_empty_job, add_request, send_termination
   use dlb_common, only: masterserver
+  use dlb_common, only: i4_kind_1
   implicit none
 
   interface
@@ -86,7 +87,7 @@ module dlb_impl_thread_common
   !------------ Declaration of constants and variables ----
   integer(kind=i4_kind), parameter, public  :: JOBS_LEN = JLENGTH  ! Length of complete jobs storage
   ! IDs of mutexes, use base-0 indices:
-  integer(kind=i4_kind), parameter, public :: LOCK_JS   = 0
+  integer(kind=i4_kind_1), parameter, public :: LOCK_JS   = 0
   integer(kind=i4_kind)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
   logical                           :: terminated ! for termination algorithm
   integer(kind=i4_kind), allocatable :: messagesJA(:,:)
@@ -158,12 +159,13 @@ module dlb_impl_thread_common
     USE_MPI
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: partner
-    integer, allocatable :: requ(:)
+    integer(kind=i4_kind_1), intent(in   ) :: partner
+    integer(kind=i4_kind_1), allocatable :: requ(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: tag
-    integer(kind=i4_kind)                :: w, req
+    integer(kind=i4_kind_1)              :: tag
+    integer(kind=i4_kind_1)              :: req
+    integer(kind=i4_kind)                :: w
     integer(kind=i4_kind)                :: g_jobs(JLENGTH)
     integer(kind=i4_kind)                :: remaining(JLENGTH)
     !------------ Executable code --------------------------------
@@ -220,7 +222,7 @@ module dlb_impl_thread_common
     use dlb_common, only: print_statistics
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in)    :: proc
+    integer(kind=i4_kind_1), intent(in)    :: proc
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     !------------ Executable code --------------------------------
@@ -290,17 +292,21 @@ module dlb_impl_thread_common
     use dlb_common, only: comm_world, my_rank
     use dlb_common, only: WORK_DONAT, WORK_REQUEST
     use dlb_common, only: end_requests, isend, recv
-    use dlb_common, only: i4_kind_mpi
+    use dlb_common, only: i4_kind_mpi, i4_kind_1
     implicit none
     integer(kind=i4_kind), intent(in) :: my_last(:), arrived(:), last_proc
-    integer, allocatable  :: requ(:)
+    integer(kind=i4_kind_1), allocatable  :: requ(:)
     !** End of interface *****************************************
 
-    integer(i4_kind) :: ierr, i, count_req, req
+    integer(i4_kind) :: i, count_req
+    integer(i4_kind_1) ::  req
+    integer(i4_kind_1) :: ierr
     integer(i4_kind) :: rec_buff(n_procs * 2)
-    integer(i4_kind) :: stat(MPI_STATUS_SIZE)
+    integer(i4_kind_1) :: stat(MPI_STATUS_SIZE)
     integer(i4_kind) :: message_s(JLENGTH), message_r(JLENGTH)
     !------------ Executable code --------------------------------
+
+    ! to transform it inthe right kind of integers (if i4_kind not 4 bytes)
 
     rec_buff = 0
     rec_buff(2 * my_rank + 1) = last_proc ! Last I sended to or -1
