@@ -86,11 +86,11 @@ Here NJOBS is integer, MAXJOBS is integer, jobs(2) is integer array
 
 The difference of the color case, is that here the color is also
 considered.  In dlb_setup_color one gives a distribution, with the
-colors, thus it gets an integer array containing elements like
-(/startnumber, endnumber, color/).  Where startnumber +1 to endnumber
-a the jobsnumber on element color.  dlb_give_more_color will give in
-addition to the jobs their color. Furthermore it ensures that all jobs
-it gives back have the same color.
+colors, thus it gets an integer array containing the number of jobs for
+the corresponding color (for the i'th element the color i is used).
+dlb_give_more_color will give in addition to the jobs their color.
+Furthermore it ensures that all jobs it gives back have the same 
+color.
 
 Usage:
 
@@ -98,7 +98,7 @@ Usage:
 
     do while dlb_give_more_color(MAXJOBS, color, jobs)
 
-Here distr is integer array of size (many_colors, 3), MAXJOBS and
+Here distr is integer array of size (many_colors), MAXJOBS and
 color are integers, jobs(2) is integer array.
 
 Additionally there is a function for printing statistics. It is
@@ -155,7 +155,7 @@ MPI_THREAD_MULTIPLE.
   use mpi
   use dlb
   integer :: ierr, prov, NJOBS, MAXJOBS, jobs(2), i
-  integer :: distr(4,3), color
+  integer :: distr(4), color
 
   call MPI_INIT_THREADS(MPI_THREAD_MULTIPLE, prov, ierr)
 
@@ -172,10 +172,10 @@ MPI_THREAD_MULTIPLE.
   enddo
 
   MAXJOBS = 3
-  distr(1,:) = (/1, 0, 10)
-  distr(2,:) = (/0, 9, 13)
-  distr(3,:) = (/2, 0, 1)
-  distr(4,:) = (/3, 3, 9)
+  distr(1) = 10
+  distr(2) = 13
+  distr(3) = 1
+  distr(4) = 9
 
   call dlb_setup_color(distr)
   do while( dlb_give_more_color(MAXJOBS, color, jobs) )
