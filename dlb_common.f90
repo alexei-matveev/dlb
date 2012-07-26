@@ -67,7 +67,7 @@ module dlb_common
   public :: print_statistics
   public :: dlb_timers
   ! integer with 4 bytes, range 9 decimal digits
-  integer, parameter :: kind_of_i4_kind = 9
+  integer, parameter :: kind_of_i4_kind = 18
   integer, parameter, public :: i4_kind = selected_int_kind(kind_of_i4_kind)
   ! MPI has its own convention for types, it needs its own
   ! version of the integer to send
