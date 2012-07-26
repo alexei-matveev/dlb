@@ -49,10 +49,12 @@ functions are: dlb_init and dlb_finalize. They have to surround the
 use of the other functions.  When calling dlb_init MPI has to be
 already initialized, also dlb finalize has to be called before
 MPI_FINALIZE. Other than the MPI counterparts there is the possibility
-to finalize and initialize dlb in between some uses.  Both functions
-have no arguments, thus use them by:
+to finalize and initialize dlb in between some uses. The function  
+dlb_init has the argument world, which should be the communicator of
+MPI, of which dlb makes himself a copy.
+Thus the calculations with dlb should be surrounded by:
 
-    call dlb_init()
+    call dlb_init(world)
     ...
     call dlb_finalize()
 
@@ -82,7 +84,12 @@ Usage:
 
     do while dlb_give_more(MAXJOBS, jobs)
 
-Here NJOBS is integer, MAXJOBS is integer, jobs(2) is integer array
+Here NJOBS is integer of idlb_kind, MAXJOBS is integer of idlb_kind,
+jobs(2) is an integer array of idlb_kind
+dlb provides the specific integer kind idlb_kind, which is currently
+an 8-byte integer. But as this is able to change and in order to have
+ the code always running with the current setting make your integer
+ of the idlb_kind
 
 The difference of the color case, is that here the color is also
 considered.  In dlb_setup_color one gives a distribution, with the
@@ -98,8 +105,8 @@ Usage:
 
     do while dlb_give_more_color(MAXJOBS, color, jobs)
 
-Here distr is integer array of size (many_colors), MAXJOBS and
-color are integers, jobs(2) is integer array.
+Here distr is integer(idlb_kind) array of size (many_colors), MAXJOBS and
+color are integers of the idlb_kind, jobs(2) is integer array of idlb_kind.
 
 Additionally there is a function for printing statistics. It is
 possible to not print the output directly (see output_level below) but
@@ -111,6 +118,7 @@ some reude functions, thus it could cause some overhead. In case the
 function gets level = 0 this step is also omitted and
 dlb_print_statistics will return immediately.  For the static backend
 of DLB only level 0 and 1 give reasonable results.
+the statistic function expects to get an integer with 4 bytes.
 
 The output specified with the level is always including all smaller
 levels:
@@ -154,12 +162,13 @@ MPI_THREAD_MULTIPLE.
 
   use mpi
   use dlb
-  integer :: ierr, prov, NJOBS, MAXJOBS, jobs(2), i
-  integer :: distr(4), color
+  integer :: ierr, prov, i
+  integer(idlb_kind) :: NJOBS, MAXJOBS, jobs(2)
+  integer(idlb_kind) :: distr(4), color
 
   call MPI_INIT_THREADS(MPI_THREAD_MULTIPLE, prov, ierr)
 
-  call dlb_init()
+  call dlb_init(MPI_COMM_WORLD)
 
   NJOBS = 20
   MAXJOBS = 2
