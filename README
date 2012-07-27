@@ -18,7 +18,7 @@ used.
 
 DLB_VARIANT = 1: is a remote memory access (RMA) method. When RMA is
     really asynchronous, or done by the hardware, this method can be
-    uses.
+    very effective.
 
 DLB_VARIANT = 2 and DLB_VARIANT = 3: Both methods use threads for
     making the DLB algorithm work. They need a higher level of thread
