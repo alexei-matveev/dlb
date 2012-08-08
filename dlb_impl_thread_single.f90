@@ -327,7 +327,7 @@ contains
        endif
     else
        leave_timer = MPI_Wtime() ! for debugging
-       timer_give_more = leave_timer - start_timer_gm ! for debugging
+       timer_give_more = timer_give_more + leave_timer - start_timer_gm ! for debugging
        num_jobs = num_jobs + my_job(2) - my_job(1) ! for debugging
     endif
 

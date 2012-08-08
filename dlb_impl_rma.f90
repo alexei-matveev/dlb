@@ -420,7 +420,7 @@ contains
        ASSERT(ierr==MPI_SUCCESS)
     else
        leave_timer = MPI_Wtime() ! for debugging
-       timer_give_more = leave_timer - start_timer_gm ! for debugging
+       timer_give_more = timer_give_more + leave_timer - start_timer_gm ! for debugging
        num_jobs = num_jobs + slice(2) - slice(1) ! for debugging
     endif
     call time_stamp("dlb_give_more: exit",3)
