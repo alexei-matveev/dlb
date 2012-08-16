@@ -702,10 +702,12 @@ contains
     ASSERT(ierr==MPI_SUCCESS)
     ! get all after my own lock ...{my_lock}]...]
     displacement = my_rank + JLENGTH + 1
-    N = (jobs_len-JLENGTH) - my_rank - 1
-    call MPI_GET(win_data(jobs_len-N+1:jobs_len), N, i4_kind_mpi, rank, displacement, &
+    N = (jobs_len-JLENGTH) - my_rank -1
+    if (N > 0) then
+        call MPI_GET(win_data(jobs_len-N+1:jobs_len), N, i4_kind_mpi, rank, displacement, &
                 N, i4_kind_mpi, win, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
+        ASSERT(ierr==MPI_SUCCESS)
+    endif
 
     ! set my own lock ...[{my_lock}]...
     N = 1
