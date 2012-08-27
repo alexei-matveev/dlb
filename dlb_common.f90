@@ -274,8 +274,10 @@ contains
         endif
         print *, "----DLB-statistics-end--DLB-statistics-end--DLB-statistics-end----"
         print *, ""
-        deallocate(times, stat = ierr)
-        ASSERT (ierr == 0)
+        if (allocated(times)) then
+            deallocate(times, stat = ierr)
+            ASSERT (ierr == 0)
+        endif
     endif
   end subroutine dlb_timers
 
@@ -733,8 +735,10 @@ contains
       endif
     enddo
     requ_int(:) = requ(:)
-    deallocate(requ, stat = alloc_stat)
-    ASSERT(alloc_stat==0)
+    if (allocated(requ)) then
+        deallocate(requ, stat = alloc_stat)
+        ASSERT(alloc_stat==0)
+    endif
     if (len_new > 0) then
       allocate(requ(len_new), stat = alloc_stat)
       ASSERT(alloc_stat==0)
@@ -746,8 +750,10 @@ contains
         endif
       enddo
     endif
-    deallocate(requ_int, finished, stat = alloc_stat)
-    ASSERT(alloc_stat==0)
+    if (allocated(requ_int)) then
+       deallocate(requ_int, finished, stat = alloc_stat)
+       ASSERT(alloc_stat==0)
+    endif
     do i = 1, size(message_on_way) ! messages for DONE_JOBS
        ! Have to be handled separatly, as the messages have to be kept
        ! and may  not be changed till  the request has  been sent. But
@@ -813,10 +819,26 @@ contains
       endif
     enddo
     ! these variables will only be needed after the next dlb-setup
-    deallocate(message_on_way, messages, stat=alloc_stat)
-    ASSERT(alloc_stat==0)
-    deallocate(req_dj, reported_by, reported_to, stat=alloc_stat)
-    ASSERT(alloc_stat==0)
+    if (allocated(messages)) then
+        deallocate(messages, stat=alloc_stat)
+        ASSERT(alloc_stat==0)
+    endif
+    if (allocated(message_on_way)) then
+        deallocate(message_on_way, stat=alloc_stat)
+        ASSERT(alloc_stat==0)
+    endif
+    if (allocated(req_dj)) then
+        deallocate(req_dj, stat=alloc_stat)
+        ASSERT(alloc_stat==0)
+    endif
+    if (allocated(reported_by)) then
+        deallocate( reported_by, stat=alloc_stat)
+        ASSERT(alloc_stat==0)
+    endif
+    if (allocated(reported_to)) then
+        deallocate( reported_to, stat=alloc_stat)
+        ASSERT(alloc_stat==0)
+    endif
   end subroutine end_communication
 
   subroutine print_statistics()
