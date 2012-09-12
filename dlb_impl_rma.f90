@@ -693,10 +693,11 @@ contains
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    ! divide the storage in pieces to avoid illegal two operations on the same storage in
-    ! the same lock area
-    ! consider that my_rank starts with 0
-    ! get all before my own lock [...[{my_lock}...
+    !
+    ! Divide the storage in pieces to avoid illegal two operations on
+    ! the same storage in the same lock area.  Consider that my_rank
+    ! starts with 0.  Get all before my own lock [...[{my_lock}...
+    !
     N =  my_rank + JLENGTH ! Number of tasks to get before own lock place
     call MPI_GET(win_data(1:N), N, i4_kind_mpi, rank, zero, N, i4_kind_mpi, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
