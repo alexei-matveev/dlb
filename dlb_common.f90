@@ -873,15 +873,12 @@ contains
     !
     implicit none
     integer(i4_kind) :: pending
-    integer(i4_kind) :: i
     ! *** end of interface ***
 
-    pending = responsibility
-    ! I am not sure if sum works for interger8 (and not only "normal" integer)
-    do i = 1, size(reported_by)
-       ! starts with processor 0
-       pending = pending - reported_by(i-1)
-    enddo
+    ASSERT(allocated(reported_by))
+    ! I am not  sure if sum works for interger  (and not only "normal"
+    ! integer). Of course it does:
+    pending = responsibility - sum(reported_by)
 
     ASSERT(pending>=0)
   end function reports_pending
