@@ -756,19 +756,18 @@ contains
     deallocate(requ_int, finished, stat = alloc_stat)
     ASSERT(alloc_stat==0)
     do i = 1, size(message_on_way) ! messages for DONE_JOBS
-          ! have to be handled separatly, as the messages have
-          ! to be kept and may not be changed till the request
-          ! has been sended, but here also some messages
-          ! may be finished, message_on_way stores informations
-          ! to whom there are still some messages of DONE_JOBS
-          ! on their way
-      if (message_on_way(i)) then
-        call MPI_TEST(req_dj(i), flag, stat, ierr)
-        ASSERT(ierr==MPI_SUCCESS)
-        if (flag) then
-           message_on_way(i) = .false.
-        endif
-      endif
+       ! Have to be handled separatly, as the messages have to be kept
+       ! and may  not be changed till  the request has  been sent. But
+       ! here  also  some  messages  may be  finished,  message_on_way
+       ! stores informations to whom  there are still some messages of
+       ! DONE_JOBS on their way.
+       if (message_on_way(i)) then
+          call MPI_TEST(req_dj(i), flag, stat, ierr)
+          ASSERT(ierr==MPI_SUCCESS)
+          if (flag) then
+             message_on_way(i) = .false.
+          endif
+       endif
     enddo
   end subroutine test_requests
 
@@ -852,10 +851,9 @@ contains
 
   subroutine report_by(source, n)
     !
-    ! Handles arriving scheduling reports.
-    ! NOTE: "n" is NOT an increment, but a cumulative
-    ! report of the job count from my initial assignment
-    ! scheduled by the source.
+    ! Handles  arriving  scheduling  reports.   NOTE: "n"  is  NOT  an
+    ! increment,  but a  cumulative report  of the  job count  from my
+    ! initial assignment scheduled by the source.
     !
     implicit none
     integer(i4_kind_1), intent(in) :: source
@@ -868,8 +866,8 @@ contains
 
   function reports_pending() result(pending)
     !
-    ! How many jobs from my initial assignment
-    ! have not yet been reported as scheduled.
+    ! How  many jobs  from my  initial  assignment have  not yet  been
+    ! reported as scheduled.
     !
     implicit none
     integer(i4_kind) :: pending
