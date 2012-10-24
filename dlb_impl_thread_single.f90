@@ -95,7 +95,6 @@ module dlb_impl
   use dlb_common, only: WORK_DONAT, WORK_REQUEST
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: dlb_common_setup
-  use dlb_common, only: masterserver
   use dlb_common, only: end_communication
   use dlb_common, only: main_wait_all, main_wait_max, main_wait_last
   use dlb_common, only: max_work, last_work, average_work, num_jobs
@@ -136,7 +135,6 @@ module dlb_impl
   ! IDs of mutexes, use base-0 indices:
   !integer(kind=i4_kind), parameter :: LOCK_JS   = 0
 
-  !logical, parameter :: masterserver = .false. ! changes to different variant (master slave concept for comparision)
   !integer(kind=i4_kind)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
   !logical                           :: terminated ! for termination algorithm
 
@@ -502,8 +500,7 @@ contains
     if ( empty(job_storage) ) then
       wait_answer = .true.
       many_searches = many_searches + 1 !global debug tool
-      if (.not. masterserver .and. already_done > 0) then
-        ! masterserver has different termination algorithm
+      if ( already_done > 0) then
         ! only report finished jobs, when there are still any
         owner = job_storage(JOWNER)
         call report_or_store(owner, already_done, requ)
@@ -535,12 +532,7 @@ contains
     integer(kind=i4_kind_1)              :: requ_wr
     many_tries = many_tries + 1 ! just for debugging
 
-    if (masterserver) then !!! masterserver variant, here send all job request to master
-      v = termination_master
-    else ! if not masterserver, there needs to be done a bit more to find out who is the
-         ! victim
-      v = select_victim(my_rank, n_procs)
-    endif
+    v = select_victim(my_rank, n_procs)
 
     ! store informations on the last proc we have asked:
     ! first his number

@@ -98,7 +98,6 @@ module dlb_impl
   use dlb_common, only: WORK_DONAT, WORK_REQUEST
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
-  use dlb_common, only: masterserver
   use dlb_common, only: end_communication
   use dlb_common, only: main_wait_all, main_wait_max, main_wait_last
   use dlb_common, only: max_work, last_work, average_work, num_jobs
@@ -161,7 +160,6 @@ module dlb_impl
   ! These variables are also essentiel but as they are also needed in dlb_impl_thread_common and to avoid
   ! cyclic dependencies they are stored there:
   !integer(kind=i4_kind), parameter :: LOCK_JS   = 0 !declared in dlb_impl_thread_common
-  !logical, parameter :: masterserver = .false. ! changes to different variant (master slave concept for comparision)
   !integer(kind=i4_kind)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
   !logical                           :: terminated ! for termination algorithm
 
@@ -477,13 +475,9 @@ contains
         call time_stamp("COTNROL starts working", 4)
         many_searches = many_searches + 1 ! just for debugging
 
-        ! not if masterserver is wanted, then there is no need for the termination algorithm, master knows
-        ! where are all jobs by its own
-        if (.not. masterserver) then
-           owner = job_storage(JOWNER)
-           call report_or_store(owner, already_done, requ_c)
-           already_done = 0
-        endif
+        owner = job_storage(JOWNER)
+        call report_or_store(owner, already_done, requ_c)
+        already_done = 0
 
         my_jobs = job_storage(:JLENGTH)
         call th_mutex_unlock(LOCK_JS)
@@ -493,12 +487,7 @@ contains
                                                                                ! or if all is finished
           many_tries = many_tries + 1 ! just for debugging
 
-          if (masterserver) then !!! masterserver variant, here send all job request to master
-            v = termination_master
-          else ! if not masterserver, there needs to be done a bit more to find out who is the
-               ! victim
-            v = select_victim(my_rank, n_procs)
-          endif
+          v = select_victim(my_rank, n_procs)
           ! store informations on the last proc we have asked:
           ! first his number
           proc_asked_last = v

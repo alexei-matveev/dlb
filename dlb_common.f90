@@ -107,13 +107,6 @@ module dlb_common
   double precision, public  :: dlb_time, min_work, second_last_work
   double precision, public  :: timer_give_more, timer_give_more_last
 
-#ifdef DLB_MASTER_SERVER
-    logical, parameter, public :: masterserver = .true.
-       ! changes to different variant (master slave concept for comparision)
-#else
-    logical, parameter, public :: masterserver = .false.
-#endif
-
   integer(kind=i4_kind_1), public, protected :: my_rank, n_procs ! some synonyms, They will be initialized
                                         !once and afterwards be read only
 
@@ -1105,52 +1098,6 @@ contains
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine recv
 
-#ifdef DLB_MASTER_SERVER
-  pure function divide_work(jobs, np) result(n)
-    ! Purpose: give back number of jobs to take,
-    !          as all jobs to share are located at master give back
-    !          portion of division by the number of jobs
-    implicit none
-    integer(i4_kind), intent(in) :: jobs(2)
-    integer(i4_kind_1), intent(in) :: np
-    integer(i4_kind)             :: n ! result
-    !** End of interface *****************************************
-
-    ! exponential decrease (?)
-    n =  (jobs(2) - jobs(1)) / np
-    if (n > (jobs(2) - jobs(1))) n = 0
-  end function divide_work
-
-  function distribute_jobs(N, procs, rank) result(my_jobs)
-    !  Purpose: given the number of jobs alltogether, decides how many
-    !           will be done on each proc and where is start and endpoint
-    !           in the global job range, this will be fed directly in
-    !           the dlb_setup of the dlb routine
-    !           masterserver variant, 70% are distributed beforehand
-    !           the rest is on the master
-    !------------ Modules used ------------------- ---------------
-    implicit none
-    !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: N
-    integer(kind=i4_kind_1), intent(in ) :: procs, rank
-    integer(kind=i4_kind)                :: my_jobs(L_JOB)
-    !** End of interface *****************************************
-
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind) :: jobs_per_proc, rest, n_procs, my_rank
-    n_procs = procs
-    my_rank = rank
-
-    jobs_per_proc = N / n_procs * 7 / 10
-    my_jobs(JLEFT) = jobs_per_proc * my_rank
-    ! if it is not dividable, distribute the rest
-    ! this will shift the start point of each (but the first) proc
-    my_jobs(JRIGHT) = my_jobs(JLEFT) + jobs_per_proc
-    if (my_rank == termination_master) then
-      my_jobs(JRIGHT) = N
-    endif
-  end function distribute_jobs
-#else
   pure function divide_work(jobs, np) result(n)
     ! Purpose: give back number of jobs to take, half what is there
     !          take less than half if could not equally divided
@@ -1210,6 +1157,5 @@ contains
 
     my_jobs(JRIGHT) = my_jobs(JLEFT) + jobs_per_proc
   end function distribute_jobs
-#endif
 
 end module dlb_common

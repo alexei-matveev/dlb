@@ -6,7 +6,6 @@ module dlb_impl_thread_common
   use dlb_common, only: time_stamp ! for debug only
   use dlb_common, only: JLENGTH, JRIGHT, JLEFT, NO_WORK_LEFT
   use dlb_common, only: has_last_done, set_empty_job, add_request, send_termination
-  use dlb_common, only: masterserver
   use dlb_common, only: i4_kind_1
   implicit none
 
@@ -177,21 +176,6 @@ module dlb_impl_thread_common
     g_jobs = job_storage
     tag = WORK_DONAT
     if (w == 0) then ! nothing to give, set empty
-
-      ! variant with master, if master cannot give work back, there is
-      ! no more work for the proc, thus tell him to terminate
-      if (masterserver) then
-         tag = NO_WORK_LEFT
-         call check_termination(partner)
-         ! don't send too many messages to myself, anyhow, termination
-         ! master has to wait, till all procs got termination send
-         ! back
-         if (partner == termination_master) then
-           call th_mutex_unlock(LOCK_JS)
-           return
-         endif
-      endif
-      ! end variant with master
       g_jobs = set_empty_job()
     else ! take the last w jobs of the job-storage
       call split_at(job_storage(JLEFT) + w, job_storage, g_jobs, remaining)
@@ -235,10 +219,9 @@ module dlb_impl_thread_common
     terminated = .true.
     call unlock()
 
-    ! masterserver handles termination seperatly, this here is only
-    ! for its own termination I'm not sure what MPI does with requests
+    ! I'm not sure what MPI does with requests
     ! of the size 0, thus quit if there is only one processor
-    if (.not. (masterserver .or. n_procs == 1)) call send_termination()
+    if (.not. (n_procs == 1)) call send_termination()
 
   end subroutine check_termination
 
