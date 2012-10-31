@@ -1099,12 +1099,14 @@ contains
   end subroutine recv
 
   pure function divide_work(jobs, np) result(n)
-    ! Purpose: give back number of jobs to take, half what is there
-    !          take less than half if could not equally divided
+    !
+    ! Returns number of jobs to  take (steal?).  Take the half of what
+    ! is there.  Take less than half if could not equally divided.
+    !
     implicit none
     integer(i4_kind), intent(in) :: jobs(2)
     integer(i4_kind_1), intent(in) :: np ! unused
-    integer(i4_kind)             :: n ! result
+    integer(i4_kind) :: n ! result
     !** End of interface *****************************************
 
     ! give half of all jobs:
