@@ -587,7 +587,7 @@ contains
     integer(kind=i4_kind), intent(inout) :: many_zeros! just for debugging
     double precision, intent(inout)      :: timestart, timemax ! just for debugging
     integer(kind=i4_kind)                :: my_jobs(JLENGTH)
-    integer(kind=i4_kind)                :: timeend
+    double precision                     :: timeend
     !** End of interface *****************************************
 
     integer(i4_kind) :: message(JLENGTH)
