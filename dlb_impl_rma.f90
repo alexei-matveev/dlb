@@ -589,13 +589,13 @@ contains
     integer(i4_kind), intent(out) :: jobs(:) ! (JLENGTH)
     integer(i4_kind)              :: error ! resulting error code 0 == success
     !
-    ! Input argument "modify(...)" is a procedure that takes an
-    ! integer argument "iarg", a jobs descriptor "orig" and produces
-    ! two job descriptors "left" and "right" of which one is written
-    ! back in a "write_and_unloc" step and the other is returned as
-    ! the result of "try_read_modify_write".  If the (logical) return
-    ! status of "modify(...)" is false, the "write" step of
-    ! "read-modify-write" is aborted:
+    ! Input  argument modify() is  a procedure  that takes  an integer
+    ! argument "iarg",  a jobs descriptor "orig" and  produces two job
+    ! descriptors "left" and "right" of which one is written back in a
+    ! write_and_unlock() step and the  other is returned as the result
+    ! of try_read_modify_write().   If the (logical)  return status of
+    ! modify() is  false, the  "write" step of  "read-modify-write" is
+    ! aborted:
     !
     interface
         logical function modify(iarg, orig, left, right)
