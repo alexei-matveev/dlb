@@ -176,17 +176,24 @@ contains
 
     double precision :: time
     character(len=28) :: prefix
+    ! ATTENTION: write into character and printing might be not thread save
+    ! for all compilers. Thus keep write and print in the if-clause allowing
+    ! to get rid of them by setting OUTPUT_BORDER=0.
 
     time = MPI_Wtime()
     if ( time_offset < 0.0 ) then
       time_offset = time
-      write(prefix, '("#", I3, G20.10)') my_rank, time_offset
-      if(output_level < OUTPUT_BORDER) print *, prefix, "(BASE TIME)"
+      if(output_level < OUTPUT_BORDER) then
+         write(prefix, '("#", I3, G20.10)') my_rank, time_offset
+         print *, prefix, "(BASE TIME)"
+      endif
     endif
 
-    write(prefix, '("#", I3, G20.10)') my_rank, time - time_offset
+    if(output_level < OUTPUT_BORDER) then
+      write(prefix, '("#", I3, G20.10)') my_rank, time - time_offset
 
-    if(output_level < OUTPUT_BORDER) print *, prefix, msg
+      print *, prefix, msg
+    endif
   end subroutine time_stamp
 ! END ONLY FOR DEBUGGING
 

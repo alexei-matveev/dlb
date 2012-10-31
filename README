@@ -199,7 +199,10 @@ DLB is able to run without producing output. But it may also provide
 some informations and statistics up to very detailed informations
 about its behavior.  What it will print of them is selected by the
 output level.  The output level is defined by parameter OUTPUT_BORDER
-in the Makefile.
+in the Makefile. This output is independent to the output of the
+print_statistics function. Be aware that every process creates its
+own output independent of the others (expect for OUTPUT_BORDER<=1)
+thus only use them if you know that the IO routines are thread save.
 
 OUTPUT_BORDER = 0: no output at all
 OUTPUT_BORDER = 1: at initialization it will be printed which DLB
