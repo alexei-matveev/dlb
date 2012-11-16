@@ -223,6 +223,12 @@ contains
         allocate(times(12, n_procs), help_arr(n_procs), stat = ierr )
         ASSERT (ierr == 0)
         times = 0
+    else
+        ! will not contain any information, but better have it also on the
+        ! slaves
+        allocate(times(1, 1), stat = ierr )
+        ASSERT (ierr == 0)
+        times = 0
     endif
 
     time_singles(1) = timer_give_more
@@ -237,6 +243,7 @@ contains
     time_singles(10) = last_work
     time_singles(11) = second_last_work
     time_singles(12) = num_jobs
+    ASSERT (size(time_singles) == 12)
 
     call MPI_GATHER(time_singles, size(time_singles), MPI_DOUBLE_PRECISION,  &
           times, size(time_singles), MPI_DOUBLE_PRECISION, 0, comm_world, ierr)
