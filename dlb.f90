@@ -93,7 +93,7 @@ module dlb
 
 # include "dlb.h"
 ! Need here some stuff, that is already defined elsewhere
-use dlb_common, only: JLEFT, JRIGHT, L_JOB
+use dlb_common, only: L_JOB
 use dlb_common, only: i4_kind, i4_kind_1
 use dlb_impl, only: DLB_THREAD_REQUIRED
 use dlb_common, only: dlb_timers
@@ -225,6 +225,7 @@ contains
     !  the related job list
     !------------ Modules used ------------------- ---------------
     use dlb_impl, only: dlb_impl_give_more => dlb_give_more
+    use dlb_common, only: JLEFT, JRIGHT, L_JOB
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
@@ -245,6 +246,7 @@ contains
     !  it keeps other colored jobs in its own storage
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: i4_kind_1
+    use dlb_common, only: JLEFT, JRIGHT
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
