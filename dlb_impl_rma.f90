@@ -91,7 +91,7 @@ module dlb_impl
   USE_MPI
   use dlb_common, only: i4_kind, comm_world
   use dlb_common, only: time_stamp ! for debug only
-  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT
+  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, JOWNER, JLEFT, JRIGHT
   use dlb_common, only: my_rank, n_procs, termination_master
   use dlb_common, only: main_wait_all, main_wait_max, main_wait_last
   use dlb_common, only: max_work, last_work, average_work, num_jobs
@@ -251,11 +251,11 @@ contains
     !  termination algorithm states, that everything is done
     !
     use dlb_common, only: select_victim, steal_local, steal_remote &
-        , length, empty, OUTPUT_BORDER
+        , length, empty, OUTPUT_BORDER, L_JOB
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(i4_kind), intent(in)  :: n
-    integer(i4_kind), intent(out) :: slice(2)
+    integer(i4_kind), intent(out) :: slice(L_JOB)
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
@@ -387,9 +387,7 @@ contains
 
     ! NOTE: named constants are not known outside.  Return only the
     ! start and endpoint of the job slice:
-    slice(1) = jobs(JLEFT)
-    slice(2) = jobs(JRIGHT)
-
+    slice = jobs(:L_JOB)
     !
     ! Here a syncronization feature, the very last call to
     ! dlb_give_more(...)  does not return until all workers pass this
@@ -421,7 +419,7 @@ contains
     else
        leave_timer = MPI_Wtime() ! for debugging
        timer_give_more = timer_give_more + leave_timer - start_timer_gm ! for debugging
-       num_jobs = num_jobs + slice(2) - slice(1) ! for debugging
+       num_jobs = num_jobs + slice(JRIGHT) - slice(JLEFT) ! for debugging
     endif
     call time_stamp("dlb_give_more: exit",3)
   end subroutine dlb_give_more
@@ -876,15 +874,14 @@ contains
     !           be the numbers from START to END, with START <= STP <=
     !           EP <= END
     !
-    use dlb_common, only: dlb_common_setup, set_start_job, length
+    use dlb_common, only: dlb_common_setup, set_start_job, length, L_JOB
     implicit none
     integer(i4_kind), intent(in) :: job(:) ! (2)
     ! *** end of interface ***
 
     integer(i4_kind) :: start_job(JLENGTH)
 
-    ASSERT(size(job)==2)
-    ASSERT(2==L_JOB)
+    ASSERT(size(job)==L_JOB)
 
     dlb_time = MPI_Wtime() ! for debugging
 

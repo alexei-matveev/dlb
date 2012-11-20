@@ -104,7 +104,7 @@ contains
     ! procs should  be my_job(1) + 1  to my_job(2) in  the related job
     ! list
     !
-    use dlb_common, only: steal_local, JLEFT, JRIGHT
+    use dlb_common, only: steal_local, JLEFT, JRIGHT, L_JOB
     use dlb_common, only: empty, time_stamp
     implicit none
     integer(i4_kind), intent(in)  :: n
@@ -120,7 +120,7 @@ contains
     !
     start_timer_gm = MPI_Wtime() ! for debugging
     ASSERT(n>0)
-    ASSERT(size(my_job)==2)
+    ASSERT(size(my_job)==L_JOB)
 
     if ( steal_local(n, job_storage, remaining, jobs) ) then
         job_storage = remaining
@@ -129,8 +129,7 @@ contains
     !
     ! Named constants are not known outside:
     !
-    my_job(1) = jobs(JLEFT)
-    my_job(2) = jobs(JRIGHT)
+    my_job = jobs(:L_JOB)
 
     if ( empty(jobs) ) then
         ! output for debugging, only reduced inforamtions needed compared to
@@ -152,15 +151,15 @@ contains
     ! START <= STP <= EP <= END
     !
     use dlb_common, only: JLEFT, JRIGHT, JOWNER, my_rank
-    use dlb_common, only: time_stamp
+    use dlb_common, only: time_stamp, L_JOB
     implicit none
     integer(i4_kind), intent(in) :: job(:)
     !** End of interface *****************************************
 
-    ASSERT(size(job)==2)
+    ASSERT(size(job)==L_JOB)
 
-    job_storage(JLEFT) = job(1)
-    job_storage(JRIGHT) = job(2)
+    job_storage(JLEFT) = job(JLEFT)
+    job_storage(JRIGHT) = job(JRIGHT)
     job_storage(JOWNER) = my_rank ! FIXME: is this field ever used?
 
     call time_stamp("dlb_setup: done", output_level=1)

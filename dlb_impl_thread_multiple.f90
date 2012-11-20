@@ -94,7 +94,7 @@ module dlb_impl
   use dlb_common, only: i4_kind_1
   use dlb_common, only: time_stamp ! for debug only
   use dlb_common, only: add_request, test_requests, end_requests, send_resp_done
-  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, L_JOB, JOWNER, JLEFT, JRIGHT
+  use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, JOWNER, JLEFT, JRIGHT
   use dlb_common, only: WORK_DONAT, WORK_REQUEST
   use dlb_common, only: my_rank, n_procs, termination_master, set_start_job, set_empty_job
   use dlb_common, only: dlb_common_setup, has_last_done, send_termination
@@ -271,7 +271,7 @@ contains
     ! Context: main thread.
     !
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: OUTPUT_BORDER
+    use dlb_common, only: OUTPUT_BORDER, L_JOB
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
@@ -285,7 +285,7 @@ contains
     !------------ Executable code --------------------------------
     start_timer_gm = MPI_Wtime() ! for debugging
 
-    ASSERT(size(my_job)==2)
+    ASSERT(size(my_job)==L_JOB)
 
     if (num_jobs > 0) then ! for debugging
         second_last_work = last_work
@@ -321,13 +321,11 @@ contains
 
     call time_stamp("finished loop over local search",3)
 
-    ! only the start and endpoint of job slice are needed outside:
-    my_job(1) = jobs(JLEFT)
-    my_job(2) = jobs(JRIGHT)
+    my_job = jobs(:L_JOB)
 
     ! here we should have a valid job slice with at least one valid job
     ! or a terminated algorithm
-    if (jobs(JLEFT) >= jobs(JRIGHT)) then
+    if (my_job(JLEFT) >= my_job(JRIGHT)) then
        call th_join_all()
        ! now only one thread left, thus all variables belong him:
        timer_give_more_last = MPI_Wtime() - start_timer_gm ! for debugging
@@ -350,7 +348,7 @@ contains
     else
        leave_timer = MPI_Wtime() ! for debugging
        timer_give_more = timer_give_more + leave_timer - start_timer_gm ! for debugging
-       num_jobs = num_jobs + my_job(2) - my_job(1) ! for debugging
+       num_jobs = num_jobs + my_job(JRIGHT) - my_job(JLEFT) ! for debugging
     endif
       ! if true means MAIN did not intent to come back (check termination is
       ! too dangerous, because MAIN may still have work for one go and thus
@@ -759,14 +757,14 @@ contains
     ! Starts other Threads, runs on MAIN
     !------------ Modules used ------------------- ---------------
     use dlb_impl_thread_common, only: thread_setup, th_create_all
+    use dlb_common, only: L_JOB
     implicit none
     integer(i4_kind), intent(in) :: job(:) ! (2)
     ! *** end of interface ***
 
     integer :: alloc_stat
 
-    ASSERT(size(job)==2)
-    ASSERT(2==L_JOB)
+    ASSERT(size(job)==L_JOB)
 
     dlb_time = MPI_Wtime() ! for debugging
     ! these variables are for the termination algorithm
