@@ -229,11 +229,14 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
-    integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB)
+    integer(kind=i4_kind), intent(out  ) :: my_job(2)
     !** End of interface *****************************************
+    integer(kind=i4_kind)                :: my_job_raw(L_JOB)
 
-    call dlb_impl_give_more(n, my_job)
-    dlb_give_more = (my_job(JLEFT) < my_job(JRIGHT))
+    call dlb_impl_give_more(n, my_job_raw)
+    dlb_give_more = (my_job_raw(JLEFT) < my_job_raw(JRIGHT))
+    my_job(1) = my_job_raw(JLEFT)
+    my_job(2) = my_job_raw(JRIGHT)
   end function dlb_give_more
 
   function dlb_give_more_color(n, color, my_job) result(more)
@@ -250,7 +253,7 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
-    integer(kind=i4_kind), intent(out  ) :: my_job(L_JOB), color
+    integer(kind=i4_kind), intent(out  ) :: my_job(2), color
     logical                              :: more ! result
     !** End of interface *****************************************
 
@@ -271,7 +274,8 @@ contains
     !
     if ( .not. more ) then
         ! got empty job from DLB, thus all done, quit
-        my_job = current_jobs
+        my_job(1) = current_jobs(JLEFT)
+        my_job(2) = current_jobs(JRIGHT)
         color = 0
 
         if (allocated(start_color)) then
@@ -298,8 +302,8 @@ contains
     ! of the color
     w = min(jobs_all, jobs_color)
     ! now share the own storage with the calling program
-    my_job(JLEFT) = current_jobs(JLEFT) - start_color(color)
-    my_job(JRIGHT) = my_job(JLEFT) + w
+    my_job(1) = current_jobs(JLEFT) - start_color(color)
+    my_job(2) = my_job(JLEFT) + w
     current_jobs(JLEFT) = current_jobs(JLEFT) + w
   end function dlb_give_more_color
 
