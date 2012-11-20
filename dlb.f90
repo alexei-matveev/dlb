@@ -119,6 +119,8 @@ integer(i4_kind), allocatable :: start_color(:)
 ! in the color case one may not be able to hand over all jobs at once, thus store them here
 integer(i4_kind)              :: current_jobs(L_JOB)
 
+! for the rr variant it is required to know the stride for the interval
+integer(i4_kind)              :: stride
 contains
 
   subroutine dlb_init(world)
@@ -131,6 +133,7 @@ contains
 
     call dlb_impl_init(world)
     current_jobs = 0
+    stride = -1
   end subroutine dlb_init
 
   subroutine dlb_finalize()
@@ -232,6 +235,7 @@ contains
     integer(kind=i4_kind), intent(out  ) :: my_job(2)
     !** End of interface *****************************************
     integer(kind=i4_kind)                :: my_job_raw(L_JOB)
+    ASSERT (stride < 0)
 
     call dlb_impl_give_more(n, my_job_raw)
     dlb_give_more = (my_job_raw(JLEFT) < my_job_raw(JRIGHT))
@@ -260,6 +264,7 @@ contains
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind)                :: i,  w, jobs_all, jobs_color
     integer(kind=i4_kind_1)              :: ierr
+    ASSERT (stride < 0)
 
     if (current_jobs(JLEFT) < current_jobs(JRIGHT)) then
         ! some are left over from the last time:

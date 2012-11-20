@@ -227,7 +227,7 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(kind=i4_kind), intent(in   ) :: n
-    integer(kind=i4_kind), intent(out  ) :: my_job(:) ! (2)
+    integer(kind=i4_kind), intent(out  ) :: my_job(:) ! (3)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer(i4_kind), target             :: jobs(JLENGTH)

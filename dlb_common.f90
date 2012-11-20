@@ -94,7 +94,7 @@ module dlb_common
   integer(kind=i4_kind_1), parameter, public  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 ! message tags
   integer(kind=i4_kind_1), parameter, public  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
   integer(kind=i4_kind_1), parameter, public  :: JLENGTH = 3 ! Length of a single job in interface
-  integer(kind=i4_kind_1), parameter, public  :: L_JOB = 2  ! Length of job to give back from interface
+  integer(kind=i4_kind_1), parameter, public  :: L_JOB = 3  ! Length of job to give back from inner interface (dlb_imp)
   integer(kind=i4_kind_1), parameter, public  :: JOWNER = 3 ! Number in job, where rank of origin proc is stored
   integer(kind=i4_kind_1), parameter, public  :: JLEFT = 1 ! Number in job, where stp (start point) is stored
   integer(kind=i4_kind_1), parameter, public  :: JRIGHT = 2 ! Number in job, where ep (end point) is stored
@@ -426,7 +426,7 @@ contains
     ! *** end of interface ***
 
     job_data(:L_JOB) = job
-    job_data(JOWNER) = my_rank
+    ASSERT (job_data(JOWNER) == my_rank)
   end function set_start_job
 
   function set_empty_job() result(job_data)
@@ -1187,6 +1187,7 @@ contains
     if (my_rank < rest) jobs_per_proc = jobs_per_proc + 1
 
     my_jobs(JRIGHT) = my_jobs(JLEFT) + jobs_per_proc
+    my_jobs(JOWNER) = my_rank
   end function distribute_jobs
 
 end module dlb_common
