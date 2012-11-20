@@ -62,6 +62,24 @@ module dlb
 !              but it also will only give back empty jobs if all is
 !              finished
 !
+!           Third WITH ROUND_ROBIN (e.g. all processes start with jobs
+!           with small numbers. This interface was designed for tasks,
+!           which are ordered after size (or expected cost), starting with
+!           the large one. The interval is changed, as it provides also
+!           a value for the stride.
+!
+!           call dlb_setup_rr(N) - once every time a DLB should
+!              be used, N should be the number of jobs, belongs to
+!              distribution with dlb_give_more_rr. It is illegal to
+!              intermix the _rr routines with the other two interfaces.
+!
+!           dlb_give_more_rr(n, jobs) - the same as dlb_give_more, but
+!              be aware that jobs has three elements. The jobslice it
+!              provdides is jobs(0) +1: jobs(1): jobs(2), where jobs(2)
+!              is the stride. jobs(0) +1 and jobs(2) are elements of the
+!              interval. Be aware that for n = 1, jobs(2) is not the same
+!              than jobs(1) + 1.
+!
 !  Module called by: ...
 !
 !
@@ -106,6 +124,7 @@ private         ! by default, all names are private
 
 public dlb_init, dlb_finalize, dlb_setup, dlb_setup_color, dlb_give_more
 public dlb_give_more_color
+public dlb_give_more_rr, dlb_setup_rr
 public DLB_THREAD_REQUIRED
 public dlb_print_statistics
 
@@ -178,6 +197,27 @@ contains
     call dlb_impl_setup(distribute_jobs(N, n_procs, my_rank))
   end subroutine dlb_setup
 
+  subroutine dlb_setup_rr(N)
+    !  Purpose: initialization of a DLB run, each proc should call
+    !           it with the number of jobs altogether. This is the
+    !           the version, where a round robin iteration is done
+    !           over the jobs. Every process gets all tasks. It is
+    !           also required to set the stride
+    !------------ Modules used ------------------- ---------------
+    use dlb_common, only: n_procs, my_rank, L_JOB, JRIGHT, JLEFT, JOWNER
+    use dlb_impl, only: dlb_impl_setup => dlb_setup
+    implicit none
+    !------------ Declaration of formal parameters ---------------
+    integer(kind=i4_kind), intent(in   ) :: N
+    integer(kind=i4_kind)                :: jobs(L_JOB)
+    ! *** end of interface ***
+    jobs(JLEFT) = min(my_rank, N)
+    jobs(JRIGHT) = N
+    jobs(JOWNER) = my_rank
+    stride = n_procs
+    call dlb_impl_setup(jobs)
+  end subroutine dlb_setup_rr
+
   subroutine dlb_setup_color(N)
     !  Purpose: initialization of a DLB run, each proc should call
     !           it with the number of jobs altogether. This is the
@@ -242,6 +282,58 @@ contains
     my_job(1) = my_job_raw(JLEFT)
     my_job(2) = my_job_raw(JRIGHT)
   end function dlb_give_more
+
+  logical function dlb_give_more_rr(n, my_job)
+    !  Purpose: Returns next bunch of up to n jobs
+    !           returns false if there are no more jobs left
+    !           else it returns the job interval a+1:b:s as
+    !           a = element left to the leftborder of interval
+    !           b = right border of interval (inclusive)
+    !           and s as stride.
+    !
+    !------------ Modules used ------------------- ---------------
+    use dlb_impl, only: dlb_impl_give_more => dlb_give_more
+    use dlb_common, only: JLEFT, JRIGHT, L_JOB, JOWNER
+    implicit none
+    !------------ Declaration of formal parameters ---------------
+    integer(kind=i4_kind), intent(in   ) :: n
+    integer(kind=i4_kind), intent(out  ) :: my_job(3)
+    !** End of interface *****************************************
+    integer(kind=i4_kind)                 :: my_job_raw(L_JOB), rest
+    logical :: not_empty, is_right
+    ASSERT (stride > 0)
+    not_empty = .false.
+
+    ! cycle till the interval contains some tasks (or there is global termination).
+    do while ( .not. not_empty ) ! second break if there are no more task around
+        call dlb_impl_give_more(n * stride, my_job_raw)
+        ! the global termination is reached if the interval is empty
+        dlb_give_more_rr = (my_job_raw(JLEFT) < my_job_raw(JRIGHT))
+        if (.not. dlb_give_more_rr) exit ! second break, no work left
+
+        ! move the interval borders to values with the correct modulo (but still inside the interval) 
+        rest = modulo(my_job_raw(JLEFT), stride) - my_job_raw(JOWNER)
+        if (rest > 0 ) my_job_raw(JLEFT) = my_job_raw(JLEFT) + stride - rest
+        if (rest < 0 ) my_job_raw(JLEFT) = my_job_raw(JLEFT) - rest
+        rest = - modulo(my_job_raw(JRIGHT) - 1, stride) + my_job_raw(JOWNER)
+        if (rest < 0) my_job_raw(JRIGHT) = my_job_raw(JRIGHT) + rest
+        if (rest > 0 ) my_job_raw(JRIGHT) = my_job_raw(JRIGHT) - stride + rest
+        not_empty = (my_job_raw(JLEFT) < my_job_raw(JRIGHT))
+
+!       is_right = ( modulo(my_job_raw(JLEFT), stride) == my_job_raw(JOWNER))
+!       ASSERT (is_right )
+!       is_right = ( modulo(my_job_raw(JRIGHT) - 1, stride) == my_job_raw(JOWNER))
+!       ASSERT (is_right )
+    enddo
+    my_job(1) = my_job_raw(JLEFT)
+    my_job(2) =  my_job_raw(JRIGHT)
+    my_job(3) = stride
+
+    if (not_empty) then
+        ASSERT (dlb_give_more_rr)
+    endif
+    if (.not. dlb_give_more_rr) stride = -1
+  end function dlb_give_more_rr
 
   function dlb_give_more_color(n, color, my_job) result(more)
     !  Purpose: Returns next bunch of up to n jobs, if jobs(JRIGHT)<=
