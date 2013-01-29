@@ -313,10 +313,13 @@ contains
         dlb_give_more_rr = (my_job_raw(JLEFT) < my_job_raw(JRIGHT))
         if (.not. dlb_give_more_rr) exit ! second break, no work left
 
-        ! move the interval borders to values with the correct modulo (but still inside the interval) 
+        ! move the interval borders to values with the correct modulo (but still inside the interval).
+        ! Consider: first JOWNER is 0, first task is 1, but we get left task -1 for historical reasons.
         rest = modulo(my_job_raw(JLEFT), stride) - my_job_raw(JOWNER)
         if (rest > 0 ) my_job_raw(JLEFT) = my_job_raw(JLEFT) + stride - rest
         if (rest < 0 ) my_job_raw(JLEFT) = my_job_raw(JLEFT) - rest
+        ! Here we get the last valid right task. As those with modulo 1 should be mapped to
+        ! owner number 0, we need to decrease the job ID here.
         rest = - modulo(my_job_raw(JRIGHT) - 1, stride) + my_job_raw(JOWNER)
         if (rest < 0) my_job_raw(JRIGHT) = my_job_raw(JRIGHT) + rest
         if (rest > 0 ) my_job_raw(JRIGHT) = my_job_raw(JRIGHT) - stride + rest
@@ -334,6 +337,7 @@ contains
     if (not_empty) then
         ASSERT (dlb_give_more_rr)
     endif
+    ! next setup might be one without rr, thus reset stride to not get confused.
     if (.not. dlb_give_more_rr) stride = -1
   end function dlb_give_more_rr
 
