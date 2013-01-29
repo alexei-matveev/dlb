@@ -302,7 +302,7 @@ contains
     integer(kind=i4_kind), intent(out  ) :: my_job(3)
     !** End of interface *****************************************
     integer(kind=i4_kind)                 :: my_job_raw(L_JOB), rest
-    logical :: not_empty, is_right
+    logical :: not_empty !, is_right
     ASSERT (stride > 0)
     not_empty = .false.
 
