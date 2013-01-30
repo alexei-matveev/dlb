@@ -80,7 +80,8 @@ Usage:
 
     call dlb_setup(NJOBS)
 
-    do while dlb_give_more(MAXJOBS, jobs)
+    do while (dlb_give_more (MAXJOBS, jobs))
+      ...
 
 Here NJOBS is  integer of idlb_kind, MAXJOBS is  integer of idlb_kind,
 jobs(2) is  an integer  array of idlb_kind  DLB provides  the specific
@@ -100,26 +101,27 @@ Usage:
 
     call dlb_setup_color(distr)
 
-    do while dlb_give_more_color(MAXJOBS, color, jobs)
+    do while (dlb_give_more_color (MAXJOBS, color, jobs))
+      ...
 
 Here distr is integer(idlb_kind)  array of size (many_colors), MAXJOBS
 and color are  integers of the idlb_kind, jobs(2)  is integer array of
 idlb_kind.
 
-The third case is using a round robin over the regions. Thus every process
-get only every n'th task, where n is the number of processes.
-There is a significant difference between dlb_gibe_more and dlb_give_more_rr:
-the output jobs is of different size and has different meaning. For the
-case of dlb_give_more the slice of task numbers, included in it are the
-tasks with jobs(1)+1:jobs(2): jobs(3), where jobs(3) is the stride for
-the succeding job IDs.
+The third  case is using a  round robin over the  regions.  Thus every
+process  gets every n'th  task, where  n is  the number  of processes.
+There  is   a  significant  difference   between  dlb_give_more()  and
+dlb_give_more_rr():  the output  jobs  is of  different  size and  has
+different meaning.  For the case  of dlb_give_more() the slice of task
+IDs, included in it are the  tasks with jobs(1) + 1: jobs(2): jobs(3),
+where jobs(3) is the stride for the succeding job IDs.
 
 Usage:
 
     call dlb_setup_rr(NJOBS)
 
-    do while dlb_give_more_rr(MAXJOBS, jobs)
-
+    do while (dlb_give_more_rr (MAXJOBS, jobs))
+      ...
 
 Additionally  there  is a  function  for  printing  statistics. It  is
 possible to not print the output directly (see output_level below) but
@@ -187,7 +189,7 @@ MPI_THREAD_MULTIPLE.
   MAXJOBS = 2
 
   call dlb_setup(NJOBS)
-  do while( dlb_give_more(MAXJOBS, jobs) )
+  do while (dlb_give_more (MAXJOBS, jobs))
      do i = jobs(1) + 1, jobs(2)
         print *, "Doing job", i
      enddo
@@ -200,14 +202,14 @@ MPI_THREAD_MULTIPLE.
   distr(4) = 9
 
   call dlb_setup_color(distr)
-  do while( dlb_give_more_color(MAXJOBS, color, jobs) )
+  do while (dlb_give_more_color (MAXJOBS, color, jobs))
      do i = jobs(1) + 1, jobs(2)
         print *, "Doing job", i, "of color", color
      enddo
   enddo
 
   call dlb_setup_rr(NJOBS)
-  do while( dlb_give_more_rr(MAXJOBS, jobs) )
+  do while (dlb_give_more_rr (MAXJOBS, jobs))
      do i = jobs(1) + 1, jobs(2), jobs(3)
         print *, "Doing job", i
      enddo
