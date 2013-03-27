@@ -111,6 +111,13 @@ module dlb_impl
   !== Interrupt end of public interface of module =================
   ! Program from outside might want to know the thread-safety-level required form DLB
   integer(kind=i4_kind_1), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_MULTIPLE
+  ! The MPI communication of DLB is exclusively performed by the helper thread when both threads
+  ! are present. Only after or before its termination the main thread is  doing some
+  ! communication too. As a matter of fact the main thread is doing not much at all except
+  ! getting some tasks and thread communication (by signals and flags in locked areas).
+  ! Thus, in principle the current version requires only MPI_THREAD_SERIALIZED, the higher
+  ! thread level is chosen as the tasks performed by the main thread might also contain some
+  ! MPI communication.
 
   !------------ public functions and subroutines ------------------
   public :: dlb_init, dlb_finalize, dlb_setup, dlb_give_more
