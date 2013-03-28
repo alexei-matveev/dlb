@@ -6,63 +6,76 @@ module dlb_impl
   !
   !  Purpose: takes care about dynamical load balancing,
   !
-  !           INTERFACE to others:
-  !           call dlb_init() - once before first acces
-  !           call dlb_setup(init_job) - once every time a dlb should
-  !                               be used, init_job should be the part
-  !                               of the current proc of an initial job
-  !                               distribution
-  !           dlb_give_more(n, jobs) :
-  !              n should be the number of jobs requested at once, the next
-  !              time dlb_give_more is called again, all jobs from jobs should
-  !              be finished, jobs are at most n, they are jsut the number of the
-  !              jobs, which still have to be transformed between each other,
-  !              it should be done the error slice from jobs(0) +1 to jobs(1)
-  !              if dlb_give_more returns jobs(0)==jobs(1) there are on no proc
-  !              any jobs left
+  !  INTERFACE to others:
   !
-  !          the algorithm: similar to dlb_module algorithm but with explicit mpi messages
-  !                         all mpi communication takes place in a separate thread (called SECRETARY)
-  !                         as main difference to the three thread variant, here the MPI_RECV is non
-  !                         blocking, meaning that the loop over it has to be made per hand (as not all
-  !                         cluster provide easily the chance to have the blocking receive ideal for several
-  !                         threads). This allows also for SECRETARY to take over the jobs from CONTROL, so that
-  !                         now all MPI calls are on the same thread. Thus only MPI_THREAD_SERIALIZED is needed here.
+  !  call dlb_init(): once before first acces
   !
-  !          termination algorithm: called (at least once) "Fixed Energy Distributed Termination
-  !                                 Algorithm"
-  !                        to avoid confusion, here the term "energy" is not used, talking about
-  !                         respoinsibility (resp) instead, every system starts with a part of responsibility
-  !                         given to him, if procs steal from him, they have later to send him a
-  !                         message saying how many of his jobs, they have done, they always report to
-  !                         the proc who had the resp first, thus source is given away with job
-  !                         each proc lowers his resp about the values given back from any proc and
-  !                         about the jobs he has done himself, when finished them, if he has his resp
-  !                         at zero, he sends a message to termination_master
-  !                         if termination master has a message from all the procs, that their resp is 0
-  !                         he sends a message to all procs, telling them to terminated the algorithm
+  !  call dlb_setup(init_job) - once every  time a dlb should be used,
+  !    init_job should be  the part of the current  proc of an initial
+  !    job distribution
   !
-  !          THIS MAY BE IMPLEMENTED LATER, POSSIBLY IN A SEPARATE FILE:
-  !          another possibility for the algorithm: with setting master_server = true another the algorithm is
-  !                                                 is sliglty changed. In this case only one (the
-  !                                                 termination_master) is  allowed to be asked for new jobs.
-  !                                                 It would not give back half of them, of course, but only a
-  !                                                 fraction. Several different algorithms for it can be choosen
-  !                                                 by chunk_m. They are similar to the algorithm provided by
-  !                                                 OpenMP parallel-do (chunk_m = 1 gives a fixed amount of work, respectively
-  !                                                 chunksize * m back, chunk_m = 2 does the guided variant with
-  !                                                 giving back 1/n_procs of what is still there (as long as it is
-  !                                                 more than m), m is the amount of jobs wanted at once
-  !                                                 termination here is much easier: if termination_master can not
-  !                                                 send any jobs back, it sends termination to the proc. It collects
-  !                                                 all the procs he has send a termination to, if he has all and his
-  !                                                 own CONTROL has send him a job request he terminates also.
+  !  dlb_give_more(n, jobs): n should  be the number of jobs requested
+  !    at once, the next time  dlb_give_more is called again, all jobs
+  !    from jobs should be finished, jobs are at most n, they are jsut
+  !    the  number of  the jobs,  which still  have to  be transformed
+  !    between  each other,  it should  be done  the error  slice from
+  !    jobs(0) +1 to jobs(1) if dlb_give_more returns jobs(0)==jobs(1)
+  !    there are on no proc any jobs left
   !
-  !           thread are included via wrapper around c pthread routines, The wrappers all start with th and are
-  !           located in the thread_wrapper.c file. There are routines for starting and ending threads:
-  !            th_create_control, th_create_mail, th_exit, h_join; some for mutexe (blocking of global variables):
-  !            th_mutex_lock, th_mutex_unlock; some for conditions (wake and sleep of threads):th_create_mail,
-  !            th_cond_signal; and one for setting all the attributes to the threads, mutexes and conditions: th_inits
+  !  The algorithm.
+  !
+  !  Similar to  dlb_module algorithm  but with explicit  mpi messages
+  !  all mpi  communication takes place  in a separate  thread (called
+  !  SECRETARY) as  main difference to the three  thread variant, here
+  !  the MPI_RECV is  non blocking, meaning that the  loop over it has
+  !  to be made per hand (as not all cluster provide easily the chance
+  !  to  have the blocking  receive ideal  for several  threads). This
+  !  allows also for SECRETARY to  take over the jobs from CONTROL, so
+  !  that  now  all  MPI calls  are  on  the  same thread.  Thus  only
+  !  MPI_THREAD_SERIALIZED is needed here.
+  !
+  !  Termination algorithm.
+  !
+  !  Called  (at  least once)  "Fixed  Energy Distributed  Termination
+  !  Algorithm"  to avoid  confusion, here  the term  "energy"  is not
+  !  used, talking about  respoinsibility (resp) instead, every system
+  !  starts with a part of responsibility given to him, if procs steal
+  !  from him, they  have later to send him a  message saying how many
+  !  of his jobs,  they have done, they always report  to the proc who
+  !  had the resp first, thus source  is given away with job each proc
+  !  lowers his  resp about  the values given  back from any  proc and
+  !  about the jobs he has done himself, when finished them, if he has
+  !  his resp  at zero,  he sends a  message to  termination_master if
+  !  termination master has  a message from all the  procs, that their
+  !  resp  is 0  he sends  a  message to  all procs,  telling them  to
+  !  terminated the algorithm
+  !
+  !  THIS MAY BE IMPLEMENTED LATER, POSSIBLY IN A SEPARATE FILE.
+  !
+  !  Another possibility for the algorithm: with setting master_server
+  !  = true another the algorithm  is is sliglty changed. In this case
+  !  only one (the termination_master) is  allowed to be asked for new
+  !  jobs.  It would not give back half of them, of course, but only a
+  !  fraction. Several  different algorithms for it can  be choosen by
+  !  chunk_m.  They are similar  to the  algorithm provided  by OpenMP
+  !  parallel-do  (chunk_m   =  1  gives  a  fixed   amount  of  work,
+  !  respectively  chunksize *  m back,  chunk_m =  2 does  the guided
+  !  variant with  giving back  1/n_procs of what  is still  there (as
+  !  long as  it is more than  m), m is  the amount of jobs  wanted at
+  !  once termination  here is much easier:  if termination_master can
+  !  not  send any jobs  back, it  sends termination  to the  proc. It
+  !  collects all  the procs he has  send a termination to,  if he has
+  !  all and his own CONTROL has  send him a job request he terminates
+  !  also.
+  !
+  !  Thread are  included via wrapper  around c pthread  routines, The
+  !  wrappers   all   start  with   th   and   are   located  in   the
+  !  thread_wrapper.c file. There are routines for starting and ending
+  !  threads: th_create_control, th_create_mail, th_exit, h_join; some
+  !  for  mutexe   (blocking  of  global   variables):  th_mutex_lock,
+  !  th_mutex_unlock;   some  for  conditions   (wake  and   sleep  of
+  !  threads):th_create_mail, th_cond_signal; and  one for setting all
+  !  the attributes to the threads, mutexes and conditions: th_inits
   !
   !  Module called by: ...
   !
@@ -109,25 +122,31 @@ module dlb_impl
   save            ! save all variables defined in this module
   private         ! by default, all names are private
   !== Interrupt end of public interface of module =================
-  ! Program from outside might want to know the thread-safety-level required form DLB
+
+  ! Program from  outside might  want to know  the thread-safety-level
+  ! required form DLB
   integer(kind=i4_kind_1), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_MULTIPLE
-  ! The MPI communication of DLB is exclusively performed by the helper thread when both threads
-  ! are present. Only after or before its termination the main thread is  doing some
-  ! communication too. As a matter of fact the main thread is doing not much at all except
-  ! getting some tasks and thread communication (by signals and flags in locked areas).
-  ! Thus, in principle the current version requires only MPI_THREAD_SERIALIZED, the higher
-  ! thread level is chosen as the tasks performed by the main thread might also contain some
-  ! MPI communication.
+  ! The  MPI communication  of  DLB is  exclusively  performed by  the
+  ! helper thread when both threads  are present. Only after or before
+  ! its  termination  the  main  thread is  doing  some  communication
+  ! too. As a matter of fact the  main thread is doing not much at all
+  ! except getting some tasks and thread communication (by signals and
+  ! flags in  locked areas).  Thus,  in principle the  current version
+  ! requires  only MPI_THREAD_SERIALIZED, the  higher thread  level is
+  ! chosen  as the  tasks  performed  by the  main  thread might  also
+  ! contain some MPI communication.
 
   !------------ public functions and subroutines ------------------
   public :: dlb_init, dlb_finalize, dlb_setup, dlb_give_more
   !
-  ! public :: thread_control, thread_mailbox ! needed for the c-wrapper on the pthreads
+  ! ! needed for the c-wrapper on the pthreads
+  ! public :: thread_control, thread_mailbox
   !
-  ! These two are not used anywhere in fortran sources, but are formally a part
-  ! of the public module interface as they are "bind(C)" and called from
-  ! C-sources.
+  ! These  two are  not  used  anywhere in  fortran  sources, but  are
+  ! formally  a  part of  the  public  module  interface as  they  are
+  ! "bind(C)" and called from C-sources.
   !
+
   !================================================================
   ! End of public interface of module
   !================================================================
@@ -135,15 +154,22 @@ module dlb_impl
   !------------ Declaration of types ------------------------------
 
   !------------ Declaration of constants and variables ----
-  ! these variables are also needed but stored in dlb_impl_thread_common, to avoid cyclic binding:
-  !integer(kind=i4_kind), parameter  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
-  !integer(kind=i4_kind), parameter  :: JOBS_LEN = JLENGTH  ! Length of complete jobs storage
 
-  ! IDs of mutexes, use base-0 indices:
-  !integer(kind=i4_kind), parameter :: LOCK_JS   = 0
+  ! these    variables    are    also    needed    but    stored    in
+  ! dlb_impl_thread_common, to avoid cyclic binding:
+  !
+  ! ! messages for work request
+  ! integer(i4_kind), parameter :: WORK_REQUEST = 4, WORK_DONAT = 5
 
-  !integer(kind=i4_kind)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
-  !logical                           :: terminated ! for termination algorithm
+  ! ! Length of complete jobs storage
+  ! integer(i4_kind), parameter :: JOBS_LEN = JLENGTH
+
+  ! ! IDs of mutexes, use base-0 indices:
+  ! integer(i4_kind), parameter :: LOCK_JS   = 0
+
+  ! ! store all the jobs, belonging to this processor
+  ! integer(i4_kind) :: job_storage(jobs_len)
+  ! logical :: terminated ! for termination algorithm
 
   ! IDs for condition variables, use base-0 indices:
   integer(kind=i4_kind_1), parameter :: COND_JS2_UPDATE  = 0
@@ -154,21 +180,24 @@ module dlb_impl
   logical :: main_waits
 
 
-  integer(kind=i4_kind)             :: already_done ! stores how many jobs of the current interval have
-                                      ! been already calculated, needed for the termination algorithm
-                                      ! after initalizing should be only used with LOCK_JS
-                                      ! MAIN stores here how many jobs it has already done, SECRETARY uses
-                                      ! it for reporting the finished job to their owner
+  integer(kind=i4_kind) :: already_done
+  !  stores how  many jobs of  the current interval have  been already
+  !  calculated,   needed   for   the  termination   algorithm   after
+  !  initalizing should be only used with LOCK_JS MAIN stores here how
+  !  many jobs  it has already  done, SECRETARY uses it  for reporting
+  !  the finished job to their owner
 
-  ! there are two  variables shared between the two threads
-  ! terminated is blocked by a global data lock rwlock ("BIG KERNEL LOCK"), only SECRETARY will also write to it
-  ! job_storage is blocked by LOCK_JS, there is a condition COND_JS2_UPDATE, which can be used of SECRETARY to tell
-  ! MAIN that it is time to check again in job_storage (because new jobs have arrived or all is terminated)
+  ! there are two variables  shared between the two threads terminated
+  ! is blocked by a global  data lock rwlock ("BIG KERNEL LOCK"), only
+  ! SECRETARY will also write to it job_storage is blocked by LOCK_JS,
+  ! there  is  a  condition  COND_JS2_UPDATE,  which can  be  used  of
+  ! SECRETARY  to  tell  MAIN  that  it  is time  to  check  again  in
+  ! job_storage (because new jobs have arrived or all is terminated)
   !
-  ! For debugging and counting trace
-  ! used only on SECRETARY, but are written out lateron from MAIN (after
-  ! SECRETARY has terminated) we do not want concurently prints of different threads, so
-  ! secretary must not print them itsself
+  ! For debugging and  counting trace used only on  SECRETARY, but are
+  ! written out lateron from  MAIN (after SECRETARY has terminated) we
+  ! do not want concurently  prints of different threads, so secretary
+  ! must not print them itsself
   integer(kind=i4_kind)             :: count_messages, count_requests, count_offers
   integer(kind=i4_kind)             :: many_tries, many_searches
   integer(kind=i4_kind)             :: many_zeros
@@ -179,9 +208,9 @@ module dlb_impl
 contains
 
   subroutine dlb_init(world)
-    !  Purpose: initalization of needed stuff
-    !           is in one thread context
-    !------------ Modules used ------------------- ---------------
+    !
+    ! Purpose: initalization of needed stuff is in one thread context
+    !
     use dlb_common, only: OUTPUT_BORDER
     implicit none
     integer, intent(in) :: world
@@ -198,11 +227,11 @@ contains
   end subroutine dlb_init
 
   subroutine dlb_finalize()
-    !  Purpose: cleaning up everything, after last call
+    !
+    ! Purpose: cleaning up everything, after last call
     !
     ! Context: main thread after joining other.
     !
-    !------------ Modules used ------------------- ---------------
     use dlb_common, only: dlb_common_finalize
     implicit none
     !** End of interface *****************************************
@@ -210,15 +239,15 @@ contains
   end subroutine dlb_finalize
 
   subroutine dlb_give_more(n, my_job)
-    !  Purpose: Returns next bunch of up to n jobs, if my_job(2)<=
-    !  my_job(1) there are no more jobs there, else returns the jobs
-    !  done by the procs should be my_jobs(1) + 1 to jobs(2) in
-    !  the related job list
-    !  first the jobs are tried to get from the local storage of the
-    !  current proc
-    !  if there are not enough it will wait for either new ones to arrive
-    !  or termination, the return value of my_jobs should only contain
-    !  my_jobs(1) == my_jobs(2) if all procs are terminated
+    !
+    ! Purpose:  Returns next  bunch of  up to  n jobs,  if my_job(2)<=
+    ! my_job(1) there  are no more  jobs there, else returns  the jobs
+    ! done by  the procs should  be my_jobs(1) +  1 to jobs(2)  in the
+    ! related job list first the jobs  are tried to get from the local
+    ! storage of the current proc if there are not enough it will wait
+    ! for either new  ones to arrive or termination,  the return value
+    ! of my_jobs  should only contain my_jobs(1) ==  my_jobs(2) if all
+    ! procs are terminated
     !
     ! Context: main thread.
     !
@@ -265,25 +294,27 @@ contains
             job_storage = remaining
         else
             !
-            ! Found no job in this try, now wait for change before doing anything.
-            ! CONTROL thread will wake MAIN thread up:
+            ! Found no  job in  this try, now  wait for  change before
+            ! doing  anything.  CONTROL thread  will wake  MAIN thread
+            ! up:
             !
             start_timer = MPI_Wtime() ! for debugging
 
-            main_waits = .true. ! MAIN is waiting, control does not need to sleep
+            main_waits = .true. ! MAIN is waiting, control does not
+                                ! need to sleep
 
             !
-            ! This makes MAIN thread give up on storage lock and go to sleep
-            ! waiting to be woken up by CONTROL thread. Lock is aquired again on
-            ! waking up:
+            ! This makes MAIN thread give up on storage lock and go to
+            ! sleep waiting to be woken  up by CONTROL thread. Lock is
+            ! aquired again on waking up:
             !
             call th_cond_wait(COND_JS2_UPDATE, LOCK_JS)
 
             main_waits = .false. ! MAIN is back again
 
             !
-            ! The rest is time measurements for debugging
-            ! FIXME: maybe use FPP_TIMERs instead?
+            ! The rest is time measurements for debugging FIXME: maybe
+            ! use FPP_TIMERs instead?
             !
             main_wait_last = MPI_Wtime() - start_timer ! for debugging
             ! store debugging information:
@@ -294,7 +325,7 @@ contains
     enddo
 
     !
-    ! This counter is used for reporting & termination detection:
+    ! This  counter is  used  for reporting  & termination  detection:
     ! (used by MAIN and CONTROL threads, should be protected by lock)
     !
     already_done = already_done + length(jobs)
@@ -306,12 +337,13 @@ contains
     ! only the start and endpoint of job slice are needed outside:
     my_job = jobs(:L_JOB)
 
-    ! here we should have a valid job slice with at least one valid job
-    ! or a terminated algorithm
+    ! here we  should have a valid  job slice with at  least one valid
+    ! job or a terminated algorithm
     if ( empty(jobs) ) then
-      ! if true means MAIN did not intent to come back (check termination is
-      ! too dangerous, because MAIN may still have work for one go and thus
-      ! would try to join the thread in the next cycle again
+      ! if  true  means  MAIN  did  not intent  to  come  back  (check
+      ! termination is too dangerous, because MAIN may still have work
+      ! for one go  and thus would try to join the  thread in the next
+      ! cycle again
        call th_join_all()
        dlb_time = MPI_Wtime() - dlb_time ! for debugging
        timer_give_more_last = MPI_Wtime() - start_timer_gm ! for debugging
@@ -338,15 +370,13 @@ contains
   end subroutine dlb_give_more
 
   subroutine thread_secretary() bind(C)
-    ! Puropse: This routine should contain all that should be done by
-    !          the thread SECRETARY
-    !          Thus: mainly check for messages and try to finish the
-    !                sended messages (as long as not terminated)
-    !                and test if there are still some jobs available
-    !                if not send reuqest
-    !                as termination will be done by a message send here
-    !                there is no fear that SECRETARY will be stuck
-    !                as it is a loop
+    !
+    ! Puropse: This routine should contain  all that should be done by
+    ! the thread SECRETARY Thus: mainly  check for messages and try to
+    ! finish the sended messages (as  long as not terminated) and test
+    ! if there  are still some jobs  available if not  send reuqest as
+    ! termination will be done by a message send here there is no fear
+    ! that SECRETARY will be stuck as it is a loop
     !
     ! Context: entry to secretary thread.
     !
@@ -375,10 +405,10 @@ contains
     count_ask = -1
     lm_source = -1
 
-    ! FIXME: still not clear why:
-    ! Check if we have really gotten anything, else report already here that there is nothing as
-    ! elsewhere getting to the function test_resp_done with zero jobs done is surpressed
-    ! Needed in case that n_procs > Number of jobs
+    ! FIXME:  still not  clear why:  Check  if we  have really  gotten
+    ! anything,  else report  already here  that there  is  nothing as
+    ! elsewhere getting to the  function test_resp_done with zero jobs
+    ! done is surpressed Needed in case that n_procs > Number of jobs
     call test_resp_done(requ_m)
 
     call task_messages(has_jr_on, requ_m, lm_source,count_ask, proc_asked_last,&
@@ -386,7 +416,8 @@ contains
     if (.not. has_jr_on) call task_local_storage(has_jr_on, requ_m, count_ask, proc_asked_last, timestart)
     do while (.not. termination())
       call th_mutex_lock(LOCK_JS)
-      go_sleep = .not. main_waits ! if main has nothing left to do, no need to go to sleep
+      go_sleep = .not. main_waits ! if main has nothing left to do, no
+                                  ! need to go to sleep
       call th_mutex_unlock(LOCK_JS)
       if(go_sleep) call c_sleep(1000) !microseconds
       ! check for any message with messagetag dlb
@@ -396,11 +427,13 @@ contains
       if (.not. has_jr_on) call task_local_storage(has_jr_on, requ_m, count_ask, proc_asked_last, timestart)
     enddo
 
-    ! now finish all messges still available, no matter if they have been received
+    ! now finish all  messges still available, no matter  if they have
+    ! been received
     call clear_up(count_ask, proc_asked_last, lm_source, requ_m)
     call end_communication()
     call end_threads()
-    ! To ensure that no processor has already started with the next dlb iteration
+    ! To ensure  that no processor  has already started with  the next
+    ! dlb iteration
     call MPI_BARRIER(comm_world, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
@@ -422,11 +455,11 @@ contains
 
 
   subroutine test_resp_done(requ)
-    !  Purpose: tests if the responsibility is done, when n new
-    ! jobs are finished
+    !
+    ! Purpose: tests  if the responsibility  is done, when n  new jobs
+    ! are finished
     !
     ! Context: secretary thread.
-    !
     !
     ! Locks: wrlock, through check_termination
     !        NEEDS to be in a JS_LOCK context
@@ -450,9 +483,11 @@ contains
 
   subroutine task_messages(wait_answer, requ, lm_source, count_ask, proc_asked_last,&
              many_zeros, timestart, timemax)
-    !  Purpose: checks if any message has arrived, check_message will
-    !           then select the response to the content
-    !           if no more messages are found it will finish the task
+    !
+    ! Purpose: checks  if any message has  arrived, check_message will
+    ! then select the response to  the content if no more messages are
+    ! found it will finish the task
+    !
     !------------ Modules used ------------------- ---------------
     use dlb_common, only: iprobe
     implicit none
@@ -483,11 +518,12 @@ contains
   end subroutine task_messages
 
   subroutine task_local_storage(wait_answer, requ, count_ask, proc_asked_last, timestart)
-    !  Purpose: checks if there are still jobs in the local storage
-    !          if not send a message to another proc asking for jobs
-    !          and remember that there is already one on its way
-    !          does also the my_resp lowerage of the termination algorithm
-    !          as a finished job means, someone has to know it
+    !
+    ! Purpose: checks if there are  still jobs in the local storage if
+    ! not send a message to  another proc asking for jobs and remember
+    ! that  there is  already one  on its  way does  also  the my_resp
+    ! lowerage of  the termination algorithm as a  finished job means,
+    ! someone has to know it
     use dlb_common, only: empty
     implicit none
     !------------ Declaration of formal parameters ---------------
@@ -531,20 +567,22 @@ contains
     integer(kind=i4_kind),intent(out)     :: proc_asked_last
     !------------ Declaration of local variables -----------------
     integer(kind=i4_kind_1)              :: v
-    integer(kind=i4_kind), save          :: message(JLENGTH) ! is made save to ensure
-                                             ! that it is not overwritten before message arrived
-                                             ! there is always only one request sended, thus it will
-                                             ! be for sure finished, when it is needed for the next request
+
+    integer(kind=i4_kind), save :: message(JLENGTH)
+    ! is made save to ensure that it is not overwritten before message
+    ! arrived there is always only one request sended, thus it will be
+    ! for sure finished, when it is needed for the next request
+
     integer(kind=i4_kind_1)              :: requ_wr
     many_tries = many_tries + 1 ! just for debugging
 
     v = select_victim(my_rank, n_procs)
 
-    ! store informations on the last proc we have asked:
-    ! first his number
+    ! store informations  on the  last proc we  have asked:  first his
+    ! number
     proc_asked_last = v
-    ! then the request-message counter for the proc, we
-    ! want to send to (consider overflow of integer)
+    ! then the request-message  counter for the proc, we  want to send
+    ! to (consider overflow of integer)
     if (count_ask(v+1) < 1e9) then
       count_ask(v+1) = count_ask(v+1) + 1
     else
@@ -553,8 +591,8 @@ contains
 
     call time_stamp("SECRETARY sends message",5)
 
-    ! send along the request-messge counter to identify the last received
-    ! message of each proc in the termination phase
+    ! send  along  the request-messge  counter  to  identify the  last
+    ! received message of each proc in the termination phase
     message(:) = 0
     message(1) = count_ask(v+1)
 
@@ -565,12 +603,13 @@ contains
 
   subroutine check_messages(src, tag, requ_m, wait_answer, lm_source,count_ask, proc_asked_last,&
             many_zeros, timestart, timemax)
-    !  Purpose: checks which message has arrived, checks for messages:
-    !          Someone finished stolen job slice
-    !          Someone has finished its responsibility (only termination_master)
-    !          There are no more jobs (message from termination_master to finish)
-    !          Job Request from another proc
-    !          Job sended by another proc (after a request was sended)
+    !
+    ! Purpose: checks which message  has arrived, checks for messages:
+    ! Someone  finished  stolen job  slice  Someone  has finished  its
+    ! responsibility (only termination_master)  There are no more jobs
+    ! (message  from termination_master  to finish)  Job  Request from
+    ! another proc  Job sended  by another proc  (after a  request was
+    ! sended)
     !
     ! Context: secretary thread.
     !
@@ -655,8 +694,8 @@ contains
 
     case (WORK_REQUEST) ! other proc wants something from my jobs
       count_requests = count_requests + 1
-      ! store the intern message number, needed for knowing at the end the
-      ! status of the last messages on their way
+      ! store the intern message number, needed for knowing at the end
+      ! the status of the last messages on their way
       lm_source(src + 1) = message(1)
       call divide_jobs(src, requ_m)
 
@@ -670,12 +709,12 @@ contains
   end subroutine check_messages
 
   subroutine report_or_store(owner, num_jobs_done, requ)
-    !  Purpose: If a job is finished, this cleans up afterwards
-    !           Needed for termination algorithm, there are two
-    !           cases, it was a job of the own responsibilty or
-    !           one from another, first case just change my number
-    !            second case, send to victim, how many of his jobs
-    !            were finished
+    !
+    ! Purpose: If a job is  finished, this cleans up afterwards Needed
+    ! for termination algorithm, there are  two cases, it was a job of
+    ! the  own responsibilty  or  one from  another,  first case  just
+    ! change my  number second case, send  to victim, how  many of his
+    ! jobs were finished
     !
     ! Context: secretary thread.
     !
@@ -692,10 +731,11 @@ contains
     !------------ Declaration of local variables -----------------
     !------------ Executable code --------------------------------
     call time_stamp("finished a job",4)
-    ! my_jobs hold recent last point, as proc started from beginning and
-    ! steal from the back, this means that from the initial starting point on
-    ! (stored in start_job) to this one, all jobs were done
-    ! if my_jobs(JRIGHT)/= start_job(JRIGHT) someone has stolen jobs
+    ! my_jobs hold  recent last point, as proc  started from beginning
+    ! and  steal from  the  back,  this means  that  from the  initial
+    ! starting point  on (stored in  start_job) to this one,  all jobs
+    ! were  done if  my_jobs(JRIGHT)/=  start_job(JRIGHT) someone  has
+    ! stolen jobs
 
     !
     ! Make an incremental report:
@@ -708,13 +748,13 @@ contains
   end subroutine report_or_store
 
   subroutine dlb_setup(job)
-    !  Purpose: initialization of a dlb run, each proc should call
-    !           it with inital jobs. The inital jobs should be a
-    !           static distribution of all available jobs, each job
-    !           should be given to one and only one of the procs
-    !           jobs should be given as a job range (STP, EP), where
-    !           all jobs should be the numbers from START to END, with
-    !           START <= STP <= EP <= END
+    !
+    ! Purpose: initialization of  a dlb run, each proc  should call it
+    ! with  inital   jobs.  The  inital   jobs  should  be   a  static
+    ! distribution of all available jobs,  each job should be given to
+    ! one and  only one  of the procs  jobs should  be given as  a job
+    ! range (STP, EP), where all jobs should be the numbers from START
+    ! to END, with START <= STP <= EP <= END
     !
     ! Starts other Thread, runs on MAIN
     use dlb_common, only: length, L_JOB
@@ -733,13 +773,16 @@ contains
     main_waits = .false.
     ! set starting values for the jobs
     start_job = set_start_job(job)
-    ! already done should contain how many of the jobs have been done already
+    ! already done should contain how  many of the jobs have been done
+    ! already
     already_done = 0
-    call dlb_common_setup(length(start_job)) ! sets none finished on termination_master
+    call dlb_common_setup(length(start_job)) ! sets none finished on
+                                             ! termination_master
+
     ! Job storage holds all the jobs currently in use
     job_storage(:JLENGTH) = start_job
-    ! from now on, there are several threads, so chared objects have to
-    ! be locked/unlocked in order to use them!!
+    ! from now on,  there are several threads, so  chared objects have
+    ! to be locked/unlocked in order to use them!!
     call thread_setup()
     call th_create_one()
     call time_stamp("finished setup", 3)
