@@ -301,7 +301,7 @@ contains
     ! Set global communicator as a DUP of the world:
     !
     call MPI_COMM_DUP(world, comm_world, ierr)
-    ASSERT(ierr==0)
+    ASSERT(ierr==MPI_SUCCESS)
 
     call MPI_COMM_RANK(comm_world, my_rank, ierr)
     ASSERT(ierr==MPI_SUCCESS)
@@ -344,7 +344,7 @@ contains
     endif
 
     call MPI_COMM_FREE(comm_world, ierr)
-    ASSERT(ierr==0)
+    ASSERT(ierr==MPI_SUCCESS)
     ASSERT(comm_world==MPI_COMM_NULL)
   end subroutine dlb_common_finalize
 
