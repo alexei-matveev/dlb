@@ -795,16 +795,8 @@ contains
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    !
-    ! FIXME: should we avoid two branches and always invoke
-    !        MPI_PUT(..., rank, ...) even for rank == my_rank?
-    !
-    if (rank == my_rank) then
-      job_storage = win_data
-    else
-      call MPI_PUT(win_data, size(win_data), i4_kind_mpi, rank, zero, size(win_data), i4_kind_mpi, win, ierr)
-      ASSERT(ierr==MPI_SUCCESS)
-    endif
+    call MPI_PUT(win_data, size(win_data), i4_kind_mpi, rank, zero, size(win_data), i4_kind_mpi, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
 
     call MPI_WIN_UNLOCK(rank, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
@@ -818,6 +810,7 @@ contains
     implicit none
     integer(i4_kind_1), intent(in)  :: rank
     integer(i4_kind), intent(out) :: jobs(JLENGTH)
+    integer(MPI_ADDRESS_KIND), parameter :: zero = 0
     ! *** end of interface ***
 
     integer(i4_kind_1) :: ierr
@@ -831,7 +824,8 @@ contains
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    jobs(:) = job_storage(:JLENGTH)
+    call MPI_GET(jobs, JLENGTH, i4_kind_mpi, rank, zero, JLENGTH, i4_kind_mpi, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
 
     call MPI_WIN_UNLOCK(rank, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
@@ -845,6 +839,7 @@ contains
     implicit none
     integer(i4_kind_1), intent(in) :: rank
     integer(i4_kind), intent(in)   :: jobs(:)
+    integer(MPI_ADDRESS_KIND), parameter :: zero = 0
     ! *** end of interface ***
 
     integer(i4_kind_1) :: ierr
@@ -853,12 +848,13 @@ contains
     ! FIXME: so far only used to store into the local datastructure:
     !
     ASSERT(rank==my_rank)
-    ASSERT(size(jobs)==JLENGTH)
 
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    job_storage(:JLENGTH) = jobs(:)
+    ASSERT(size(jobs)==JLENGTH)
+    call MPI_PUT(jobs, size(jobs), i4_kind_mpi, rank, zero, size(jobs), i4_kind_mpi, win, ierr)
+    ASSERT(ierr==MPI_SUCCESS)
 
     call MPI_WIN_UNLOCK(rank, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
