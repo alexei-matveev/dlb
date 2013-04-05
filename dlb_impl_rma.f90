@@ -4,72 +4,71 @@
 module dlb_impl
   !---------------------------------------------------------------
   !
-  !  Purpose: takes care about dynamical load balancing, uses an RMA
-  !           (MPI) object to store the job informations (only the
-  !           number of the job) and allows other routines to steal
-  !           them, if they have no own left unfortunatelly the MPI
-  !           one-sided works different on different systems, this
-  !           routine is only useful if the RMA can be accessed while
-  !           the target proc is not in MPI-context
+  !  Purpose:
   !
-  ! Interface:
+  !  Takes  care about  dynamical load  balancing, uses  an  RMA (MPI)
+  !  object to store the job informations (only the number of the job)
+  !  and allows other routines to steal them, if they have no own left
+  !  unfortunatelly  the MPI  one-sided works  different  on different
+  !  systems, this routine  is only useful if the  RMA can be accessed
+  !  while the target proc is not in MPI-context
   !
-  !           call dlb_init() - once before first acces
+  !  Interface:
   !
-  !           call dlb_setup(init_job) - once every time a dlb should
-  !              be used, init_job should be the part of the current
-  !              proc of an initial job distribution
+  !  call dlb_init() - once before first acces
   !
-  !           dlb_give_more(n, jobs) - n should be the number of jobs
-  !              requested at once, the next time dlb_give_more is
-  !              called again, all jobs from jobs should be finished,
-  !              jobs are at most n, they are jsut the number of the
-  !              jobs, which still have to be transformed between each
-  !              other, it should be done the error slice from jobs(0)
-  !              +1 to jobs(1) if dlb_give_more returns
-  !              jobs(0)==jobs(1) there are on no proc any jobs left
+  !  call dlb_setup(init_job) - once every  time a dlb should be used,
+  !    init_job should be  the part of the current  proc of an initial
+  !    job distribution
   !
-  !          The algorithm: it follows in principle the Algorithm 2
-  !              from the first reference, each proc has an local RMA
-  !              memory containing job informations, it takes jobs
-  !              form the left (stp values are increased, till stp ==
-  !              ep) then it searches the job storages of the other
-  !              procs for jobs left, this is done by a code similar
-  !              to the one descriebed in the second reference, but
-  !              here on each proc and without specifieng the ranges
-  !              to work on stolen work is put in the own storage,
-  !              after taking the current job
+  !  dlb_give_more(n, jobs) - n should be the number of jobs requested
+  !    at once, the next time  dlb_give_more is called again, all jobs
+  !    from jobs should be finished, jobs are at most n, they are jsut
+  !    the  number of  the jobs,  which still  have to  be transformed
+  !    between  each other,  it should  be done  the error  slice from
+  !    jobs(0) +1 to jobs(1) if dlb_give_more returns jobs(0)==jobs(1)
+  !    there are on no proc any jobs left
   !
-  !          Termination algorithm: called (at least once) "Fixed
-  !              Energy Distributed Termination Algorithm" to avoid
-  !              confusion, here the term "energy" is not used,
-  !              talking about respoinsibility (resp) instead, every
-  !              system starts with a part of responsibility given to
-  !              him, if procs steal from him, they have later to send
-  !              him a message saying how many of his jobs, they have
-  !              done, they always report to the proc who had the resp
-  !              first, thus source is given away with job each proc
-  !              lowers his resp about the values given back from any
-  !              proc and about the jobs he has done himself, when
-  !              finished them, if he has his resp at zero, he sends a
-  !              message to termination_master if termination master
-  !              has a message from all the procs, that their resp is
-  !              0 he sends a message to all procs, telling them to
-  !              terminated the algorithm
+  !  The algorithm:
+  !
+  !  It follows in principle the Algorithm 2 from the first reference,
+  !  each proc has an local RMA memory containing job informations, it
+  !  takes jobs form  the left (stp values are  increased, till stp ==
+  !  ep) then it searches the job storages of the other procs for jobs
+  !  left, this is done by a code similar to the one descriebed in the
+  !  second reference,  but here on  each proc and  without specifieng
+  !  the ranges  to work  on stolen  work is put  in the  own storage,
+  !  after taking the current job
+  !
+  !  Termination algorithm:
+  !
+  !  Called  (at  least once)  "Fixed  Energy Distributed  Termination
+  !  Algorithm"  to avoid  confusion, here  the term  "energy"  is not
+  !  used, talking about  respoinsibility (resp) instead, every system
+  !  starts with a part of responsibility given to him, if procs steal
+  !  from him, they  have later to send him a  message saying how many
+  !  of his jobs,  they have done, they always report  to the proc who
+  !  had the resp first, thus source  is given away with job each proc
+  !  lowers his  resp about  the values given  back from any  proc and
+  !  about the jobs he has done himself, when finished them, if he has
+  !  his resp  at zero,  he sends a  message to  termination_master if
+  !  termination master has  a message from all the  procs, that their
+  !  resp  is 0  he sends  a  message to  all procs,  telling them  to
+  !  terminated the algorithm
   !
   !  Module called by: ...
   !
   !
-  !  References: "Scalable Work Stealing", James Dinan, D. Brian
-  !              Larkins, Sriram Krishnamoorthy, Jarek Nieplocha,
-  !              P. Sadayappan, Proc. of 21st intl. Conference on
-  !              Supercomputing (SC).  Portland, OR, Nov. 14-20, 2009
-  !              (for work stealing algorithm)
+  !  References:
   !
-  !              "Implementing Byte-Range Locks Using MPI One-Sided
-  !              Communication", Rajeev Thakur, Robert Ross, and
-  !              Robert Latham (in EuroPVM/MPI) (read modify write
-  !              algorithm with the same ideas)
+  !  "Scalable Work  Stealing", James Dinan, D.  Brian Larkins, Sriram
+  !  Krishnamoorthy,  Jarek Nieplocha,  P. Sadayappan,  Proc.  of 21st
+  !  intl.   Conference  on   Supercomputing   (SC).   Portland,   OR,
+  !  Nov. 14-20, 2009 (for work stealing algorithm)
+  !
+  !  "Implementing    Byte-Range    Locks    Using    MPI    One-Sided
+  !  Communication", Rajeev Thakur, Robert Ross, and Robert Latham (in
+  !  EuroPVM/MPI) (read modify write algorithm with the same ideas)
   !
   !  Author: AN
   !  Date: 08/10->09/10
@@ -140,14 +139,13 @@ contains
 
   subroutine dlb_init(world)
     !
-    !  Purpose: Initialization of the objects needed for running the
-    !           dlb job scheduling, the most part is of setting up an
-    !           RMA object with MPI to have it ready to use for the
-    !           rest of the dlb model. It may be set up only once,
-    !           even if there are several dlbs wanted, the initalizing
-    !           of a specific run should be done with dlb_setup It is
-    !           also recommended to call this subroutine only once as
-    !           it needs parallelization of all processes
+    ! Initialization  of the objects  needed for  running the  dlb job
+    ! scheduling, the  most part is of  setting up an  RMA object with
+    ! MPI to have  it ready to use  for the rest of the  dlb model. It
+    ! may be set up only once,  even if there are several dlbs wanted,
+    ! the initalizing of a specific  run should be done with dlb_setup
+    ! It is also  recommended to call this subroutine  only once as it
+    ! needs parallelization of all processes
     !
     use iso_c_binding, only: c_ptr, c_f_pointer
     use dlb_common, only: dlb_common_init, OUTPUT_BORDER
@@ -204,9 +202,9 @@ contains
 
   subroutine dlb_finalize()
     !
-    !  Purpose: shuts down the dlb objects (especially job_storage)
-    !  when it is not further needed, should be called, after ALL dlb
-    !  runs have complete
+    ! Shuts down  the dlb objects (especially job_storage)  when it is
+    ! not further  needed, should be  called, after ALL dlb  runs have
+    ! complete
     !
     use dlb_common, only: dlb_common_finalize
     implicit none
@@ -235,13 +233,13 @@ contains
 
   subroutine dlb_give_more(n, slice)
     !
-    !  Purpose: Returns next bunch of up to n jobs.  If slice(2) <=
-    !  slice(1) there are no more jobs there, else returns the jobs
-    !  done by the procs should be slice(1) + 1 to slice(2) in the
-    !  related job list first the jobs are tried to get from the local
-    !  storage of the current proc, if there are no more, it will try
-    !  to steal some more work from others, till the separate
-    !  termination algorithm states, that everything is done
+    ! Returns next  bunch of  up to n  jobs.  If slice(2)  <= slice(1)
+    ! there are no more jobs there,  else returns the jobs done by the
+    ! procs should be slice(1) + 1 to slice(2) in the related job list
+    ! first the  jobs are tried to  get from the local  storage of the
+    ! current proc,  if there are no  more, it will try  to steal some
+    ! more work  from others, till the  separate termination algorithm
+    ! states, that everything is done
     !
     use dlb_common, only: select_victim, steal_local, steal_remote &
         , length, empty, OUTPUT_BORDER, L_JOB
@@ -419,11 +417,10 @@ contains
 
   logical function check_messages()
     !
-    !  Purpose: checks if any message has arrived, checks for
-    !           messages: Someone finished stolen job slice. Someone
-    !           has finished its responsibilty (only termination
-    !           master). There are no more jobs (message from
-    !           termination_master to finish)
+    ! Checks if any message  has arrived, checks for messages: Someone
+    ! finished   stolen   job   slice.   Someone  has   finished   its
+    ! responsibilty (only termination master).  There are no more jobs
+    ! (message from termination_master to finish)
     !
     use dlb_common, only: report_by, reports_pending &
         , end_requests, send_resp_done, end_communication
@@ -530,11 +527,11 @@ contains
 
   subroutine report_or_store(owner, num_jobs_done)
     !
-    !  Purpose: If a job is finished, this cleans up afterwards Needed
-    !           for termination algorithm, there are two cases, it was
-    !           a job of the own responsibilty or one from another,
-    !           first case just change my number second case, send to
-    !           victim, how many of his jobs were finished
+    ! If  a job  is finished,  this  cleans up  afterwards Needed  for
+    ! termination algorithm, there are two  cases, it was a job of the
+    ! own responsibilty or one from another, first case just change my
+    ! number second  case, send to victim,  how many of  his jobs were
+    ! finished
     !
     use dlb_common, only: report_to, reports_pending, send_resp_done
     implicit none
@@ -861,13 +858,12 @@ contains
 
   subroutine dlb_setup(job)
     !
-    !  Purpose: initialization of a dlb run, each proc should call it
-    !           with inital jobs. The inital jobs should be a static
-    !           distribution of all available jobs, each job should be
-    !           given to one and only one of the procs jobs should be
-    !           given as a job range (STP, EP), where all jobs should
-    !           be the numbers from START to END, with START <= STP <=
-    !           EP <= END
+    ! Initialization  of a  dlb run,  each  proc should  call it  with
+    ! inital jobs. The inital jobs  should be a static distribution of
+    ! all available jobs, each job should be given to one and only one
+    ! of the  procs jobs  should be  given as a  job range  (STP, EP),
+    ! where all  jobs should  be the numbers  from START to  END, with
+    ! START <= STP <= EP <= END
     !
     use dlb_common, only: dlb_common_setup, set_start_job, length, L_JOB
     implicit none
