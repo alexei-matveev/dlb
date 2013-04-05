@@ -116,9 +116,9 @@ module dlb_common
                                         !once and afterwards be read only
 
   !
-  ! Termination master is the process that gathers completion reports
-  ! and tells everyone to terminate. In case of the variant with master
-  ! as server of jobs, its also the master.
+  ! Termination master is the  process that gathers completion reports
+  ! and  tells everyone  to terminate.  In  case of  the variant  with
+  ! master as server of jobs, its also the master.
   !
   integer(i4_kind_1), public, protected :: termination_master
 
@@ -127,38 +127,46 @@ module dlb_common
   !================================================================
 
   !
-  ! This scalar holds the number of jobs initially assigned to the process
-  ! owning this variable. FIXME: make it an array (1:n_procs) to keep full
-  ! info about initial assignment. Currently not doable as the setup procedure
-  ! is provided only one assignment (to myself).
+  ! This scalar  holds the  number of jobs  initially assigned  to the
+  ! process owning this variable.  FIXME: make it an array (1:n_procs)
+  ! to keep  full info about initial assignment.  Currently not doable
+  ! as  the  setup  procedure  is  provided only  one  assignment  (to
+  ! myself).
   !
   integer(i4_kind) :: responsibility = -1
 
   !
-  ! This array holds the counts of jobs that were initially assigned to the
-  ! process owning this structure and later reported as done by one of the
-  ! workers. Note that sum(reported_by(:)) is to be compared with
-  ! with the total number of jobs from the initial assignment kept in
-  ! the variable "responsibility".
+  ! This array holds  the counts of jobs that  were initially assigned
+  ! to the process owning this structure and later reported as done by
+  ! one  of  the workers.   Note  that  sum(reported_by(:))  is to  be
+  ! compared  with with  the total  number  of jobs  from the  initial
+  ! assignment kept in the variable "responsibility".
   !
   integer(i4_kind), allocatable :: reported_by(:) ! (0:n_procs-1)
 
   !
-  ! The next array holds the counts of jobs that were delivered to "userspace"
-  ! of the process owning this structure (aka jobs that were "done") and reported
-  ! to the respective job owner according to initial assignment.
-  ! Note that sum(reported_to(1:n_procs)) is the number of jobs "done" by the
-  ! process owning this structure. We dont abuse message buffers to keep this data
-  ! anymore.
+  ! The next  array holds  the counts of  jobs that were  delivered to
+  ! "userspace" of  the process owning  this structure (aka  jobs that
+  ! were "done") and reported to the respective job owner according to
+  ! initial assignment.   Note that sum(reported_to(:))  is the number
+  ! of jobs "done" by the process owning this structure. We dont abuse
+  ! message buffers to keep this data anymore.
   !
   integer(i4_kind), allocatable :: reported_to(:) ! (0:n_procs-1)
 
-  integer(kind=i4_kind_1), allocatable :: req_dj(:) !need to store the messages for DONE_JOB,
-  integer(kind=i4_kind), allocatable :: messages(:,:) !need to store the messages for DONE_JOB,
-                     ! as they may still be not finished, when the subroutine for generating them is finshed.
-                     ! There may be a lot of them, message_on_way keeps track, to whom they are already on their way
-                     ! the requests are handeled also separately, as it is needed to know, which one has finsished:
-  logical, allocatable :: message_on_way(:) ! which messages are already sended
+  integer(i4_kind_1), allocatable :: req_dj(:) ! need to store the
+                                               ! messages for
+                                               ! DONE_JOB,
+
+  ! Need to store the messages for  DONE_JOB, as they may still be not
+  ! finished, when the subroutine for generating them is finshed.
+  integer(i4_kind), allocatable :: messages(:,:)
+
+  ! There may  be a lot of  them, message_on_way keeps  track, to whom
+  ! they  are already  on their  way  the requests  are handeled  also
+  ! separately, as it is needed to know, which one has finsished:
+  logical, allocatable :: message_on_way(:) ! which messages are
+                                            ! already sent
 
   !------------ Declaration of types ------------------------------
 
