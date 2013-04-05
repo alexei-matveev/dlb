@@ -117,8 +117,7 @@ module dlb_common
 
   !
   ! Termination master is the  process that gathers completion reports
-  ! and  tells everyone  to terminate.  In  case of  the variant  with
-  ! master as server of jobs, its also the master.
+  ! and  tells everyone to terminate.
   !
   integer(i4_kind_1), public, protected :: termination_master
 

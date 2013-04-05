@@ -50,24 +50,6 @@ module dlb_impl
   !  resp  is 0  he sends  a  message to  all procs,  telling them  to
   !  terminated the algorithm
   !
-  !  THIS MAY BE IMPLEMENTED LATER, POSSIBLY IN A SEPARATE FILE.
-  !
-  !  Another possibility for the algorithm: with setting master_server
-  !  = true another the algorithm  is is sliglty changed. In this case
-  !  only one (the termination_master) is  allowed to be asked for new
-  !  jobs.  It would not give back half of them, of course, but only a
-  !  fraction. Several  different algorithms for it can  be choosen by
-  !  chunk_m.  They are similar  to the  algorithm provided  by OpenMP
-  !  parallel-do  (chunk_m   =  1  gives  a  fixed   amount  of  work,
-  !  respectively  chunksize *  m back,  chunk_m =  2 does  the guided
-  !  variant with  giving back  1/n_procs of what  is still  there (as
-  !  long as  it is more than  m), m is  the amount of jobs  wanted at
-  !  once termination  here is much easier:  if termination_master can
-  !  not  send any jobs  back, it  sends termination  to the  proc. It
-  !  collects all  the procs he has  send a termination to,  if he has
-  !  all and his own CONTROL has  send him a job request he terminates
-  !  also.
-  !
   !  Thread are  included via wrapper  around c pthread  routines, The
   !  wrappers   all   start  with   th   and   are   located  in   the
   !  thread_wrapper.c file. There are routines for starting and ending

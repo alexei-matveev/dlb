@@ -170,7 +170,7 @@ module dlb_impl_thread_common
     !------------ Executable code --------------------------------
     call th_mutex_lock(LOCK_JS)
 
-    ! Share the jobs (a half, or less if olnly master has some):
+    ! Share the jobs (in halves):
     w = divide_work(job_storage(1:2), n_procs)
 
     g_jobs = job_storage
