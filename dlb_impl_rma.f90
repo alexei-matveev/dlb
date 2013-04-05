@@ -181,25 +181,18 @@ contains
 
     size_all = jobs_len * sizeofint ! for having it in the correct kind
 
+    ! Start with empty job_storage; set it already before others might
+    ! want to steal
+    job_storage(1:JLENGTH) = set_empty_job()
+
+    ! Zero fields responsible for locking:
+    job_storage(JLENGTH+1:) = OFF
+
     ! win (an integer) is set up, so that the RMA-processes can call
     ! on it they will then get acces to the local stored job_storage
     ! of the corresponding proc
     call MPI_WIN_CREATE(job_storage, size_all, sizeofint, MPI_INFO_NULL, &
                         comm_world, win, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
-
-    ! needed to make certain, that in the next steps, all the procs
-    ! have all the informations
-    call MPI_WIN_FENCE(0, win, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
-
-    ! initalize the job storage: not yet any task but ensure no lock
-    call write_and_unlock(my_rank, set_empty_job())
-
-    ! if a dlb run would be too early after init, some processor might
-    ! steal from an undefined storage, after this at least it can only
-    ! steal empty jobs if a processor is not yet available
-    call MPI_WIN_FENCE(0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
     if (my_rank ==0 .and. 0 < OUTPUT_BORDER) then
