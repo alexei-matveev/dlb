@@ -28,7 +28,8 @@ module dlb_common
   !
   !----------------------------------------------------------------
 # include "dlb.h"
-  USE_MPI
+  USE_MPI!, only: MPI_STATUS_SIZE, MPI_SUCCESS, MPI_COMM_NULL, &
+       !MPI_DOUBLE_PRECISION, MPI_WTIME, MPI_DATATYPE_NULL
   implicit none
   save            ! save all variables defined in this module
   private         ! by default, all names are private
@@ -66,7 +67,8 @@ module dlb_common
 
   public :: print_statistics
   public :: dlb_timers
-  ! integer with 4 bytes, range 9 decimal digits
+
+  ! Use integers with at least that many decimal digits:
   integer, parameter :: kind_of_i4_kind = 18
   integer, parameter, public :: i4_kind = selected_int_kind(kind_of_i4_kind)
 
