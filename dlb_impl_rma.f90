@@ -788,6 +788,12 @@ contains
     call MPI_WIN_LOCK(MPI_LOCK_EXCLUSIVE, rank, 0, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
+    !
+    ! Avoid   local  writes  to   job_storage(:)  and   always  invoke
+    ! MPI_PUT(..., rank, ...)  even for  rank == my_rank. Who knows if
+    ! the   compiler  will   decide   to  re-roder   lock/store/unlock
+    ! statments.
+    !
     call MPI_PUT(win_data, size(win_data), i4_kind_mpi, rank, zero, size(win_data), i4_kind_mpi, win, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
