@@ -69,9 +69,12 @@ module dlb_common
   ! integer with 4 bytes, range 9 decimal digits
   integer, parameter :: kind_of_i4_kind = 18
   integer, parameter, public :: i4_kind = selected_int_kind(kind_of_i4_kind)
-  ! MPI has its own convention for types, it needs its own
-  ! version of the integer to send
-  integer, public, protected :: i4_kind_mpi
+
+  ! MPI has its own convention for  types, it needs its own version of
+  ! the  integer  to  send.  This   will  be  set  to  something  more
+  ! meaningfull in dlb_common_init():
+  integer, public, protected :: i4_kind_mpi = MPI_DATATYPE_NULL
+
   ! for those which will stay 4 bytes no matter what changes around (fro example for statistics)
   integer, parameter, public :: i4_kind_1 = selected_int_kind(9)
 
@@ -309,8 +312,26 @@ contains
     call MPI_COMM_SIZE(comm_world, n_procs, ierr)
     ASSERT(ierr==MPI_SUCCESS)
 
-    call MPI_TYPE_CREATE_F90_INTEGER(kind_of_i4_kind, i4_kind_mpi, ierr)
-    ASSERT(ierr==MPI_SUCCESS)
+    !
+    ! Create a  new MPI_Datatype, here  i4_kind_mpi. It is not  a kind
+    ! (like  i4_kind), it  is not  a  number of  decimal digits  (like
+    ! kind_of_i4_kind) but a real  MPI type, represented as an integer
+    ! as everything else in Fortran bindings.
+    !
+    ! FIXME: even with the guard, valgrind reports a memory leak here.
+    ! But at least one MPI interpretation says:
+    !
+    !   "An  MPI_Datatype  returned  by  this  subroutine  is  already
+    !    committed.  It cannot be freed with MPI_TYPE_FREE()."
+    !
+    ! Here kind_of_i4_kind is a  PARAMETER and does not change between
+    ! invocations. So do it just once:
+    !
+    if (i4_kind_mpi == MPI_DATATYPE_NULL) then
+       call MPI_TYPE_CREATE_F90_INTEGER (kind_of_i4_kind, i4_kind_mpi, ierr)
+       ASSERT(ierr==MPI_SUCCESS)
+    endif
+
     !
     ! Anyone  can  be  the  termination  master. So  choose  the  last
     ! processor  to  be  the  termination  master.   It  should  exist
