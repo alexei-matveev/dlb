@@ -312,10 +312,12 @@ contains
     call MPI_TYPE_CREATE_F90_INTEGER(kind_of_i4_kind, i4_kind_mpi, ierr)
     ASSERT(ierr==MPI_SUCCESS)
     !
-    ! FIXME: This is just a choice, not a requirement, right?
-    ! Choose the last processor to be the termination master. It should exist irrespective
-    ! what the number of processors is. The first processor is most likely playing the role
-    ! of master for the real calculation, this way the additional load should be better balanced.
+    ! Anyone  can  be  the  termination  master. So  choose  the  last
+    ! processor  to  be  the  termination  master.   It  should  exist
+    ! irrespective  what  the  number  of  processors  is.  The  first
+    ! processor is most likely playing the role of master for the real
+    ! calculation,  this  way the  additional  load  should be  better
+    ! balanced.
     !
     termination_master = n_procs - 1
 
