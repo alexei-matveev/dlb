@@ -98,7 +98,7 @@ cobjs += $(DLB-cobjs)
 # Set _XOPEN_SOURCE=500 to make rwlocks available
 #
 $(DLB-cobjs): CFLAGS = -Wall -g -O1 -std=c99 -D_XOPEN_SOURCE=500
-$(DLB-fobjs:.o=.F90): FPPOPTIONS += -DFPP_OUTPUT_BORDER=$(DLB_OUTPUT_LEVEL)
+$(DLB-fobjs) $(DLB-fobjs:.o=.F90): FPPOPTIONS += -DFPP_OUTPUT_BORDER=$(DLB_OUTPUT_LEVEL)
 
 #
 # This is also a top-level (global) target, extend the list
