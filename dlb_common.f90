@@ -48,7 +48,7 @@ module dlb_common
   public :: divide_work!(jobs, np) -> integer n
   public :: split_at! (C, AB, AC, CB)
 
-  public :: irand!(long int) -> long int
+  public :: irand ! (long int) -> long int, FIXME: used in test.f90
 
   public :: time_stamp
   public :: dlb_common_init, dlb_common_finalize, dlb_common_setup
