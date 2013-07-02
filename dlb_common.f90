@@ -725,18 +725,12 @@ contains
     integer (i4_kind) :: len_req
     integer (i4_kind_1) :: alloc_stat
 
-    len_req = 0
-
     if (allocated (requ)) then
        ! Can it be zero?
        len_req = size (requ)
-       allocate (req_int(len_req), stat=alloc_stat)
-       ASSERT (alloc_stat==0)
-
-       req_int = requ
-
-       deallocate (requ, stat=alloc_stat)
-       ASSERT (alloc_stat==0)
+       call move_alloc (requ, req_int)
+    else
+       len_req = 0
     endif
 
     allocate (requ(len_req + 1), stat=alloc_stat)
