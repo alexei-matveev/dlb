@@ -706,10 +706,10 @@ contains
     CB(JRIGHT) = AB(JRIGHT)
   end subroutine split_at
 
-  subroutine add_request(req, requ)
-    ! Purpose: stores unfinished requests
-    !          there is a storage requ, here keep all that is
-    !          inside but add also req
+  subroutine add_request (req, requ)
+    !
+    ! Stores  unfinished   requests.   Grow  requ(:)   by  one  entry,
+    ! allocating if it is not allocated, and append req.
     !
     ! Context: control thread, mailbox thread.
     !          2 threads: secretary thread
@@ -717,27 +717,35 @@ contains
     ! Locks: none.
     !
     implicit none
-    integer(i4_kind_1),intent(in) :: req
-    integer(i4_kind_1), allocatable :: requ(:)
+    integer (i4_kind_1), intent (in) :: req
+    integer (i4_kind_1), allocatable, intent (inout) :: requ(:)
     ! *** end of interface ***
 
-    integer(i4_kind_1), allocatable :: req_int(:)
-    integer(i4_kind) :: len_req
-    integer(i4_kind_1) :: alloc_stat
+    integer (i4_kind_1), allocatable :: req_int(:)
+    integer (i4_kind) :: len_req
+    integer (i4_kind_1) :: alloc_stat
 
     len_req = 0
-    if (allocated(requ)) then
-      len_req = size(requ)
-      allocate(req_int(len_req), stat = alloc_stat)
-      ASSERT(alloc_stat==0)
-      req_int = requ
-      deallocate(requ, stat = alloc_stat)
-      ASSERT(alloc_stat==0)
+
+    if (allocated (requ)) then
+       ! Can it be zero?
+       len_req = size (requ)
+       allocate (req_int(len_req), stat=alloc_stat)
+       ASSERT (alloc_stat==0)
+
+       req_int = requ
+
+       deallocate (requ, stat=alloc_stat)
+       ASSERT (alloc_stat==0)
     endif
-    allocate(requ(len_req +1), stat = alloc_stat)
-    ASSERT(alloc_stat==0)
-    if (len_req > 0) requ(:len_req) = req_int
-    requ(len_req +1) = req
+
+    allocate (requ(len_req + 1), stat=alloc_stat)
+    ASSERT (alloc_stat==0)
+
+    if (allocated (req_int)) then
+       requ(:len_req) = req_int
+    endif
+    requ(len_req + 1) = req
   end subroutine add_request
 
   subroutine test_requests(requ)
