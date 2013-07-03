@@ -115,16 +115,25 @@ module dlb_impl
 
   !------------ Declaration of constants and variables ----
   integer(kind=i4_kind), parameter  :: ON = 1, OFF = 0 ! For read-modify-write
-  integer(kind=i4_kind)             :: jobs_len  ! Length of complete jobs storage
-  integer(kind=i4_kind_1)            :: win ! for the RMA object
+
+  ! Length   of  complete   job_storage(:)  array   aka   RMA  window.
+  ! Approximately number of workers + a little. Does not need to be 64
+  ! bit wide:
+  integer (i4_kind_1) :: jobs_len
+
+  ! Store  all the  jobs, belonging  to  this processor  and the  lock
+  ! struct here. The storage itself may eventually need to hold 64 bit
+  ! wide integers (see the definition of i4_kind in dlb_common):
+  integer (i4_kind), pointer :: job_storage(:) ! (jobs_len)
+
+  ! RMA object  handler. Should be better the  default Fortran integer
+  ! (or rather the kind of integers that MPI uses for handles):
+  integer (i4_kind_1) :: win
 
   ! Read Modify Write Error codes:
   integer(kind=i4_kind), parameter  :: RMW_SUCCESS = 0
   integer(kind=i4_kind), parameter  :: RMW_LOCKED = 1
   integer(kind=i4_kind), parameter  :: RMW_MODIFY_ERROR = 2
-
-  ! store all the jobs, belonging to this processor and the lock struct here:
-  integer(kind=i4_kind), pointer    :: job_storage(:) ! (jobs_len)
 
   integer(kind=i4_kind)             :: already_done ! stores how many jobs the proc has done from
                                       ! the current interval
@@ -691,7 +700,7 @@ contains
     ASSERT(ierr==MPI_SUCCESS)
     ! get all after my own lock ...{my_lock}]...]
     displacement = my_rank + JLENGTH + 1
-    N = (jobs_len-JLENGTH) - my_rank -1
+    N = (jobs_len - JLENGTH) - my_rank -1
     if (N > 0) then
         call MPI_GET(win_data(jobs_len-N+1:jobs_len), N, i4_kind_mpi, rank, displacement, &
                 N, i4_kind_mpi, win, ierr)
