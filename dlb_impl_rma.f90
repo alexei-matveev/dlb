@@ -423,7 +423,7 @@ contains
     call time_stamp("dlb_give_more: exit",3)
   end subroutine dlb_give_more
 
-  logical function check_messages()
+  logical function check_messages ()
     !
     ! Checks if any message  has arrived, checks for messages: Someone
     ! finished   stolen   job   slice.   Someone  has   finished   its
@@ -442,9 +442,9 @@ contains
     integer (ik) :: stat(MPI_STATUS_SIZE)
 
     ! check for any message
-    do while ( iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, stat) )
+    do while (iprobe (MPI_ANY_SOURCE, MPI_ANY_TAG, stat))
 
-        src = stat(MPI_SOURCE)
+        src = stat(MPI_SOURCE)  ! not a wildcard!
         tag = stat(MPI_TAG)
 
         ! FIXME: specialize receives depending on tag:
