@@ -82,8 +82,7 @@ module dlb_impl
   !
   !----------------------------------------------------------------
 # include "dlb.h"
-  use dlb_common, only: i4_kind, comm_world
-  use dlb_common, only: i4_kind_1
+  use dlb_common, only: lk, ik, comm_world
   use dlb_common, only: time_stamp ! for debug only
   use dlb_common, only: add_request, test_requests, end_requests, send_resp_done
   use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, JOWNER, JLEFT, JRIGHT
@@ -107,7 +106,7 @@ module dlb_impl
 
   ! Program from  outside might  want to know  the thread-safety-level
   ! required form DLB
-  integer(kind=i4_kind_1), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_MULTIPLE
+  integer (ik), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_MULTIPLE
   ! The  MPI communication  of  DLB is  exclusively  performed by  the
   ! helper thread when both threads  are present. Only after or before
   ! its  termination  the  main  thread is  doing  some  communication
@@ -141,28 +140,28 @@ module dlb_impl
   ! dlb_impl_thread_common, to avoid cyclic binding:
   !
   ! ! messages for work request
-  ! integer(i4_kind), parameter :: WORK_REQUEST = 4, WORK_DONAT = 5
+  ! integer (lk), parameter :: WORK_REQUEST = 4, WORK_DONAT = 5
 
   ! ! Length of complete jobs storage
-  ! integer(i4_kind), parameter :: JOBS_LEN = JLENGTH
+  ! integer (lk), parameter :: JOBS_LEN = JLENGTH
 
   ! ! IDs of mutexes, use base-0 indices:
-  ! integer(i4_kind), parameter :: LOCK_JS   = 0
+  ! integer (lk), parameter :: LOCK_JS   = 0
 
   ! ! store all the jobs, belonging to this processor
-  ! integer(i4_kind) :: job_storage(jobs_len)
+  ! integer (lk) :: job_storage(jobs_len)
   ! logical :: terminated ! for termination algorithm
 
   ! IDs for condition variables, use base-0 indices:
-  integer(kind=i4_kind_1), parameter :: COND_JS2_UPDATE  = 0
+  integer (ik), parameter :: COND_JS2_UPDATE  = 0
 
   ! thread IDs, use base-0 indices:
-  integer(kind=i4_kind_1), parameter :: SECRETARY = 0
+  integer (ik), parameter :: SECRETARY = 0
 
   logical :: main_waits
 
 
-  integer(kind=i4_kind) :: already_done
+  integer (lk) :: already_done
   !  stores how  many jobs of  the current interval have  been already
   !  calculated,   needed   for   the  termination   algorithm   after
   !  initalizing should be only used with LOCK_JS MAIN stores here how
@@ -180,9 +179,9 @@ module dlb_impl
   ! written out lateron from  MAIN (after SECRETARY has terminated) we
   ! do not want concurently  prints of different threads, so secretary
   ! must not print them itsself
-  integer(kind=i4_kind)             :: count_messages, count_requests, count_offers
-  integer(kind=i4_kind)             :: many_tries, many_searches
-  integer(kind=i4_kind)             :: many_zeros
+  integer (lk)             :: count_messages, count_requests, count_offers
+  integer (lk)             :: many_tries, many_searches
+  integer (lk)             :: many_zeros
   double precision  :: timemax
   ! They are only for MAIN
   !----------------------------------------------------------------
@@ -237,12 +236,12 @@ contains
     use dlb_common, only: set_empty_job, steal_local, length
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: n
-    integer(kind=i4_kind), intent(out  ) :: my_job(:) ! (3)
+    integer (lk), intent(in   ) :: n
+    integer (lk), intent(out  ) :: my_job(:) ! (3)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(i4_kind), target             :: jobs(JLENGTH)
-    integer(i4_kind)                     :: remaining(JLENGTH)
+    integer (lk), target             :: jobs(JLENGTH)
+    integer (lk)                     :: remaining(JLENGTH)
     double precision                     :: start_timer
     double precision                     :: start_timer_gm
     double precision,save                :: leave_timer = -1
@@ -366,12 +365,12 @@ contains
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind_1),allocatable  :: requ_m(:) !requests storages for SECRETARY
-    integer(kind=i4_kind)                :: lm_source(n_procs) ! remember which job request
+    integer (ik),allocatable  :: requ_m(:) !requests storages for SECRETARY
+    integer (lk)                :: lm_source(n_procs) ! remember which job request
                                                ! I got
-    integer(kind=i4_kind)                :: count_ask(n_procs), proc_asked_last ! remember
+    integer (lk)                :: count_ask(n_procs), proc_asked_last ! remember
                                           ! which job request I send (and to whom the last)
-    integer(kind=i4_kind_1)              :: ierr
+    integer (ik)              :: ierr
     double precision                     :: timestart ! just for debugging
     logical :: has_jr_on ! a request for more work is on its way
     logical :: go_sleep ! give more time to main
@@ -449,7 +448,7 @@ contains
     use dlb_common, only: reports_pending
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind_1), allocatable  :: requ(:)
+    integer (ik), allocatable  :: requ(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     !------------ Executable code --------------------------------
@@ -475,14 +474,14 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     logical, intent(inout)               :: wait_answer
-    integer(kind=i4_kind_1),allocatable  :: requ(:)
-    integer(kind=i4_kind), intent(inout) :: lm_source(:), proc_asked_last, count_ask(:)
-    integer(kind=i4_kind), intent(inout) :: many_zeros! just for debugging
+    integer (ik),allocatable  :: requ(:)
+    integer (lk), intent(inout) :: lm_source(:), proc_asked_last, count_ask(:)
+    integer (lk), intent(inout) :: many_zeros! just for debugging
     double precision, intent(inout)      :: timestart, timemax ! just for debugging
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind_1)              :: stat(MPI_STATUS_SIZE)
-    integer(i4_kind_1)                   :: src, tag
+    integer (ik)              :: stat(MPI_STATUS_SIZE)
+    integer (ik)                   :: src, tag
     !------------ Executable code --------------------------------
 
     ! check for any message
@@ -510,12 +509,12 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     logical, intent(out)               :: wait_answer
-    integer(kind=i4_kind), intent(inout) :: count_ask(:)
-    integer(kind=i4_kind), intent(out) :: proc_asked_last
+    integer (lk), intent(inout) :: count_ask(:)
+    integer (lk), intent(out) :: proc_asked_last
     double precision, intent(inout)    :: timestart !inout? we do not change it
                                          ! in any case
-    integer(kind=i4_kind_1),allocatable  :: requ(:)
-    integer(kind=i4_kind_1)              :: owner
+    integer (ik),allocatable  :: requ(:)
+    integer (ik)              :: owner
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     !------------ Executable code --------------------------------
@@ -544,18 +543,18 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
-    integer(kind=i4_kind_1),allocatable   :: requ(:)
-    integer(kind=i4_kind),intent(inout)   :: count_ask(:)
-    integer(kind=i4_kind),intent(out)     :: proc_asked_last
+    integer (ik),allocatable   :: requ(:)
+    integer (lk),intent(inout)   :: count_ask(:)
+    integer (lk),intent(out)     :: proc_asked_last
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind_1)              :: v
+    integer (ik)              :: v
 
-    integer(kind=i4_kind), save :: message(JLENGTH)
+    integer (lk), save :: message(JLENGTH)
     ! is made save to ensure that it is not overwritten before message
     ! arrived there is always only one request sended, thus it will be
     ! for sure finished, when it is needed for the next request
 
-    integer(kind=i4_kind_1)              :: requ_wr
+    integer (ik)              :: requ_wr
     many_tries = many_tries + 1 ! just for debugging
 
     v = select_victim(my_rank, n_procs)
@@ -606,20 +605,20 @@ contains
     use dlb_common, only: recv
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind_1), intent(in)  :: src, tag ! source and tag of the pending msg
-    integer(kind=i4_kind_1), allocatable :: requ_m(:)
+    integer (ik), intent(in)  :: src, tag ! source and tag of the pending msg
+    integer (ik), allocatable :: requ_m(:)
     logical, intent(inout) :: wait_answer
-    integer(kind=i4_kind), intent(inout) :: lm_source(:)
-    integer(kind=i4_kind), intent(inout) :: count_ask(:), proc_asked_last
-    integer(kind=i4_kind), intent(inout) :: many_zeros! just for debugging
+    integer (lk), intent(inout) :: lm_source(:)
+    integer (lk), intent(inout) :: count_ask(:), proc_asked_last
+    integer (lk), intent(inout) :: many_zeros! just for debugging
     double precision, intent(inout)      :: timestart, timemax ! just for debugging
-    integer(kind=i4_kind)                :: my_jobs(JLENGTH)
+    integer (lk)                :: my_jobs(JLENGTH)
     double precision                     :: timeend
     !** End of interface *****************************************
 
-    integer(i4_kind) :: message(JLENGTH)
-    integer(i4_kind_1) :: stat(MPI_STATUS_SIZE)
-    integer(i4_kind_1) :: owner
+    integer (lk) :: message(JLENGTH)
+    integer (ik) :: stat(MPI_STATUS_SIZE)
+    integer (ik) :: owner
 
     call recv(message, src, tag, stat)
 
@@ -706,9 +705,9 @@ contains
     use dlb_common, only: report_to
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(i4_kind_1), intent(in) :: owner
-    integer(i4_kind), intent(in)   :: num_jobs_done
-    integer(i4_kind_1), allocatable :: requ(:)
+    integer (ik), intent(in) :: owner
+    integer (lk), intent(in)   :: num_jobs_done
+    integer (ik), allocatable :: requ(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     !------------ Executable code --------------------------------
@@ -742,10 +741,10 @@ contains
     use dlb_common, only: length, L_JOB
     use dlb_impl_thread_common, only: thread_setup, th_create_one
     implicit none
-    integer(i4_kind), intent(in) :: job(:) ! (2)
+    integer (lk), intent(in) :: job(:) ! (2)
     ! *** end of interface ***
 
-    integer(i4_kind) :: start_job(JLENGTH)
+    integer (lk) :: start_job(JLENGTH)
 
     ASSERT(size(job)==L_JOB)
 
