@@ -72,8 +72,7 @@ module dlb_common
   ! around  (for example  for statistics).   One is  better  off using
   ! default  integers here as  this is  what MPI  likely uses  for its
   ! object handlers and counts. FIXME: maybe use kind(0) instead?
-  integer, parameter, public :: i4_kind_1 = selected_int_kind(9)
-  integer, parameter, public :: ik = i4_kind_1 ! alias to replace i4_kind_1
+  integer, parameter, public :: ik = selected_int_kind (9)
 
   ! Integer with 8 bytes, or rather with range of 18 decimal digits:
   integer, parameter, public :: i8_kind = selected_int_kind(18)
@@ -81,8 +80,7 @@ module dlb_common
   ! For job IDs, the actual data that DLB serves, use integers with at
   ! least that many decimal digits:
   integer, parameter, private :: kind_of_lk = 18
-  integer, parameter, public :: i4_kind = selected_int_kind (kind_of_lk)
-  integer, parameter, public :: lk = i4_kind ! alias to replace i4_kind
+  integer, parameter, public :: lk = selected_int_kind (kind_of_lk)
 
   ! MPI has its own convention for  types, it needs its own version of
   ! the  integer  to  send.  This   will  be  set  to  something  more
