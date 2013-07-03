@@ -80,8 +80,9 @@ module dlb_common
 
   ! For job IDs, the actual data that DLB serves, use integers with at
   ! least that many decimal digits:
-  integer, parameter :: kind_of_i4_kind = 18
-  integer, parameter, public :: i4_kind = selected_int_kind(kind_of_i4_kind)
+  integer, parameter, private :: kind_of_lk = 18
+  integer, parameter, public :: i4_kind = selected_int_kind (kind_of_lk)
+  integer, parameter, private :: lk = i4_kind ! alias to replace i4_kind
 
   ! MPI has its own convention for  types, it needs its own version of
   ! the  integer  to  send.  This   will  be  set  to  something  more
@@ -129,7 +130,7 @@ module dlb_common
   ! as  the  setup  procedure  is  provided only  one  assignment  (to
   ! myself).
   !
-  integer(i4_kind) :: responsibility = -1
+  integer (lk) :: responsibility = -1
 
   !
   ! This array holds  the counts of jobs that  were initially assigned
@@ -138,7 +139,7 @@ module dlb_common
   ! compared  with with  the total  number  of jobs  from the  initial
   ! assignment kept in the variable "responsibility".
   !
-  integer(i4_kind), allocatable :: reported_by(:) ! (0:n_procs-1)
+  integer (lk), allocatable :: reported_by(:) ! (0:n_procs-1)
 
   !
   ! The next  array holds  the counts of  jobs that were  delivered to
@@ -148,7 +149,7 @@ module dlb_common
   ! of jobs "done" by the process owning this structure. We dont abuse
   ! message buffers to keep this data anymore.
   !
-  integer(i4_kind), allocatable :: reported_to(:) ! (0:n_procs-1)
+  integer (lk), allocatable :: reported_to(:) ! (0:n_procs-1)
 
   integer(ik), allocatable :: req_dj(:) ! need to store the
                                                ! messages for
@@ -156,7 +157,7 @@ module dlb_common
 
   ! Need to store the messages for  DONE_JOB, as they may still be not
   ! finished, when the subroutine for generating them is finshed.
-  integer(i4_kind), allocatable :: messages(:,:)
+  integer (lk), allocatable :: messages(:,:)
 
   ! There may  be a lot of  them, message_on_way keeps  track, to whom
   ! they  are already  on their  way  the requests  are handeled  also
@@ -320,8 +321,8 @@ contains
 
     !
     ! Create a  new MPI_Datatype, here  i4_kind_mpi. It is not  a kind
-    ! (like  i4_kind), it  is not  a  number of  decimal digits  (like
-    ! kind_of_i4_kind) but a real  MPI type, represented as an integer
+    ! (like  lk), it  is not  a  number of  decimal digits  (like
+    ! kind_of_lk) but a real  MPI type, represented as an integer
     ! as everything else in Fortran bindings.
     !
     ! FIXME: even with the guard, valgrind reports a memory leak here.
@@ -330,11 +331,11 @@ contains
     !   "An  MPI_Datatype  returned  by  this  subroutine  is  already
     !    committed.  It cannot be freed with MPI_TYPE_FREE()."
     !
-    ! Here kind_of_i4_kind is a  PARAMETER and does not change between
+    ! Here kind_of_lk is a  PARAMETER and does not change between
     ! invocations. So do it just once:
     !
     if (i4_kind_mpi == MPI_DATATYPE_NULL) then
-       call MPI_TYPE_CREATE_F90_INTEGER (kind_of_i4_kind, i4_kind_mpi, ierr)
+       call MPI_TYPE_CREATE_F90_INTEGER (kind_of_lk, i4_kind_mpi, ierr)
        ASSERT(ierr==MPI_SUCCESS)
     endif
 
@@ -380,7 +381,7 @@ contains
   subroutine dlb_common_setup(resp)
     ! Termination master start of a new dlb run
     implicit none
-    integer (i4_kind), intent(in   ) :: resp
+    integer (lk), intent(in   ) :: resp
     ! *** end of interface ***
 
     integer ::  alloc_stat
@@ -453,8 +454,8 @@ contains
     !Purpose: gives a complete starting job description
     !         after gotten just the job range
     implicit none
-    integer(i4_kind), intent(in) :: job(L_JOB)
-    integer(i4_kind)             :: job_data(JLENGTH)
+    integer (lk), intent(in) :: job(L_JOB)
+    integer (lk)             :: job_data(JLENGTH)
     ! *** end of interface ***
 
     job_data(:L_JOB) = job
@@ -465,7 +466,7 @@ contains
     !Purpose: gives a complete starting job description
     !         after gotten just the job range
     implicit none
-    integer(i4_kind) :: job_data(JLENGTH)
+    integer (lk) :: job_data(JLENGTH)
     ! *** end of interface ***
 
     job_data(JRIGHT) = 0
@@ -555,16 +556,16 @@ contains
     !
     ! FIXME: the role of parameter "m" is not clear!
     !
-    ! use dlb_common, only: i4_kind, JLENGTH, split_at
+    ! use dlb_common, only: lk, JLENGTH, split_at
     implicit none
-    integer(i4_kind), intent(in)  :: m
-    integer(i4_kind), intent(in)  :: remote(:) ! (JLENGTH)
-    integer(i4_kind), intent(out) :: remaining(:) ! (JLENGTH)
-    integer(i4_kind), intent(out) :: stolen(:) ! (JLENGTH)
+    integer (lk), intent(in)  :: m
+    integer (lk), intent(in)  :: remote(:) ! (JLENGTH)
+    integer (lk), intent(out) :: remaining(:) ! (JLENGTH)
+    integer (lk), intent(out) :: stolen(:) ! (JLENGTH)
     logical                       :: ok ! result
     ! *** end of interface ***
 
-    integer(i4_kind) :: work, c
+    integer (lk) :: work, c
 
     ASSERT(size(remote)==JLENGTH)
     ASSERT(size(remaining)==JLENGTH)
@@ -624,16 +625,16 @@ contains
     ! NOTE: This function has to adhere to the interface of modify(...)
     ! argument in try_read_modify_write(...)
     !
-    ! use dlb_common, only: i4_kind, JLENGTH, split_at
+    ! use dlb_common, only: lk, JLENGTH, split_at
     implicit none
-    integer(i4_kind), intent(in)  :: m
-    integer(i4_kind), intent(in)  :: local(:) ! (JLENGTH)
-    integer(i4_kind), intent(out) :: remaining(:) ! (JLENGTH)
-    integer(i4_kind), intent(out) :: stolen(:) ! (JLENGTH)
+    integer (lk), intent(in)  :: m
+    integer (lk), intent(in)  :: local(:) ! (JLENGTH)
+    integer (lk), intent(out) :: remaining(:) ! (JLENGTH)
+    integer (lk), intent(out) :: stolen(:) ! (JLENGTH)
     logical                       :: ok ! result
     ! *** end of interface ***
 
-    integer(i4_kind) :: work, c
+    integer (lk) :: work, c
 
     ASSERT(size(local)==JLENGTH)
     ASSERT(size(remaining)==JLENGTH)
@@ -659,7 +660,7 @@ contains
 
   logical function empty(jobs)
     implicit none
-    integer(i4_kind), intent(in) :: jobs(:)
+    integer (lk), intent(in) :: jobs(:)
     ! *** end of interface ***
 
     empty = length(jobs) == 0
@@ -667,8 +668,8 @@ contains
 
   function length(jobs) result(n)
     implicit none
-    integer(i4_kind), intent(in) :: jobs(:)
-    integer(i4_kind)             :: n ! result
+    integer (lk), intent(in) :: jobs(:)
+    integer (lk)             :: n ! result
     ! *** end of interface ***
 
     ASSERT(size(jobs)==JLENGTH)
@@ -681,8 +682,8 @@ contains
     ! Split (A, B] into (A, C] and (C, B]
     !
     implicit none
-    integer(i4_kind), intent(in)  :: C, AB(:)
-    integer(i4_kind), intent(out) :: AC(:), CB(:)
+    integer (lk), intent(in)  :: C, AB(:)
+    integer (lk), intent(out) :: AC(:), CB(:)
     ! *** end of interface ***
 
     ASSERT(size(AB)==JLENGTH)
@@ -719,7 +720,7 @@ contains
     ! *** end of interface ***
 
     integer (ik), allocatable :: req_int(:)
-    integer (i4_kind) :: len_req
+    integer (lk) :: len_req
     integer (ik) :: alloc_stat
 
     if (allocated (requ)) then
@@ -753,7 +754,7 @@ contains
     integer (ik), allocatable, intent (inout) :: requ(:)
     !** End of interface *****************************************
 
-    integer (i4_kind) :: i, len_new
+    integer (lk) :: i, len_new
     integer (ik) :: alloc_stat, ierr, stat(MPI_STATUS_SIZE)
     integer (ik), allocatable :: requ_int(:)
     logical :: flag
@@ -819,7 +820,7 @@ contains
     integer (ik), allocatable, intent (inout) :: requ(:)
     !** End of interface *****************************************
 
-    integer (i4_kind) :: i
+    integer (lk) :: i
     integer (ik) :: alloc_stat, ierr
     integer (ik) :: stat(MPI_STATUS_SIZE)
 
@@ -845,7 +846,7 @@ contains
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer (i4_kind)                :: i
+    integer (lk)                :: i
     integer (ik)              :: alloc_stat, ierr
     integer (ik)              :: stat(MPI_STATUS_SIZE)
     !------------ Executable code --------------------------------
@@ -910,7 +911,7 @@ contains
     !
     implicit none
     integer(ik), intent(in) :: source
-    integer(i4_kind), intent(in)   :: n
+    integer (lk), intent(in)   :: n
     ! *** end of interface ***
 
     reported_by(source) = n
@@ -923,7 +924,7 @@ contains
     ! reported as scheduled.
     !
     implicit none
-    integer(i4_kind) :: pending
+    integer (lk) :: pending
     ! *** end of interface ***
 
     ASSERT(allocated(reported_by))
@@ -959,7 +960,7 @@ contains
 
     !------------ Declaration of local variables -----------------
     integer (ik)              :: req
-    integer (i4_kind), save          :: message(JLENGTH) ! message may only be
+    integer (lk), save          :: message(JLENGTH) ! message may only be
      ! changed or rewritten after communication finished, thus it is saved here in order
      ! to still be present when the subroutine finishes
      ! as this routine is only called once each process in each dlb call
@@ -989,7 +990,7 @@ contains
     !             2 Threads: secretary thread
     !
     implicit none
-    integer(i4_kind), intent(in) :: num_jobs_done
+    integer (lk), intent(in) :: num_jobs_done
     integer(ik), intent(in) :: owner
     !** End of interface *****************************************
 
@@ -1078,7 +1079,7 @@ contains
     integer(ik) :: ierr
     integer(ik)   :: i
     integer(ik)   :: receiver
-    integer(i4_kind)   :: message(JLENGTH)
+    integer (lk)   :: message(JLENGTH)
     integer (ik) :: request(n_procs - 1)
     integer (ik) :: stat(MPI_STATUS_SIZE)
     ASSERT(my_rank==termination_master)
@@ -1099,7 +1100,7 @@ contains
     ! FIXME: the routine MPI_WAITALL()  will have problems if used for
     ! requests  other than  normal integer.   Therefore the  call call
     ! MPI_WAITALL(size(request),  request,  MPI_STATUSES_IGNORE, ierr)
-    ! does not work for other than i4_kind = integer(4). One is better
+    ! does not work for other than lk = integer(4). One is better
     ! off using default  integers as this is what  MPI likely uses for
     ! its object handlers and counts!
     !
@@ -1115,7 +1116,7 @@ contains
     ! Convenience wrapper around MPI_ISEND
     !
     implicit none
-    integer(i4_kind), intent(inout), target :: buf(:) ! (JLENGTH)
+    integer (lk), intent(inout), target :: buf(:) ! (JLENGTH)
     integer(ik), intent(in)          :: rank, tag
     integer(ik), intent(out)         :: req
     ! *** end of interface ***
@@ -1149,7 +1150,7 @@ contains
     ! Convenience wrapper around MPI_RECV
     !
     implicit none
-    integer(i4_kind), intent(out) :: buf(:) ! (1+JLENGTH)
+    integer (lk), intent(out) :: buf(:) ! (1+JLENGTH)
     integer(ik), intent(in)  :: rank, tag
     integer(ik), intent(out) :: stat(MPI_STATUS_SIZE)
     ! *** end of interface ***
@@ -1168,9 +1169,9 @@ contains
     ! is there.  Take less than half if could not equally divided.
     !
     implicit none
-    integer(i4_kind), intent(in) :: jobs(2)
+    integer (lk), intent(in) :: jobs(2)
     integer(ik), intent(in) :: np ! unused
-    integer(i4_kind) :: n ! result
+    integer (lk) :: n ! result
     !** End of interface *****************************************
 
     ! give half of all jobs:
@@ -1189,15 +1190,15 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer (i4_kind), intent(in   ) :: N
+    integer (lk), intent(in   ) :: N
     integer (ik), intent(in ) :: procs, rank
-    integer (i4_kind)                :: my_jobs(L_JOB)
+    integer (lk)                :: my_jobs(L_JOB)
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer (i4_kind) :: n_procs, my_rank
-    integer (i4_kind) :: jobs_per_proc
-    integer (i4_kind) :: rest
+    integer (lk) :: n_procs, my_rank
+    integer (lk) :: jobs_per_proc
+    integer (lk) :: rest
     n_procs = procs
     my_rank = rank
 
