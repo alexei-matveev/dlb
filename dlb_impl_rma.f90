@@ -657,7 +657,7 @@ contains
     ! Try getting a lock indexed by rank and if that succeeds, read
     ! data into jobs(1:2)
     !
-    use dlb_common, only: my_rank, n_procs
+    use dlb_common, only: my_rank
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer(i4_kind_1), intent(in)  :: rank
