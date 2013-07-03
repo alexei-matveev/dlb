@@ -312,7 +312,7 @@ contains
         !
         many_searches = many_searches + 1 ! just for debugging
         call read_unsafe(my_rank, jobs)
-        owner = jobs(JOWNER)
+        owner = int (jobs(JOWNER)) ! convert to default integer
         call report_or_store(owner, already_done)
         already_done = 0
 
