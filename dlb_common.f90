@@ -117,7 +117,7 @@ module dlb_common
   ! Termination master is the  process that gathers completion reports
   ! and  tells everyone to terminate.
   !
-  integer(ik), public, protected :: termination_master
+  integer (ik), public, protected :: termination_master
 
   !================================================================
   ! End of public interface of module
@@ -151,7 +151,7 @@ module dlb_common
   !
   integer (lk), allocatable :: reported_to(:) ! (0:n_procs-1)
 
-  integer(ik), allocatable :: req_dj(:) ! need to store the
+  integer (ik), allocatable :: req_dj(:) ! need to store the
                                                ! messages for
                                                ! DONE_JOB,
 
@@ -181,7 +181,7 @@ contains
   subroutine time_stamp(msg, output_level)
     implicit none
     character(len=*), intent(in) :: msg
-    integer(ik), intent(in) :: output_level
+    integer (ik), intent(in) :: output_level
     ! *** end of interface ***
 
     double precision :: time
@@ -218,11 +218,11 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(ik), intent(in)  :: output_level
+    integer (ik), intent(in)  :: output_level
     !------------ Declaration of local variables -----------------
     double precision, allocatable :: times(:,:), help_arr(:)
     double precision              :: time_singles(12)
-    integer(ik)              :: ierr
+    integer (ik)              :: ierr
     ! *** end of interface ***
     ! Return if none output is wanted, then there is also no need to
     ! send the output to the master
@@ -479,8 +479,8 @@ contains
      ! Context: for 3 threads: control thread.
      !          for 2 threads: secretary.
      implicit none
-     integer(ik), intent(in) :: rank, np
-     integer(ik)             :: victim
+     integer (ik), intent(in) :: rank, np
+     integer (ik)             :: victim
      ! *** end of interface ***
 
      victim = select_victim_random(rank, np)
@@ -513,8 +513,8 @@ contains
      ! Not thread safe! Beware of "save :: seed" without rwlock!
      !
      implicit none
-     integer(ik), intent(in) :: rank, np
-     integer(ik)             :: victim
+     integer (ik), intent(in) :: rank, np
+     integer (ik)             :: victim
      ! *** end of interface ***
 
      integer(i8_kind), save :: seed = -1
@@ -910,7 +910,7 @@ contains
     ! initial assignment scheduled by the source.
     !
     implicit none
-    integer(ik), intent(in) :: source
+    integer (ik), intent(in) :: source
     integer (lk), intent(in)   :: n
     ! *** end of interface ***
 
@@ -991,11 +991,11 @@ contains
     !
     implicit none
     integer (lk), intent(in) :: num_jobs_done
-    integer(ik), intent(in) :: owner
+    integer (ik), intent(in) :: owner
     !** End of interface *****************************************
 
-    integer(ik) :: ierr, stat(MPI_STATUS_SIZE)
-    integer(ik) :: owner1 ! == owner + 1
+    integer (ik) :: ierr, stat(MPI_STATUS_SIZE)
+    integer (ik) :: owner1 ! == owner + 1
 
     ! FIXME: for compatibility reasons:
     if ( num_jobs_done == 0 ) then
@@ -1076,9 +1076,9 @@ contains
     implicit none
     !** End of interface *****************************************
 
-    integer(ik) :: ierr
-    integer(ik)   :: i
-    integer(ik)   :: receiver
+    integer (ik) :: ierr
+    integer (ik)   :: i
+    integer (ik)   :: receiver
     integer (lk)   :: message(JLENGTH)
     integer (ik) :: request(n_procs - 1)
     integer (ik) :: stat(MPI_STATUS_SIZE)
@@ -1117,11 +1117,11 @@ contains
     !
     implicit none
     integer (lk), intent(inout), target :: buf(:) ! (JLENGTH)
-    integer(ik), intent(in)          :: rank, tag
-    integer(ik), intent(out)         :: req
+    integer (ik), intent(in)          :: rank, tag
+    integer (ik), intent(out)         :: req
     ! *** end of interface ***
 
-    integer(ik) :: ierr
+    integer (ik) :: ierr
 
     ASSERT(size(buf)==JLENGTH)
 
@@ -1134,12 +1134,12 @@ contains
     ! Convenience wrapper around MPI_IPROBE
     !
     implicit none
-    integer(ik), intent(in)  :: src, tag
-    integer(ik), intent(out) :: stat(MPI_STATUS_SIZE)
+    integer (ik), intent(in)  :: src, tag
+    integer (ik), intent(out) :: stat(MPI_STATUS_SIZE)
     logical                       :: ok
     ! *** end of interface ***
 
-    integer(ik) :: ierr
+    integer (ik) :: ierr
 
     call MPI_IPROBE(src, tag, comm_world, ok, stat, ierr)
     ASSERT(ierr==MPI_SUCCESS)
@@ -1151,11 +1151,11 @@ contains
     !
     implicit none
     integer (lk), intent(out) :: buf(:) ! (1+JLENGTH)
-    integer(ik), intent(in)  :: rank, tag
-    integer(ik), intent(out) :: stat(MPI_STATUS_SIZE)
+    integer (ik), intent(in)  :: rank, tag
+    integer (ik), intent(out) :: stat(MPI_STATUS_SIZE)
     ! *** end of interface ***
 
-    integer(ik) :: ierr
+    integer (ik) :: ierr
 
     ASSERT(size(buf)==JLENGTH)
 
@@ -1170,7 +1170,7 @@ contains
     !
     implicit none
     integer (lk), intent(in) :: jobs(2)
-    integer(ik), intent(in) :: np ! unused
+    integer (ik), intent(in) :: np ! unused
     integer (lk) :: n ! result
     !** End of interface *****************************************
 
