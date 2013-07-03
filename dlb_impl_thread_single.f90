@@ -582,7 +582,7 @@ contains
     call add_request(requ_wr, requ)
   end subroutine send_request
 
-  subroutine check_messages(src, tag, requ_m, wait_answer, lm_source,count_ask, proc_asked_last,&
+  subroutine check_messages (src, tag, requ_m, wait_answer, lm_source,count_ask, proc_asked_last,&
             many_zeros, timestart, timemax)
     !
     ! Purpose: checks which message  has arrived, checks for messages:
@@ -605,7 +605,7 @@ contains
     use dlb_common, only: recv
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer (ik), intent(in)  :: src, tag ! source and tag of the pending msg
+    integer (ik), intent (in) :: src, tag ! source and tag of the pending msg
     integer (ik), allocatable :: requ_m(:)
     logical, intent(inout) :: wait_answer
     integer (lk), intent(inout) :: lm_source(:)
@@ -618,11 +618,10 @@ contains
 
     integer (lk) :: message(JLENGTH)
     integer (ik) :: stat(MPI_STATUS_SIZE)
-    integer (ik) :: owner
 
-    call recv(message, src, tag, stat)
+    call recv (message, src, tag, stat)
 
-    select case(tag)
+    select case (tag)
 
     case (DONE_JOB) ! someone finished stolen job slice
       ASSERT(message(1)>0)
@@ -640,9 +639,9 @@ contains
       if( my_rank /= termination_master )then
           stop "my_rank /= termination_master"
       endif
+      ASSERT(src==message(1))
 
-      owner = message(1)
-      call check_termination(owner)
+      call check_termination (src)
 
     case (NO_WORK_LEFT) ! termination message from termination master
       ASSERT(message(1)==0)
