@@ -73,6 +73,7 @@ module dlb_common
   ! default  integers here as  this is  what MPI  likely uses  for its
   ! object handlers and counts. FIXME: maybe use kind(0) instead?
   integer, parameter, public :: i4_kind_1 = selected_int_kind(9)
+  integer, parameter, private :: ik = i4_kind_1 ! alias to replace i4_kind_1
 
   ! Integer with 8 bytes, or rather with range of 18 decimal digits:
   integer, parameter, public :: i8_kind = selected_int_kind(18)
@@ -90,15 +91,15 @@ module dlb_common
 
   integer,  public, protected :: comm_world
 
-  integer (i4_kind_1), parameter, public  :: OUTPUT_BORDER = FPP_OUTPUT_BORDER
+  integer (ik), parameter, public  :: OUTPUT_BORDER = FPP_OUTPUT_BORDER
 
-  integer (i4_kind_1), parameter, public  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 ! message tags
-  integer (i4_kind_1), parameter, public  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
-  integer (i4_kind_1), parameter, public  :: JLENGTH = 3 ! Length of a single job in interface
-  integer (i4_kind_1), parameter, public  :: L_JOB = 3  ! Length of job to give back from inner interface (dlb_imp)
-  integer (i4_kind_1), parameter, public  :: JOWNER = 3 ! Number in job, where rank of origin proc is stored
-  integer (i4_kind_1), parameter, public  :: JLEFT = 1 ! Number in job, where stp (start point) is stored
-  integer (i4_kind_1), parameter, public  :: JRIGHT = 2 ! Number in job, where ep (end point) is stored
+  integer (ik), parameter, public  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 ! message tags
+  integer (ik), parameter, public  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
+  integer (ik), parameter, public  :: JLENGTH = 3 ! Length of a single job in interface
+  integer (ik), parameter, public  :: L_JOB = 3  ! Length of job to give back from inner interface (dlb_imp)
+  integer (ik), parameter, public  :: JOWNER = 3 ! Number in job, where rank of origin proc is stored
+  integer (ik), parameter, public  :: JLEFT = 1 ! Number in job, where stp (start point) is stored
+  integer (ik), parameter, public  :: JRIGHT = 2 ! Number in job, where ep (end point) is stored
 
   ! Variables need for debug and efficiency testing
   ! They are the timers, needed in all variants, in multithreaded variants only
@@ -108,14 +109,14 @@ module dlb_common
   double precision, public  :: dlb_time, min_work, second_last_work
   double precision, public  :: timer_give_more, timer_give_more_last
 
-  integer (i4_kind_1), public, protected :: my_rank, n_procs ! some synonyms, They will be initialized
+  integer (ik), public, protected :: my_rank, n_procs ! some synonyms, They will be initialized
                                         !once and afterwards be read only
 
   !
   ! Termination master is the  process that gathers completion reports
   ! and  tells everyone to terminate.
   !
-  integer(i4_kind_1), public, protected :: termination_master
+  integer(ik), public, protected :: termination_master
 
   !================================================================
   ! End of public interface of module
@@ -149,7 +150,7 @@ module dlb_common
   !
   integer(i4_kind), allocatable :: reported_to(:) ! (0:n_procs-1)
 
-  integer(i4_kind_1), allocatable :: req_dj(:) ! need to store the
+  integer(ik), allocatable :: req_dj(:) ! need to store the
                                                ! messages for
                                                ! DONE_JOB,
 
@@ -179,7 +180,7 @@ contains
   subroutine time_stamp(msg, output_level)
     implicit none
     character(len=*), intent(in) :: msg
-    integer(i4_kind_1), intent(in) :: output_level
+    integer(ik), intent(in) :: output_level
     ! *** end of interface ***
 
     double precision :: time
@@ -216,11 +217,11 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(i4_kind_1), intent(in)  :: output_level
+    integer(ik), intent(in)  :: output_level
     !------------ Declaration of local variables -----------------
     double precision, allocatable :: times(:,:), help_arr(:)
     double precision              :: time_singles(12)
-    integer(i4_kind_1)              :: ierr
+    integer(ik)              :: ierr
     ! *** end of interface ***
     ! Return if none output is wanted, then there is also no need to
     ! send the output to the master
@@ -300,10 +301,10 @@ contains
   subroutine dlb_common_init(world)
     ! Intialization of common stuff, needed by all routines
     implicit none
-    integer (i4_kind_1) ,  intent(in) :: world
+    integer (ik) ,  intent(in) :: world
     ! *** end of interface ***
 
-    integer (i4_kind_1) :: ierr, alloc_stat
+    integer (ik) :: ierr, alloc_stat
 
     !
     ! Set global communicator as a DUP of the world:
@@ -361,7 +362,7 @@ contains
     implicit none
     ! *** end of interface ***
 
-    integer (i4_kind_1) :: ierr, alloc_stat
+    integer (ik) :: ierr, alloc_stat
 
     !
     ! Only on termination master:
@@ -477,8 +478,8 @@ contains
      ! Context: for 3 threads: control thread.
      !          for 2 threads: secretary.
      implicit none
-     integer(i4_kind_1), intent(in) :: rank, np
-     integer(i4_kind_1)             :: victim
+     integer(ik), intent(in) :: rank, np
+     integer(ik)             :: victim
      ! *** end of interface ***
 
      victim = select_victim_random(rank, np)
@@ -511,8 +512,8 @@ contains
      ! Not thread safe! Beware of "save :: seed" without rwlock!
      !
      implicit none
-     integer(i4_kind_1), intent(in) :: rank, np
-     integer(i4_kind_1)             :: victim
+     integer(ik), intent(in) :: rank, np
+     integer(ik)             :: victim
      ! *** end of interface ***
 
      integer(i8_kind), save :: seed = -1
@@ -713,13 +714,13 @@ contains
     ! Locks: none.
     !
     implicit none
-    integer (i4_kind_1), intent (in) :: req
-    integer (i4_kind_1), allocatable, intent (inout) :: requ(:)
+    integer (ik), intent (in) :: req
+    integer (ik), allocatable, intent (inout) :: requ(:)
     ! *** end of interface ***
 
-    integer (i4_kind_1), allocatable :: req_int(:)
+    integer (ik), allocatable :: req_int(:)
     integer (i4_kind) :: len_req
-    integer (i4_kind_1) :: alloc_stat
+    integer (ik) :: alloc_stat
 
     if (allocated (requ)) then
        ! Can it be zero?
@@ -749,12 +750,12 @@ contains
     !
     !
     implicit none
-    integer (i4_kind_1), allocatable, intent (inout) :: requ(:)
+    integer (ik), allocatable, intent (inout) :: requ(:)
     !** End of interface *****************************************
 
     integer (i4_kind) :: i, len_new
-    integer (i4_kind_1) :: alloc_stat, ierr, stat(MPI_STATUS_SIZE)
-    integer (i4_kind_1), allocatable :: requ_int(:)
+    integer (ik) :: alloc_stat, ierr, stat(MPI_STATUS_SIZE)
+    integer (ik), allocatable :: requ_int(:)
     logical :: flag
     logical, allocatable :: finished(:)
 
@@ -815,12 +816,12 @@ contains
     !             2 Threads: secretary thread
     !
     implicit none
-    integer (i4_kind_1), allocatable, intent (inout) :: requ(:)
+    integer (ik), allocatable, intent (inout) :: requ(:)
     !** End of interface *****************************************
 
     integer (i4_kind) :: i
-    integer (i4_kind_1) :: alloc_stat, ierr
-    integer (i4_kind_1) :: stat(MPI_STATUS_SIZE)
+    integer (ik) :: alloc_stat, ierr
+    integer (ik) :: stat(MPI_STATUS_SIZE)
 
     ! FIXME: no requests should rather correspod to 0-size!
     if (.not. allocated (requ)) RETURN
@@ -845,8 +846,8 @@ contains
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     integer (i4_kind)                :: i
-    integer (i4_kind_1)              :: alloc_stat, ierr
-    integer (i4_kind_1)              :: stat(MPI_STATUS_SIZE)
+    integer (ik)              :: alloc_stat, ierr
+    integer (ik)              :: stat(MPI_STATUS_SIZE)
     !------------ Executable code --------------------------------
     do i = 1, size(message_on_way)
       if (message_on_way(i)) then
@@ -908,7 +909,7 @@ contains
     ! initial assignment scheduled by the source.
     !
     implicit none
-    integer(i4_kind_1), intent(in) :: source
+    integer(ik), intent(in) :: source
     integer(i4_kind), intent(in)   :: n
     ! *** end of interface ***
 
@@ -953,11 +954,11 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer (i4_kind_1), allocatable :: requ(:)
+    integer (ik), allocatable :: requ(:)
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer (i4_kind_1)              :: req
+    integer (ik)              :: req
     integer (i4_kind), save          :: message(JLENGTH) ! message may only be
      ! changed or rewritten after communication finished, thus it is saved here in order
      ! to still be present when the subroutine finishes
@@ -989,11 +990,11 @@ contains
     !
     implicit none
     integer(i4_kind), intent(in) :: num_jobs_done
-    integer(i4_kind_1), intent(in) :: owner
+    integer(ik), intent(in) :: owner
     !** End of interface *****************************************
 
-    integer(i4_kind_1) :: ierr, stat(MPI_STATUS_SIZE)
-    integer(i4_kind_1) :: owner1 ! == owner + 1
+    integer(ik) :: ierr, stat(MPI_STATUS_SIZE)
+    integer(ik) :: owner1 ! == owner + 1
 
     ! FIXME: for compatibility reasons:
     if ( num_jobs_done == 0 ) then
@@ -1053,7 +1054,7 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer (i4_kind_1), intent(in)    :: proc
+    integer (ik), intent(in)    :: proc
     all_done(proc+1) = .true.
     has_last_done = all(all_done)
   end function has_last_done
@@ -1074,12 +1075,12 @@ contains
     implicit none
     !** End of interface *****************************************
 
-    integer(i4_kind_1) :: ierr
-    integer(i4_kind_1)   :: i
-    integer(i4_kind_1)   :: receiver
+    integer(ik) :: ierr
+    integer(ik)   :: i
+    integer(ik)   :: receiver
     integer(i4_kind)   :: message(JLENGTH)
-    integer (i4_kind_1) :: request(n_procs - 1)
-    integer (i4_kind_1) :: stat(MPI_STATUS_SIZE)
+    integer (ik) :: request(n_procs - 1)
+    integer (ik) :: stat(MPI_STATUS_SIZE)
     ASSERT(my_rank==termination_master)
 
     call time_stamp("send termination", 5)
@@ -1115,11 +1116,11 @@ contains
     !
     implicit none
     integer(i4_kind), intent(inout), target :: buf(:) ! (JLENGTH)
-    integer(i4_kind_1), intent(in)          :: rank, tag
-    integer(i4_kind_1), intent(out)         :: req
+    integer(ik), intent(in)          :: rank, tag
+    integer(ik), intent(out)         :: req
     ! *** end of interface ***
 
-    integer(i4_kind_1) :: ierr
+    integer(ik) :: ierr
 
     ASSERT(size(buf)==JLENGTH)
 
@@ -1132,12 +1133,12 @@ contains
     ! Convenience wrapper around MPI_IPROBE
     !
     implicit none
-    integer(i4_kind_1), intent(in)  :: src, tag
-    integer(i4_kind_1), intent(out) :: stat(MPI_STATUS_SIZE)
+    integer(ik), intent(in)  :: src, tag
+    integer(ik), intent(out) :: stat(MPI_STATUS_SIZE)
     logical                       :: ok
     ! *** end of interface ***
 
-    integer(i4_kind_1) :: ierr
+    integer(ik) :: ierr
 
     call MPI_IPROBE(src, tag, comm_world, ok, stat, ierr)
     ASSERT(ierr==MPI_SUCCESS)
@@ -1149,11 +1150,11 @@ contains
     !
     implicit none
     integer(i4_kind), intent(out) :: buf(:) ! (1+JLENGTH)
-    integer(i4_kind_1), intent(in)  :: rank, tag
-    integer(i4_kind_1), intent(out) :: stat(MPI_STATUS_SIZE)
+    integer(ik), intent(in)  :: rank, tag
+    integer(ik), intent(out) :: stat(MPI_STATUS_SIZE)
     ! *** end of interface ***
 
-    integer(i4_kind_1) :: ierr
+    integer(ik) :: ierr
 
     ASSERT(size(buf)==JLENGTH)
 
@@ -1168,7 +1169,7 @@ contains
     !
     implicit none
     integer(i4_kind), intent(in) :: jobs(2)
-    integer(i4_kind_1), intent(in) :: np ! unused
+    integer(ik), intent(in) :: np ! unused
     integer(i4_kind) :: n ! result
     !** End of interface *****************************************
 
@@ -1189,7 +1190,7 @@ contains
     implicit none
     !------------ Declaration of formal parameters ---------------
     integer (i4_kind), intent(in   ) :: N
-    integer (i4_kind_1), intent(in ) :: procs, rank
+    integer (ik), intent(in ) :: procs, rank
     integer (i4_kind)                :: my_jobs(L_JOB)
     !** End of interface *****************************************
 
