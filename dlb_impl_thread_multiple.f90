@@ -370,7 +370,7 @@ contains
       ! check and wait for any message with messagetag dlb
 
       ! check and wait for any message with any message tag:
-      call check_messages(MPI_ANY_SOURCE, MPI_ANY_TAG, requ_m, lm_source)
+      call check_messages (MPI_ANY_SOURCE, MPI_ANY_TAG, requ_m, lm_source)
       count_messages = count_messages + 1
       call time_stamp("got message", 4)
       call test_requests(requ_m)
@@ -537,7 +537,7 @@ contains
     call th_exit() ! will be joined on MAIN
   end subroutine thread_control
 
-  subroutine check_messages(src, tag, requ_m, lm_source)
+  subroutine check_messages (src, tag, requ_m, lm_source)
     !  Purpose: checks if any message has arrived, checks for messages:
     !          Someone finished stolen job slice
     !          Someone has finished its responsibilty (only termination_master)
@@ -561,19 +561,22 @@ contains
     use dlb_common, only: recv
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer (ik), intent(in) :: src, tag ! MPI_ANY_SOURCE, MPI_ANY_TAG
+    integer (ik), intent (in) :: src, tag ! MPI_ANY_SOURCE, MPI_ANY_TAG
     integer (ik), allocatable :: requ_m(:)
     integer (lk), intent(inout) :: lm_source(:)
     !** End of interface *****************************************
 
     integer (lk) :: message(JLENGTH)
     integer (ik) :: stat(MPI_STATUS_SIZE)
-    integer (ik) :: your_rank
     integer (lk) :: pending
 
-    call recv(message, src, tag, stat)
+    !
+    ! Note that src  may be a wildcard, use  stat(MPI_SOURCE) for real
+    ! source!
+    !
+    call recv (message, src, tag, stat)
 
-    select case(stat(MPI_TAG))
+    select case (stat(MPI_TAG))
 
     case (DONE_JOB) ! someone finished stolen job slice
       ASSERT(message(1)>0)
@@ -599,9 +602,9 @@ contains
       if( my_rank /= termination_master )then
           stop "my_rank /= termination_master"
       endif
+ASSERT(stat(MPI_SOURCE)==message(1))
 
-      your_rank = message(1)
-      call check_termination(your_rank)
+      call check_termination (stat(MPI_SOURCE))
 
     case (NO_WORK_LEFT) ! termination message from termination master
       ASSERT(message(1)==0)
