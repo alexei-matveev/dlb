@@ -738,103 +738,100 @@ contains
     requ(len_req + 1) = req
   end subroutine add_request
 
-  subroutine test_requests(requ)
-    ! Purpose: tests if any of the messages stored in requ have been
-    !          received, than remove the corresponding request
-    !          requ is local request of the corresponding thread
+  subroutine test_requests (requ)
     !
-    ! Context for 3Threads: mailbox thread, control thread.
+    ! Tests if any of the  messages stored in requ have been received,
+    ! than remove  the corresponding request requ is  local request of
+    ! the corresponding thread.
+    !
+    ! Context for 3 Threads: mailbox thread, control thread.
     !             2 Threads: secretary thread
     !
-    !------------ Modules used ------------------- ---------------
+    !
     implicit none
+    integer (i4_kind_1), allocatable, intent (inout) :: requ(:)
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind_1), allocatable :: requ(:)
-    integer(kind=i4_kind)                :: j,i, len_req, len_new
-    integer(kind=i4_kind_1)                :: req
-    integer(kind=i4_kind_1)                :: alloc_stat, ierr, stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind_1),allocatable :: requ_int(:)
-    logical     :: flag
-    logical, allocatable :: finished(:)
-    !------------ Executable code --------------------------------
-    if (.not. allocated(requ)) RETURN
 
-    len_req = size(requ)
-    allocate(finished(len_req), requ_int(len_req), stat = alloc_stat)
-    ASSERT(alloc_stat==0)
-    finished = .false.
-    len_new = len_req
-    do i = 1, len_req
-      req = requ(i)
-      call MPI_TEST(req, flag, stat, ierr)
-      ASSERT(ierr==MPI_SUCCESS)
-      if (flag) then
-        finished(i) = .true.
-        len_new = len_new - 1
-      endif
+    integer (i4_kind) :: i, len_new
+    integer (i4_kind_1) :: alloc_stat, ierr, stat(MPI_STATUS_SIZE)
+    integer (i4_kind_1), allocatable :: requ_int(:)
+    logical :: flag
+    logical, allocatable :: finished(:)
+
+    ! FIXME: no  requests should rather correspod to  0-size! Also, at
+    ! the bottom we  have a check that is unrelated  to requ(:). It is
+    ! not obvious why  that check depends on the  allocation status of
+    ! requ(:).
+    if (.not. allocated (requ)) RETURN
+
+    allocate (finished(size (requ)), stat=alloc_stat)
+    ASSERT (alloc_stat==0)
+
+    do i = 1, size (requ)
+      call MPI_TEST (requ(i), finished(i), stat, ierr)
+      ASSERT (ierr==MPI_SUCCESS)
     enddo
-    requ_int(:) = requ(:)
-    if (allocated(requ)) then
-        deallocate(requ, stat = alloc_stat)
-        ASSERT(alloc_stat==0)
-    endif
+
+    call move_alloc (requ, requ_int)
+
+    len_new = count (.not. finished)
+
+    ! FIXME: zero is a valid array size:
     if (len_new > 0) then
-      allocate(requ(len_new), stat = alloc_stat)
-      ASSERT(alloc_stat==0)
-      j = 0
-      do i = 1, len_req
-        if (.not. finished(i)) then
-          j = j + 1
-          requ(j) = requ_int(i)
-        endif
-      enddo
+      allocate (requ(len_new), stat=alloc_stat)
+      ASSERT (alloc_stat==0)
+
+      requ = pack (requ_int, mask=(.not. finished))
     endif
-    if (allocated(requ_int)) then
-       deallocate(requ_int, finished, stat = alloc_stat)
-       ASSERT(alloc_stat==0)
-    endif
-    do i = 1, size(message_on_way) ! messages for DONE_JOBS
+
+    deallocate (requ_int, finished, stat=alloc_stat)
+    ASSERT (alloc_stat==0)
+
+    !
+    ! This  is unrelated to  requ(:) at  all. Use  the chance  to test
+    ! requests in the module global variable req_dj(:)
+    !
+    do i = 1, size (message_on_way) ! messages for DONE_JOBS
        ! Have to be handled separatly, as the messages have to be kept
        ! and may  not be changed till  the request has  been sent. But
        ! here  also  some  messages  may be  finished,  message_on_way
        ! stores informations to whom  there are still some messages of
        ! DONE_JOBS on their way.
        if (message_on_way(i)) then
-          call MPI_TEST(req_dj(i), flag, stat, ierr)
-          ASSERT(ierr==MPI_SUCCESS)
-          if (flag) then
-             message_on_way(i) = .false.
-          endif
+          call MPI_TEST (req_dj(i), flag, stat, ierr)
+          ASSERT (ierr==MPI_SUCCESS)
+          message_on_way(i) = .not. flag
        endif
     enddo
   end subroutine test_requests
 
-  subroutine end_requests(requ)
-    ! Purpose: end all of the stored requests in requ
-    !          at this point all the communication has to be
-    !          ended already! After terminated = .True. for
-    !          rma variant, and after clear_up of threads
+  subroutine end_requests (requ)
+    !
+    ! End all of  the stored requests in requ.  At  this point all the
+    ! communication  has  to be  ended  already!   After terminated  =
+    ! .True. for rma variant, and after clear_up of threads
     !
     ! Context for 3Threads: mailbox thread, control thread.
     !             2 Threads: secretary thread
-    !------------ Modules used ------------------- ---------------
+    !
     implicit none
+    integer (i4_kind_1), allocatable, intent (inout) :: requ(:)
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind_1), allocatable :: requ(:)
-    integer(kind=i4_kind)                  :: i
-    integer(kind=i4_kind_1)                :: alloc_stat, ierr
-    integer(kind=i4_kind_1)                :: stat(MPI_STATUS_SIZE)
-    !------------ Executable code --------------------------------
-    if (allocated(requ)) then
-      do i = 1, size(requ,1)
-        call MPI_WAIT(requ(i),stat, ierr)
-        ASSERT(ierr==MPI_SUCCESS)
-      enddo
-      deallocate(requ, stat=alloc_stat)
-      ASSERT(alloc_stat==0)
-    endif
+
+    integer (i4_kind) :: i
+    integer (i4_kind_1) :: alloc_stat, ierr
+    integer (i4_kind_1) :: stat(MPI_STATUS_SIZE)
+
+    ! FIXME: no requests should rather correspod to 0-size!
+    if (.not. allocated (requ)) RETURN
+
+    ! FIXME: use MPI_WAITALL() instead:
+    do i = 1, size (requ)
+       call MPI_WAIT (requ(i), stat, ierr)
+       ASSERT (ierr==MPI_SUCCESS)
+    enddo
+    deallocate (requ, stat=alloc_stat)
+    ASSERT (alloc_stat==0)
   end subroutine end_requests
 
   subroutine end_communication()
