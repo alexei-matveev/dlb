@@ -479,22 +479,21 @@ contains
     integer (lk), intent(inout) :: many_zeros! just for debugging
     double precision, intent(inout)      :: timestart, timemax ! just for debugging
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer (ik)              :: stat(MPI_STATUS_SIZE)
-    integer (ik)                   :: src, tag
-    !------------ Executable code --------------------------------
+
+    integer (ik) :: stat(MPI_STATUS_SIZE)
+    integer (ik) :: src, tag
 
     ! check for any message
-    do while ( iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, stat) )
+    do while (iprobe (MPI_ANY_SOURCE, MPI_ANY_TAG, stat))
 
-        src = stat(MPI_SOURCE)
-        tag = stat(MPI_TAG)
+       src = stat(MPI_SOURCE)
+       tag = stat(MPI_TAG)
 
-      call time_stamp("got message", 4)
-      count_messages = count_messages + 1
+       call time_stamp("got message", 4)
+       count_messages = count_messages + 1
 
-        call check_messages(src, tag, requ, wait_answer, lm_source, count_ask, proc_asked_last,&
-          many_zeros, timestart, timemax)
+       call check_messages (src, tag, requ, wait_answer, lm_source, count_ask, proc_asked_last,&
+            many_zeros, timestart, timemax)
     enddo
   end subroutine task_messages
 
@@ -619,7 +618,12 @@ contains
     integer (lk) :: message(JLENGTH)
     integer (ik) :: stat(MPI_STATUS_SIZE)
 
+    !
+    ! Note that src  may be a wildcard, use  stat(MPI_SOURCE) for real
+    ! source.  Even if this is may not be the case in this file!
+    !
     call recv (message, src, tag, stat)
+    ASSERT(src==stat(MPI_SOURCE))
 
     select case (tag)
 
@@ -630,7 +634,7 @@ contains
       !
       ! Handle fresh cumulative report:
       !
-      call report_by(src, message(1))
+      call report_by (stat(MPI_SOURCE), message(1))
 
       call test_resp_done(requ_m)
 
@@ -641,7 +645,7 @@ contains
       endif
       ASSERT(src==message(1))
 
-      call check_termination (src)
+      call check_termination (stat(MPI_SOURCE))
 
     case (NO_WORK_LEFT) ! termination message from termination master
       ASSERT(message(1)==0)
@@ -676,8 +680,8 @@ contains
       count_requests = count_requests + 1
       ! store the intern message number, needed for knowing at the end
       ! the status of the last messages on their way
-      lm_source(src + 1) = message(1)
-      call divide_jobs(src, requ_m)
+      lm_source (stat(MPI_SOURCE) + 1) = message(1)
+      call divide_jobs (stat(MPI_SOURCE), requ_m)
 
     case default
       ! This message makes no sense in this context, thus give warning
