@@ -514,7 +514,7 @@ contains
     double precision, intent(inout)    :: timestart !inout? we do not change it
                                          ! in any case
     integer (ik),allocatable  :: requ(:)
-    integer (ik)              :: owner
+    integer (ik) :: owner
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     !------------ Executable code --------------------------------
@@ -525,8 +525,8 @@ contains
       many_searches = many_searches + 1 !global debug tool
       if ( already_done > 0) then
         ! only report finished jobs, when there are still any
-        owner = job_storage(JOWNER)
-        call report_or_store(owner, already_done, requ)
+        owner = int (job_storage(JOWNER)) ! convert to default int
+        call report_or_store (owner, already_done, requ)
         already_done = 0
       endif
       timestart = MPI_WTIME()
