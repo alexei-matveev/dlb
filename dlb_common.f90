@@ -68,7 +68,17 @@ module dlb_common
   public :: print_statistics
   public :: dlb_timers
 
-  ! Use integers with at least that many decimal digits:
+  ! For those integers which will  stay 4 bytes no matter what changes
+  ! around  (for example  for statistics).   One is  better  off using
+  ! default  integers here as  this is  what MPI  likely uses  for its
+  ! object handlers and counts. FIXME: maybe use kind(0) instead?
+  integer, parameter, public :: i4_kind_1 = selected_int_kind(9)
+
+  ! Integer with 8 bytes, or rather with range of 18 decimal digits:
+  integer, parameter, public :: i8_kind = selected_int_kind(18)
+
+  ! For job IDs, the actual data that DLB serves, use integers with at
+  ! least that many decimal digits:
   integer, parameter :: kind_of_i4_kind = 18
   integer, parameter, public :: i4_kind = selected_int_kind(kind_of_i4_kind)
 
@@ -77,20 +87,6 @@ module dlb_common
   ! meaningfull in dlb_common_init():
   integer, public, protected :: i4_kind_mpi = MPI_DATATYPE_NULL
 
-  ! for those which will stay 4 bytes no matter what changes around (fro example for statistics)
-  integer, parameter, public :: i4_kind_1 = selected_int_kind(9)
-
-  ! integer with 8 bytes, range 9 decimal digits
-  integer, parameter, public :: i8_kind = selected_int_kind(18)
-
-! ! real with 8 bytes, precision 15 decimal digits
-! integer, parameter, public :: r8_kind = selected_real_kind(15)
-!
-! FIXME: We do use "double precision" for time stamps/measurments.
-!        This could be replaced by reals of double precision kind:
-!
-!               dp_kind = kind(1.0D0)
-!
 
   integer,  public, protected :: comm_world
 
