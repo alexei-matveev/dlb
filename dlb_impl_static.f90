@@ -53,7 +53,7 @@ module dlb_impl
 # include "dlb.h"
 USE_MPI, only: MPI_THREAD_SINGLE
 USE_MPI, only: MPI_Wtime
-use dlb_common, only: lk, JLENGTH
+use dlb_common, only: ik, lk, JLENGTH
 use dlb_common, only: timer_give_more, timer_give_more_last
 implicit none
 save            ! save all variables defined in this module
@@ -62,7 +62,7 @@ private         ! by default, all names are private
 public :: dlb_init, dlb_finalize, dlb_setup, dlb_give_more !for using the module
 
 ! Program from outside might want to know the thread-safety-level required form DLB
-integer (lk), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_SINGLE
+integer (ik), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_SINGLE
 
 !== Interrupt end of public interface of module =================
 
