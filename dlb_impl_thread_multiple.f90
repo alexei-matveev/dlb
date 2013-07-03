@@ -74,8 +74,7 @@ module dlb_impl
   !
   !----------------------------------------------------------------
 # include "dlb.h"
-  use dlb_common, only: i4_kind, comm_world
-  use dlb_common, only: i4_kind_1
+  use dlb_common, only: lk, ik, comm_world
   use dlb_common, only: time_stamp ! for debug only
   use dlb_common, only: add_request, test_requests, end_requests, send_resp_done
   use dlb_common, only: DONE_JOB, NO_WORK_LEFT, RESP_DONE, JLENGTH, JOWNER, JLEFT, JRIGHT
@@ -97,7 +96,7 @@ module dlb_impl
   private         ! by default, all names are private
   !== Interrupt end of public interface of module =================
   ! Program from outside might want to know the thread-safety-level required form DLB
-  integer(kind=i4_kind_1), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_MULTIPLE
+  integer (ik), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_MULTIPLE
 
   !------------ public functions and subroutines ------------------
   public :: dlb_init, dlb_finalize, dlb_setup, dlb_give_more
@@ -116,26 +115,26 @@ module dlb_impl
 
   !------------ Declaration of constants and variables ----
   ! IDs of mutexes, use base-0 indices:
-  integer(kind=i4_kind_1), parameter :: LOCK_NJ   = 1
+  integer (ik), parameter :: LOCK_NJ   = 1
 
   ! IDs for condition variables, use base-0 indices:
-  integer(kind=i4_kind_1), parameter :: COND_JS_UPDATE  = 0
-  integer(kind=i4_kind_1), parameter :: COND_NJ_UPDATE  = 1
-  integer(kind=i4_kind_1), parameter :: COND_JS2_UPDATE = 2
+  integer (ik), parameter :: COND_JS_UPDATE  = 0
+  integer (ik), parameter :: COND_NJ_UPDATE  = 1
+  integer (ik), parameter :: COND_JS2_UPDATE = 2
 
   ! thread IDs, use base-0 indices:
-  integer(kind=i4_kind_1), parameter :: MAILBOX = 0
-  integer(kind=i4_kind_1), parameter :: CONTROL = 1
+  integer (ik), parameter :: MAILBOX = 0
+  integer (ik), parameter :: CONTROL = 1
 
    ! for the complete termination, count_ask will be filled by CONTROL and interpreted by MAILBOX, proc_asked_last
    ! is used by both of them
-   integer(kind=i4_kind),allocatable    :: count_ask(:)
-   integer(kind=i4_kind)                :: proc_asked_last
+   integer (lk),allocatable    :: count_ask(:)
+   integer (lk)                :: proc_asked_last
 
-  integer(kind=i4_kind)             :: new_jobs(JLENGTH) ! stores new job, just arrived from other proc
-  integer(kind=i4_kind)             :: already_done ! belongs to CONTROL after initalising, stores how
+  integer (lk)             :: new_jobs(JLENGTH) ! stores new job, just arrived from other proc
+  integer (lk)             :: already_done ! belongs to CONTROL after initalising, stores how
                                       ! many jobs of the current interval have been already calculated
-  integer(kind=i4_kind)             :: start_job(JLENGTH) ! job_storage is changed a lot, backup for
+  integer (lk)             :: start_job(JLENGTH) ! job_storage is changed a lot, backup for
                                      ! finding out, if someone has stolen something, or how many jobs one
                                      ! has done, after initalization only used by CONTROL
                                               ! in setup
@@ -143,8 +142,8 @@ module dlb_impl
 
   ! These variables are also essentiel but as they are also needed in dlb_impl_thread_common and to avoid
   ! cyclic dependencies they are stored there:
-  !integer(kind=i4_kind), parameter :: LOCK_JS   = 0 !declared in dlb_impl_thread_common
-  !integer(kind=i4_kind)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
+  !integer (lk), parameter :: LOCK_JS   = 0 !declared in dlb_impl_thread_common
+  !integer (lk)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
   !logical                           :: terminated ! for termination algorithm
 
   ! some variables are shared between the three threads, there are also locks and conditions to obtain
@@ -203,9 +202,9 @@ module dlb_impl
   !
   ! For debugging and counting trace
   ! used only on one thread
-  integer(kind=i4_kind)             :: count_messages, count_requests, count_offers ! how many messages arrived, MAILBOX
-  integer(kind=i4_kind)             :: many_tries, many_searches !how many times asked for jobs, CONTROL
-  integer(kind=i4_kind)             :: many_zeros !how many times asked for jobs, CONTROL
+  integer (lk)             :: count_messages, count_requests, count_offers ! how many messages arrived, MAILBOX
+  integer (lk)             :: many_tries, many_searches !how many times asked for jobs, CONTROL
+  integer (lk)             :: many_zeros !how many times asked for jobs, CONTROL
   double precision  :: timemax
   !----------------------------------------------------------------
   !------------ Subroutines ---------------------------------------
@@ -258,11 +257,11 @@ contains
     use dlb_common, only: OUTPUT_BORDER, L_JOB
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: n
-    integer(kind=i4_kind), intent(out  ) :: my_job(:) ! (2)
+    integer (lk), intent(in   ) :: n
+    integer (lk), intent(out  ) :: my_job(:) ! (2)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(i4_kind), target             :: jobs(JLENGTH)
+    integer (lk), target             :: jobs(JLENGTH)
     double precision                     :: start_timer
     double precision                     :: start_timer_gm
     double precision,save                :: leave_timer = -1
@@ -360,9 +359,9 @@ contains
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind_1)              :: ierr, alloc_stat
-    integer(kind=i4_kind_1),allocatable  :: requ_m(:) !requests storages for MAILBOX
-    integer(kind=i4_kind)                :: lm_source(n_procs) ! remember which job request
+    integer (ik)              :: ierr, alloc_stat
+    integer (ik),allocatable  :: requ_m(:) !requests storages for MAILBOX
+    integer (lk)                :: lm_source(n_procs) ! remember which job request
                                                    ! I got
     !------------ Executable code --------------------------------
 
@@ -427,14 +426,14 @@ contains
     !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind_1)              :: ierr, stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind_1)              :: v
-    integer(kind=i4_kind)                :: message(JLENGTH) ! there will be always
+    integer (ik)              :: ierr, stat(MPI_STATUS_SIZE)
+    integer (ik)              :: v
+    integer (lk)                :: message(JLENGTH) ! there will be always
                                                  ! only one job request around, thus saved
-    integer(kind=i4_kind_1)              :: requ_wr
-    integer(kind=i4_kind_1)              :: owner
-    integer(kind=i4_kind)                :: my_jobs(JLENGTH)
-    integer(kind=i4_kind_1),allocatable  :: requ_c(:) !requests storages for CONTROL
+    integer (ik)              :: requ_wr
+    integer (ik)              :: owner
+    integer (lk)                :: my_jobs(JLENGTH)
+    integer (ik),allocatable  :: requ_c(:) !requests storages for CONTROL
     double precision :: timestart, timeend
     !------------ Executable code --------------------------------
     many_tries = 0
@@ -562,15 +561,15 @@ contains
     use dlb_common, only: recv
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(i4_kind_1), intent(in) :: src, tag ! MPI_ANY_SOURCE, MPI_ANY_TAG
-    integer(i4_kind_1), allocatable :: requ_m(:)
-    integer(kind=i4_kind), intent(inout) :: lm_source(:)
+    integer (ik), intent(in) :: src, tag ! MPI_ANY_SOURCE, MPI_ANY_TAG
+    integer (ik), allocatable :: requ_m(:)
+    integer (lk), intent(inout) :: lm_source(:)
     !** End of interface *****************************************
 
-    integer(i4_kind) :: message(JLENGTH)
-    integer(i4_kind_1) :: stat(MPI_STATUS_SIZE)
-    integer(i4_kind_1) :: your_rank
-    integer(i4_kind) :: pending
+    integer (lk) :: message(JLENGTH)
+    integer (ik) :: stat(MPI_STATUS_SIZE)
+    integer (ik) :: your_rank
+    integer (lk) :: pending
 
     call recv(message, src, tag, stat)
 
@@ -657,11 +656,11 @@ contains
     use dlb_common, only: empty
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(i4_kind), intent(in)  :: m
-    integer(i4_kind), intent(out) :: my_jobs(JLENGTH)
+    integer (lk), intent(in)  :: m
+    integer (lk), intent(out) :: my_jobs(JLENGTH)
     !** End of interface *****************************************
 
-    integer(i4_kind) :: remaining(JLENGTH)
+    integer (lk) :: remaining(JLENGTH)
 
     if ( steal_local(m, job_storage, remaining, my_jobs) ) then
         !
@@ -699,12 +698,12 @@ contains
     use dlb_common, only: report_to, reports_pending
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(i4_kind_1), intent(in)   :: owner
-    integer(i4_kind), intent(in)   :: num_jobs_done
-    integer(i4_kind_1), allocatable  :: requ(:)
+    integer (ik), intent(in)   :: owner
+    integer (lk), intent(in)   :: num_jobs_done
+    integer (ik), allocatable  :: requ(:)
     !** End of interface *****************************************
 
-    integer(i4_kind) :: pending
+    integer (lk) :: pending
 
     call time_stamp("finished a job",4)
     ! my_jobs hold recent last point, as proc started from beginning and
@@ -743,7 +742,7 @@ contains
     use dlb_impl_thread_common, only: thread_setup, th_create_all
     use dlb_common, only: L_JOB
     implicit none
-    integer(i4_kind), intent(in) :: job(:) ! (2)
+    integer (lk), intent(in) :: job(:) ! (2)
     ! *** end of interface ***
 
     integer :: alloc_stat
