@@ -112,7 +112,7 @@ module dlb
 # include "dlb.h"
 ! Need here some stuff, that is already defined elsewhere
 use dlb_common, only: L_JOB
-use dlb_common, only: i4_kind, i4_kind_1
+use dlb_common, only: lk, ik
 use dlb_impl, only: DLB_THREAD_REQUIRED
 use dlb_common, only: dlb_timers
 
@@ -132,14 +132,14 @@ public dlb_print_statistics
 ! the distr one has given in dlb_setup_color, start_color is a helper variable
 ! for linking the intern job-numbers (succeeding ones) on the job-ids of the
 ! job distribution
-integer, public, parameter :: idlb_kind = i4_kind
-integer(i4_kind), allocatable :: start_color(:)
+integer, public, parameter :: idlb_kind = lk
+integer (lk), allocatable :: start_color(:)
 
 ! in the color case one may not be able to hand over all jobs at once, thus store them here
-integer(i4_kind)              :: current_jobs(L_JOB)
+integer (lk)              :: current_jobs(L_JOB)
 
 ! for the rr variant it is required to know the stride for the interval
-integer(i4_kind)              :: stride
+integer (lk)              :: stride
 contains
 
   subroutine dlb_init(world)
@@ -147,7 +147,7 @@ contains
     !------------ Modules used ------------------- ---------------
     use dlb_impl, only: dlb_impl_init => dlb_init
     implicit none
-    integer(i4_kind_1), intent(in) :: world
+    integer (ik), intent(in) :: world
     !** End of interface *****************************************
 
     call dlb_impl_init(world)
@@ -159,11 +159,11 @@ contains
     !  Purpose: cleaning up everything, after last call
     !------------ Modules used ------------------- ---------------
     use dlb_impl, only: dlb_impl_finalize => dlb_finalize
-    use dlb_common, only: i4_kind_1
+    use dlb_common, only: ik
     implicit none
     ! *** end of interface ***
 
-    integer(i4_kind_1)              :: ierr
+    integer (ik)              :: ierr
 
     !
     ! Only if colored-version was in use:
@@ -186,7 +186,7 @@ contains
     use dlb_impl, only: dlb_impl_setup => dlb_setup
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: N
+    integer (lk), intent(in   ) :: N
     ! *** end of interface ***
 
     !
@@ -210,8 +210,8 @@ contains
     use dlb_impl, only: dlb_impl_setup => dlb_setup
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: N
-    integer(kind=i4_kind)                :: jobs(L_JOB)
+    integer (lk), intent(in   ) :: N
+    integer (lk)                :: jobs(L_JOB)
     ! *** end of interface ***
     jobs(JLEFT) = min(my_rank, N)
     jobs(JRIGHT) = N
@@ -226,15 +226,15 @@ contains
     !           version with color distinguishing, thus the distribution
     !           of the jobs over the color have to be given
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: i4_kind_1
+    use dlb_common, only: ik
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: N(:)
+    integer (lk), intent(in   ) :: N(:)
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind_1)              :: ierr
-    integer(kind=i4_kind)                :: i, number_jobs
+    integer (ik)              :: ierr
+    integer (lk)                :: i, number_jobs
 
     if (allocated(start_color)) then
       deallocate(start_color, stat = ierr)
@@ -273,10 +273,10 @@ contains
     use dlb_common, only: JLEFT, JRIGHT, L_JOB
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: n
-    integer(kind=i4_kind), intent(out  ) :: my_job(2)
+    integer (lk), intent(in   ) :: n
+    integer (lk), intent(out  ) :: my_job(2)
     !** End of interface *****************************************
-    integer(kind=i4_kind)                :: my_job_raw(L_JOB)
+    integer (lk)                :: my_job_raw(L_JOB)
     ASSERT (stride < 0)
 
     call dlb_impl_give_more(n, my_job_raw)
@@ -298,10 +298,10 @@ contains
     use dlb_common, only: JLEFT, JRIGHT, L_JOB, JOWNER
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: n
-    integer(kind=i4_kind), intent(out  ) :: my_job(3)
+    integer (lk), intent(in   ) :: n
+    integer (lk), intent(out  ) :: my_job(3)
     !** End of interface *****************************************
-    integer(kind=i4_kind)                 :: my_job_raw(L_JOB), rest
+    integer (lk)                 :: my_job_raw(L_JOB), rest
     logical :: not_empty !, is_right
     ASSERT (stride > 0)
     not_empty = .false.
@@ -350,18 +350,18 @@ contains
     !  that the jobs given back all have the same color
     !  it keeps other colored jobs in its own storage
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: i4_kind_1
+    use dlb_common, only: ik
     use dlb_common, only: JLEFT, JRIGHT
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: n
-    integer(kind=i4_kind), intent(out  ) :: my_job(2), color
+    integer (lk), intent(in   ) :: n
+    integer (lk), intent(out  ) :: my_job(2), color
     logical                              :: more ! result
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: i,  w, jobs_all, jobs_color
-    integer(kind=i4_kind_1)              :: ierr
+    integer (lk)                :: i,  w, jobs_all, jobs_color
+    integer (ik)              :: ierr
     ASSERT (stride < 0)
 
     if (current_jobs(JLEFT) < current_jobs(JRIGHT)) then
@@ -425,10 +425,10 @@ contains
     !          The static backend provides only support for up to output_level 1
     !          Output for higher output level will be start values (0 or infinity)
     !------------ Modules used ------------------- ---------------
-    use dlb_common, only: i4_kind_1
+    use dlb_common, only: ik
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(i4_kind_1), intent(in)  :: output_level
+    integer (ik), intent(in)  :: output_level
     !------------ Declaration of local variables -----------------
     call dlb_timers(output_level)
   end subroutine dlb_print_statistics
