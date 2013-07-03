@@ -2,11 +2,10 @@ module dlb_impl_thread_common
 # include "dlb.h"
   use iso_c_binding
   use dlb_common, only: dlb_common_init
-  use dlb_common, only: i4_kind, n_procs, termination_master
+  use dlb_common, only: lk, ik, n_procs, termination_master
   use dlb_common, only: time_stamp ! for debug only
   use dlb_common, only: JLENGTH, JRIGHT, JLEFT, NO_WORK_LEFT
   use dlb_common, only: has_last_done, set_empty_job, add_request, send_termination
-  use dlb_common, only: i4_kind_1
   implicit none
 
   interface
@@ -32,50 +31,50 @@ module dlb_impl_thread_common
     subroutine th_mutex_lock(lock) bind(C)
       use iso_c_binding
       implicit none
-      integer(C_INT), intent(in) :: lock
+      integer (C_INT), intent(in) :: lock
     end subroutine th_mutex_lock
 
     subroutine th_mutex_unlock(lock) bind(C)
       use iso_c_binding
       implicit none
-      integer(C_INT), intent(in) :: lock
+      integer (C_INT), intent(in) :: lock
     end subroutine th_mutex_unlock
 
     subroutine th_cond_signal(condition) bind(C)
       use iso_c_binding
       implicit none
-      integer(C_INT), intent(in) :: condition
+      integer (C_INT), intent(in) :: condition
     end subroutine th_cond_signal
 
     subroutine th_cond_wait(condition, mutex) bind(C)
       use iso_c_binding
       implicit none
-      integer(C_INT), intent(in) :: condition, mutex
+      integer (C_INT), intent(in) :: condition, mutex
     end subroutine th_cond_wait
 
     subroutine th_rwlock_rdlock(rwlock) bind(C)
       use iso_c_binding
       implicit none
-      integer(C_INT), intent(in) :: rwlock
+      integer (C_INT), intent(in) :: rwlock
     end subroutine th_rwlock_rdlock
 
     subroutine th_rwlock_wrlock(rwlock) bind(C)
       use iso_c_binding
       implicit none
-      integer(C_INT), intent(in) :: rwlock
+      integer (C_INT), intent(in) :: rwlock
     end subroutine th_rwlock_wrlock
 
     subroutine th_rwlock_unlock(rwlock) bind(C)
       use iso_c_binding
       implicit none
-      integer(C_INT), intent(in) :: rwlock
+      integer (C_INT), intent(in) :: rwlock
     end subroutine th_rwlock_unlock
 
     ! and one routine to use the c timings:
     subroutine c_sleep(time) bind(C) ! in microseconds
       use iso_c_binding
       implicit none
-      integer(C_INT), intent(in) ::time
+      integer (C_INT), intent(in) ::time
     end subroutine
   end interface
 
@@ -84,12 +83,12 @@ module dlb_impl_thread_common
   !------------ Declaration of types ------------------------------
 
   !------------ Declaration of constants and variables ----
-  integer(kind=i4_kind), parameter, public  :: JOBS_LEN = JLENGTH  ! Length of complete jobs storage
+  integer (lk), parameter, public  :: JOBS_LEN = JLENGTH  ! Length of complete jobs storage
   ! IDs of mutexes, use base-0 indices:
-  integer(kind=i4_kind_1), parameter, public :: LOCK_JS   = 0
-  integer(kind=i4_kind)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
+  integer (ik), parameter, public :: LOCK_JS   = 0
+  integer (lk)             :: job_storage(jobs_len) ! store all the jobs, belonging to this processor
   logical                           :: terminated ! for termination algorithm
-  integer(kind=i4_kind), allocatable :: messagesJA(:,:)
+  integer (lk), allocatable :: messagesJA(:,:)
 
   contains
     subroutine rdlock()
@@ -158,15 +157,15 @@ module dlb_impl_thread_common
     USE_MPI
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind_1), intent(in   ) :: partner
-    integer(kind=i4_kind_1), allocatable :: requ(:)
+    integer (ik), intent(in   ) :: partner
+    integer (ik), allocatable :: requ(:)
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind_1)              :: tag
-    integer(kind=i4_kind_1)              :: req
-    integer(kind=i4_kind)                :: w
-    integer(kind=i4_kind)                :: g_jobs(JLENGTH)
-    integer(kind=i4_kind)                :: remaining(JLENGTH)
+    integer (ik)              :: tag
+    integer (ik)              :: req
+    integer (lk)                :: w
+    integer (lk)                :: g_jobs(JLENGTH)
+    integer (lk)                :: remaining(JLENGTH)
     !------------ Executable code --------------------------------
     call th_mutex_lock(LOCK_JS)
 
@@ -206,7 +205,7 @@ module dlb_impl_thread_common
     use dlb_common, only: print_statistics
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind_1), intent(in)    :: proc
+    integer (ik), intent(in)    :: proc
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
     !------------ Executable code --------------------------------
@@ -275,28 +274,28 @@ module dlb_impl_thread_common
     use dlb_common, only: comm_world, my_rank
     use dlb_common, only: WORK_DONAT, WORK_REQUEST
     use dlb_common, only: end_requests, isend, recv
-    use dlb_common, only: i4_kind_mpi, i4_kind_1
+    use dlb_common, only: lk_mpi => i4_kind_mpi, ik
     implicit none
-    integer(kind=i4_kind), intent(in) :: my_last(:), arrived(:), last_proc
-    integer(kind=i4_kind_1), allocatable  :: requ(:)
+    integer (lk), intent(in) :: my_last(:), arrived(:), last_proc
+    integer (ik), allocatable  :: requ(:)
     !** End of interface *****************************************
 
-    integer(i4_kind) :: i, count_req
-    integer(i4_kind_1) ::  req
-    integer(i4_kind_1) :: ierr
-    integer(i4_kind) :: rec_buff(n_procs * 2)
-    integer(i4_kind_1) :: stat(MPI_STATUS_SIZE)
-    integer(i4_kind) :: message_s(JLENGTH), message_r(JLENGTH)
+    integer (lk) :: i, count_req
+    integer (ik) ::  req
+    integer (ik) :: ierr
+    integer (lk) :: rec_buff(n_procs * 2)
+    integer (ik) :: stat(MPI_STATUS_SIZE)
+    integer (lk) :: message_s(JLENGTH), message_r(JLENGTH)
     !------------ Executable code --------------------------------
 
-    ! to transform it inthe right kind of integers (if i4_kind not 4 bytes)
+    ! to transform it inthe right kind of integers (if lk not 4 bytes)
 
     rec_buff = 0
     rec_buff(2 * my_rank + 1) = last_proc ! Last I sended to or -1
     if (last_proc > -1) then
         rec_buff(2 * my_rank + 2) = my_last(last_proc + 1) ! the request number I sended to him
     endif
-    call MPI_ALLGATHER(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rec_buff, 2, i4_kind_mpi, comm_world, ierr)
+    call MPI_ALLGATHER(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, rec_buff, 2, lk_mpi, comm_world, ierr)
     ASSERT(ierr==MPI_SUCCESS)
     count_req = 0
 
