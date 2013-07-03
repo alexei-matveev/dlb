@@ -53,7 +53,7 @@ module dlb_impl
 # include "dlb.h"
 USE_MPI, only: MPI_THREAD_SINGLE
 USE_MPI, only: MPI_Wtime
-use dlb_common, only: i4_kind, JLENGTH
+use dlb_common, only: lk, JLENGTH
 use dlb_common, only: timer_give_more, timer_give_more_last
 implicit none
 save            ! save all variables defined in this module
@@ -62,11 +62,11 @@ private         ! by default, all names are private
 public :: dlb_init, dlb_finalize, dlb_setup, dlb_give_more !for using the module
 
 ! Program from outside might want to know the thread-safety-level required form DLB
-integer(i4_kind), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_SINGLE
+integer (lk), parameter, public :: DLB_THREAD_REQUIRED = MPI_THREAD_SINGLE
 
 !== Interrupt end of public interface of module =================
 
-integer(i4_kind) :: job_storage(JLENGTH) ! store all the jobs, belonging to this processor
+integer (lk) :: job_storage(JLENGTH) ! store all the jobs, belonging to this processor
 
 contains
 
@@ -107,12 +107,12 @@ contains
     use dlb_common, only: steal_local, JLEFT, JRIGHT, L_JOB
     use dlb_common, only: empty, time_stamp
     implicit none
-    integer(i4_kind), intent(in)  :: n
-    integer(i4_kind), intent(out) :: my_job(:)
+    integer (lk), intent(in)  :: n
+    integer (lk), intent(out) :: my_job(:)
 
     !** End of interface *****************************************
     double precision              :: start_timer_gm
-    integer(i4_kind) :: jobs(JLENGTH), remaining(JLENGTH)
+    integer (lk) :: jobs(JLENGTH), remaining(JLENGTH)
 
     !
     ! Return of an empty job interval will be interpreted as
@@ -153,7 +153,7 @@ contains
     use dlb_common, only: JLEFT, JRIGHT, JOWNER, my_rank
     use dlb_common, only: time_stamp, L_JOB
     implicit none
-    integer(i4_kind), intent(in) :: job(:)
+    integer (lk), intent(in) :: job(:)
     !** End of interface *****************************************
 
     ASSERT(size(job)==L_JOB)
