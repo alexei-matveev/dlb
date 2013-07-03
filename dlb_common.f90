@@ -90,15 +90,15 @@ module dlb_common
 
   integer,  public, protected :: comm_world
 
-  integer(kind=i4_kind_1), parameter, public  :: OUTPUT_BORDER = FPP_OUTPUT_BORDER
+  integer (i4_kind_1), parameter, public  :: OUTPUT_BORDER = FPP_OUTPUT_BORDER
 
-  integer(kind=i4_kind_1), parameter, public  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 ! message tags
-  integer(kind=i4_kind_1), parameter, public  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
-  integer(kind=i4_kind_1), parameter, public  :: JLENGTH = 3 ! Length of a single job in interface
-  integer(kind=i4_kind_1), parameter, public  :: L_JOB = 3  ! Length of job to give back from inner interface (dlb_imp)
-  integer(kind=i4_kind_1), parameter, public  :: JOWNER = 3 ! Number in job, where rank of origin proc is stored
-  integer(kind=i4_kind_1), parameter, public  :: JLEFT = 1 ! Number in job, where stp (start point) is stored
-  integer(kind=i4_kind_1), parameter, public  :: JRIGHT = 2 ! Number in job, where ep (end point) is stored
+  integer (i4_kind_1), parameter, public  :: DONE_JOB = 1, NO_WORK_LEFT = 2, RESP_DONE = 3 ! message tags
+  integer (i4_kind_1), parameter, public  :: WORK_REQUEST = 4, WORK_DONAT = 5 ! messages for work request
+  integer (i4_kind_1), parameter, public  :: JLENGTH = 3 ! Length of a single job in interface
+  integer (i4_kind_1), parameter, public  :: L_JOB = 3  ! Length of job to give back from inner interface (dlb_imp)
+  integer (i4_kind_1), parameter, public  :: JOWNER = 3 ! Number in job, where rank of origin proc is stored
+  integer (i4_kind_1), parameter, public  :: JLEFT = 1 ! Number in job, where stp (start point) is stored
+  integer (i4_kind_1), parameter, public  :: JRIGHT = 2 ! Number in job, where ep (end point) is stored
 
   ! Variables need for debug and efficiency testing
   ! They are the timers, needed in all variants, in multithreaded variants only
@@ -108,7 +108,7 @@ module dlb_common
   double precision, public  :: dlb_time, min_work, second_last_work
   double precision, public  :: timer_give_more, timer_give_more_last
 
-  integer(kind=i4_kind_1), public, protected :: my_rank, n_procs ! some synonyms, They will be initialized
+  integer (i4_kind_1), public, protected :: my_rank, n_procs ! some synonyms, They will be initialized
                                         !once and afterwards be read only
 
   !
@@ -300,10 +300,10 @@ contains
   subroutine dlb_common_init(world)
     ! Intialization of common stuff, needed by all routines
     implicit none
-    integer(kind=i4_kind_1) ,  intent(in) :: world
+    integer (i4_kind_1) ,  intent(in) :: world
     ! *** end of interface ***
 
-    integer(kind=i4_kind_1) :: ierr, alloc_stat
+    integer (i4_kind_1) :: ierr, alloc_stat
 
     !
     ! Set global communicator as a DUP of the world:
@@ -361,7 +361,7 @@ contains
     implicit none
     ! *** end of interface ***
 
-    integer(kind=i4_kind_1) :: ierr, alloc_stat
+    integer (i4_kind_1) :: ierr, alloc_stat
 
     !
     ! Only on termination master:
@@ -379,7 +379,7 @@ contains
   subroutine dlb_common_setup(resp)
     ! Termination master start of a new dlb run
     implicit none
-    integer(kind=i4_kind), intent(in   ) :: resp
+    integer (i4_kind), intent(in   ) :: resp
     ! *** end of interface ***
 
     integer ::  alloc_stat
@@ -844,9 +844,9 @@ contains
     implicit none
     !** End of interface *****************************************
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind)                :: i
-    integer(kind=i4_kind_1)              :: alloc_stat, ierr
-    integer(kind=i4_kind_1)              :: stat(MPI_STATUS_SIZE)
+    integer (i4_kind)                :: i
+    integer (i4_kind_1)              :: alloc_stat, ierr
+    integer (i4_kind_1)              :: stat(MPI_STATUS_SIZE)
     !------------ Executable code --------------------------------
     do i = 1, size(message_on_way)
       if (message_on_way(i)) then
@@ -953,12 +953,12 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind_1), allocatable :: requ(:)
+    integer (i4_kind_1), allocatable :: requ(:)
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind_1)              :: req
-    integer(kind=i4_kind), save          :: message(JLENGTH) ! message may only be
+    integer (i4_kind_1)              :: req
+    integer (i4_kind), save          :: message(JLENGTH) ! message may only be
      ! changed or rewritten after communication finished, thus it is saved here in order
      ! to still be present when the subroutine finishes
      ! as this routine is only called once each process in each dlb call
@@ -1053,7 +1053,7 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind_1), intent(in)    :: proc
+    integer (i4_kind_1), intent(in)    :: proc
     all_done(proc+1) = .true.
     has_last_done = all(all_done)
   end function has_last_done
@@ -1079,7 +1079,7 @@ contains
     integer(i4_kind_1)   :: receiver
     integer(i4_kind)   :: message(JLENGTH)
     integer (i4_kind_1) :: request(n_procs - 1)
-    integer(kind=i4_kind_1) :: stat(MPI_STATUS_SIZE)
+    integer (i4_kind_1) :: stat(MPI_STATUS_SIZE)
     ASSERT(my_rank==termination_master)
 
     call time_stamp("send termination", 5)
@@ -1188,15 +1188,15 @@ contains
     !------------ Modules used ------------------- ---------------
     implicit none
     !------------ Declaration of formal parameters ---------------
-    integer(kind=i4_kind), intent(in   ) :: N
-    integer(kind=i4_kind_1), intent(in ) :: procs, rank
-    integer(kind=i4_kind)                :: my_jobs(L_JOB)
+    integer (i4_kind), intent(in   ) :: N
+    integer (i4_kind_1), intent(in ) :: procs, rank
+    integer (i4_kind)                :: my_jobs(L_JOB)
     !** End of interface *****************************************
 
     !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind) :: n_procs, my_rank
-    integer(kind=i4_kind) :: jobs_per_proc
-    integer(kind=i4_kind) :: rest
+    integer (i4_kind) :: n_procs, my_rank
+    integer (i4_kind) :: jobs_per_proc
+    integer (i4_kind) :: rest
     n_procs = procs
     my_rank = rank
 
