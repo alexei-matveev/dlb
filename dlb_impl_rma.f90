@@ -436,14 +436,11 @@ contains
     use dlb_common, only: print_statistics
     use dlb_common, only: iprobe, recv
     implicit none
-    !------------ Declaration of formal parameters ---------------
     !** End of interface *****************************************
-    !------------ Declaration of local variables -----------------
-    integer(kind=i4_kind_1)              :: stat(MPI_STATUS_SIZE)
-    integer(kind=i4_kind)                :: message(JLENGTH)
-    integer(kind=i4_kind_1)              :: src, tag
-    integer(kind=i4_kind_1)              :: your_rank
-    !------------ Executable code --------------------------------
+
+    integer (i4_kind) :: message(JLENGTH)
+    integer (i4_kind_1) :: src, tag
+    integer (i4_kind_1) :: stat(MPI_STATUS_SIZE)
 
     ! check for any message
     do while ( iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, stat) )
@@ -452,11 +449,11 @@ contains
         tag = stat(MPI_TAG)
 
         ! FIXME: specialize receives depending on tag:
-        call recv(message, src, tag, stat)
+        call recv (message, src, tag, stat)
 
-        select case ( tag )
+        select case (tag)
 
-        case ( DONE_JOB )
+        case (DONE_JOB)
             ! someone finished stolen job slice
             ASSERT(message(1)>0)
             ASSERT(src/=my_rank)
@@ -464,7 +461,7 @@ contains
             !
             ! Handle a fresh cumulative report:
             !
-            call report_by(src, message(1))
+            call report_by (src, message(1))
 
             if ( reports_pending() == 0) then
                 if (my_rank == termination_master) then
@@ -475,14 +472,14 @@ contains
                 call time_stamp("send my_resp done", 2)
             endif
 
-        case ( RESP_DONE )
+        case (RESP_DONE)
             ! finished responsibility
             ASSERT(my_rank==termination_master)
+            ASSERT(src==message(1))
 
-            your_rank = message(1)
-            call check_termination(your_rank)
+            call check_termination (src)
 
-        case ( NO_WORK_LEFT )
+        case (NO_WORK_LEFT)
             ! termination message from termination master
             ASSERT(message(1)==0)
             ASSERT(src==termination_master)
