@@ -274,7 +274,7 @@ module dlb_impl_thread_common
     use dlb_common, only: comm_world, my_rank
     use dlb_common, only: WORK_DONAT, WORK_REQUEST
     use dlb_common, only: end_requests, isend, recv
-    use dlb_common, only: lk_mpi => i4_kind_mpi, ik
+    use dlb_common, only: ik, lk_mpi
     implicit none
     integer (lk), intent(in) :: my_last(:), arrived(:), last_proc
     integer (ik), allocatable  :: requ(:)

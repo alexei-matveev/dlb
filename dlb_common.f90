@@ -85,7 +85,7 @@ module dlb_common
   ! MPI has its own convention for  types, it needs its own version of
   ! the  integer  to  send.  This   will  be  set  to  something  more
   ! meaningfull in dlb_common_init():
-  integer, public, protected :: i4_kind_mpi = MPI_DATATYPE_NULL
+  integer, public, protected :: lk_mpi = MPI_DATATYPE_NULL
 
 
   integer,  public, protected :: comm_world
@@ -318,7 +318,7 @@ contains
     ASSERT(ierr==MPI_SUCCESS)
 
     !
-    ! Create a  new MPI_Datatype, here  i4_kind_mpi. It is not  a kind
+    ! Create a  new MPI_Datatype, here  lk_mpi. It is not  a kind
     ! (like  lk), it  is not  a  number of  decimal digits  (like
     ! kind_of_lk) but a real  MPI type, represented as an integer
     ! as everything else in Fortran bindings.
@@ -332,8 +332,8 @@ contains
     ! Here kind_of_lk is a  PARAMETER and does not change between
     ! invocations. So do it just once:
     !
-    if (i4_kind_mpi == MPI_DATATYPE_NULL) then
-       call MPI_TYPE_CREATE_F90_INTEGER (kind_of_lk, i4_kind_mpi, ierr)
+    if (lk_mpi == MPI_DATATYPE_NULL) then
+       call MPI_TYPE_CREATE_F90_INTEGER (kind_of_lk, lk_mpi, ierr)
        ASSERT(ierr==MPI_SUCCESS)
     endif
 
@@ -1123,7 +1123,7 @@ contains
 
     ASSERT(size(buf)==JLENGTH)
 
-    call MPI_ISEND(buf, size(buf), i4_kind_mpi, rank, tag, comm_world, req, ierr)
+    call MPI_ISEND(buf, size(buf), lk_mpi, rank, tag, comm_world, req, ierr)
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine isend
 
@@ -1157,7 +1157,7 @@ contains
 
     ASSERT(size(buf)==JLENGTH)
 
-    call MPI_RECV(buf, size(buf), i4_kind_mpi, rank, tag, comm_world, stat, ierr)
+    call MPI_RECV(buf, size(buf), lk_mpi, rank, tag, comm_world, stat, ierr)
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine recv
 
