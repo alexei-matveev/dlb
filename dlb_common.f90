@@ -1081,7 +1081,7 @@ contains
     integer(i4_kind_1)   :: i
     integer(i4_kind_1)   :: receiver
     integer(i4_kind)   :: message(JLENGTH)
-    integer(i4_kind_1)   :: request(n_procs-1)
+    integer (i4_kind_1) :: request(n_procs - 1)
     integer(kind=i4_kind_1) :: stat(MPI_STATUS_SIZE)
     ASSERT(my_rank==termination_master)
 
@@ -1097,13 +1097,17 @@ contains
         ! FIXME: the tag is the only useful info sent:
         call isend(message, receiver, NO_WORK_LEFT, request(i+1))
     enddo
-    ! FIXME: the routine MPI_WAITALL seems to have problems if used for
-    !       requests other than normal integer (and isend insitst to return
-    !       requests of i4_kind). Therefore the call
-    !       call MPI_WAITALL(size(request), request, MPI_STATUSES_IGNORE, ierr)
-    !       does not work for other than i4_kind = integer4
+    !
+    ! FIXME: the routine MPI_WAITALL()  will have problems if used for
+    ! requests  other than  normal integer.   Therefore the  call call
+    ! MPI_WAITALL(size(request),  request,  MPI_STATUSES_IGNORE, ierr)
+    ! does not work for other than i4_kind = integer(4). One is better
+    ! off using default  integers as this is what  MPI likely uses for
+    ! its object handlers and counts!
+    !
+    ASSERT(kind(request)==kind(1))
     do i = 1, n_procs-1
-        call MPI_WAIT(request(i), stat, ierr)
+        call MPI_WAIT (request(i), stat, ierr)
         ASSERT(ierr==MPI_SUCCESS)
     enddo
   end subroutine send_termination
