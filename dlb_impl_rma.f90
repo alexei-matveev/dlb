@@ -280,7 +280,11 @@ contains
     endif
 
     !
-    ! First try to get jobs from local storage
+    ! First  try to  get jobs  from local  storage. Job  storage  is a
+    ! global   volatile  variable  "job_storage"   that  can   be,  in
+    ! principle,  modified by  a  call  to any  MPI  function or  even
+    ! asynchronously, depending on the  way a given MPI implementation
+    ! does RMA.
     !
 
     ! Initial value should differ from RMW_SUCCESS:
