@@ -289,11 +289,11 @@ contains
 
     ! Initial value should differ from RMW_SUCCESS:
     ok = -1
-    do while ( .not. storage_is_empty(my_rank) )
+    do while (.not. storage_is_empty (my_rank))
         !
         ! Stealing from myself:
         !
-        ok = try_read_modify_write(my_rank, steal_local, n, jobs)
+        ok = try_read_modify_write (my_rank, steal_local, n, jobs)
         if ( ok == RMW_SUCCESS ) exit ! the while loop
 
         ! for debugging only:
@@ -807,7 +807,7 @@ contains
     ASSERT(ierr==MPI_SUCCESS)
   end subroutine write_and_unlock
 
-  subroutine read_unsafe(rank, jobs)
+  subroutine read_unsafe (rank, jobs)
     !
     ! Read jobs data structure without acquiring user-level lock
     !
@@ -913,7 +913,7 @@ contains
     call write_unsafe(my_rank, start_job)
   end subroutine dlb_setup
 
-  logical function storage_is_empty(rank)
+  logical function storage_is_empty (rank)
     use dlb_common, only: empty, JLENGTH
     implicit none
     integer (ik), intent(in) :: rank
@@ -921,9 +921,9 @@ contains
 
     integer (lk) :: jobs(JLENGTH)
 
-    call read_unsafe(rank, jobs)
+    call read_unsafe (rank, jobs)
 
-    storage_is_empty = empty(jobs)
+    storage_is_empty = empty (jobs)
   end function storage_is_empty
 
 end module dlb_impl
