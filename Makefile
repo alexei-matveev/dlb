@@ -1,5 +1,10 @@
 # -*- makefile -*-
-#  ### Makefile for dlb library
+#
+# Makefile for DLB library.
+#
+# Use "make  -R" if you  note that  FC is set  to f77 by  default. Yet
+# better symlink ./machine.mk to a file setting $(FC) and such.
+#
 
 # This value specifes the amount of output (of DLB).
 # See output level in README for description.
@@ -25,14 +30,14 @@ all: $(libdlb.a) $(test_dlb)
 # For inclusion of for example the right fortran (or C) compiler.  But
 # be aware that the CFLAGS will be reset, see below:
 #
--include ../machine.inc
+-include ./machine.mk
 
 #
 # If the file is missing or does not set any of the variables, use
 # these settings:
 #
 FC ?= mpif90
-FFLAGS ?=  -g -O2
+FFLAGS ?=  -g -O2	      # but see FFLAGS for test.o target below
 CC ?= mpicc
 AR ?= ar
 RANLIB ?= ranlib
@@ -83,6 +88,10 @@ dlb_impl_thread_common.o: thread_wrapper.o
 dlb.o: $(dlb_objs) dlb_common.o
 test.o: dlb_common.o
 main.o: test.o $(libdlb.a)
+
+# Recent  GCC versions  try to  evaluate  the result  at compile  time
+# aggressively:
+test.o: FFLAGS = -O0
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $(<)
