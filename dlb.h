@@ -1,3 +1,6 @@
+/*
+  Copyright (c) 2010-2014 Astrid Nikodem, Alexei Matveev
+*/
 #ifdef FPP_PARAGAUSS_VERS       /* When in Rome do as romans do */
 #include "def.h"
 #else

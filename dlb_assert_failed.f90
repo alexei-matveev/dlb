@@ -1,3 +1,6 @@
+!
+! Copyright (c) 2010-2014 Astrid Nikodem, Alexei Matveev
+!
 subroutine dlb_assert_failed(expr, file, line)
   implicit none
   character(len=*), intent(in) :: expr, file

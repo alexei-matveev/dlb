@@ -1,5 +1,7 @@
 # -*- makefile -*-
 #
+# Copyright (c) 2010-2014 Astrid Nikodem, Alexei Matveev
+#
 # Makefile for DLB library.
 #
 # Use "make  -R" if you  note that  FC is set  to f77 by  default. Yet

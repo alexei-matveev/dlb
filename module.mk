@@ -1,4 +1,6 @@
 #
+# Copyright (c) 2010-2014 Astrid Nikodem, Alexei Matveev
+#
 # Make has no scopes, not to pollute the namespace
 # use $(DLB)/..., or DLB- prefix for targets and $(DLB-...)
 # prefix for variables. A notable exception so far is the

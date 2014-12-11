@@ -1,3 +1,6 @@
+!
+! Copyright (c) 2010-2014 Astrid Nikodem, Alexei Matveev
+!
 module dlb_impl_thread_common
 # include "dlb.h"
   use iso_c_binding

@@ -1,3 +1,6 @@
+/*
+  Copyright (c) 2010-2014 Astrid Nikodem, Alexei Matveev
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>

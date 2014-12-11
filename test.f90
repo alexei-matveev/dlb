@@ -1,3 +1,6 @@
+!
+! Copyright (c) 2010-2014 Astrid Nikodem, Alexei Matveev
+!
 module test
 
   implicit none
