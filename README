@@ -32,7 +32,7 @@ DLB_VARIANT  = 2 and  DLB_VARIANT =  3: Both  methods use  threads for
     polling by blocking calls, where  the variant 3 easily doubles the
     time requirement.  The variants need also POSIX Threads available.
 
-* ACTING OF DLB
+# ACTING OF DLB #
 
 DLB takes  care about the available  job numbers. On  request it gives
 several of these to a processor to work on. It takes care that each of
