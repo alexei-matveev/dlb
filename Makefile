@@ -39,7 +39,7 @@ all: $(libdlb.a) $(test_dlb)
 # these settings:
 #
 FC ?= mpif90
-FFLAGS ?=  -g -O2	      # but see FFLAGS for test.o target below
+FFLAGS ?=  -Wall -g -O2	      # but see FFLAGS for test.o target below
 CC ?= mpicc
 AR ?= ar
 RANLIB ?= ranlib
