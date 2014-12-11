@@ -175,49 +175,49 @@ MPI_THREAD_MULTIPLE.
 
 * EXAMPLE
 
-  use mpi
-  use dlb
-  integer :: ierr, prov, i
-  integer(idlb_kind) :: NJOBS, MAXJOBS, jobs(2)
-  integer(idlb_kind) :: distr(4), color
+    use mpi
+    use dlb
+    integer :: ierr, prov, i
+    integer(idlb_kind) :: NJOBS, MAXJOBS, jobs(2)
+    integer(idlb_kind) :: distr(4), color
 
-  call MPI_INIT_THREADS(MPI_THREAD_MULTIPLE, prov, ierr)
+    call MPI_INIT_THREADS(MPI_THREAD_MULTIPLE, prov, ierr)
 
-  call dlb_init(MPI_COMM_WORLD)
+    call dlb_init(MPI_COMM_WORLD)
 
-  NJOBS = 20
-  MAXJOBS = 2
+    NJOBS = 20
+    MAXJOBS = 2
 
-  call dlb_setup(NJOBS)
-  do while (dlb_give_more (MAXJOBS, jobs))
-     do i = jobs(1) + 1, jobs(2)
-        print *, "Doing job", i
-     enddo
-  enddo
+    call dlb_setup(NJOBS)
+    do while (dlb_give_more (MAXJOBS, jobs))
+       do i = jobs(1) + 1, jobs(2)
+          print *, "Doing job", i
+       enddo
+    enddo
 
-  MAXJOBS = 3
-  distr(1) = 10
-  distr(2) = 13
-  distr(3) = 1
-  distr(4) = 9
+    MAXJOBS = 3
+    distr(1) = 10
+    distr(2) = 13
+    distr(3) = 1
+    distr(4) = 9
 
-  call dlb_setup_color(distr)
-  do while (dlb_give_more_color (MAXJOBS, color, jobs))
-     do i = jobs(1) + 1, jobs(2)
-        print *, "Doing job", i, "of color", color
-     enddo
-  enddo
+    call dlb_setup_color(distr)
+    do while (dlb_give_more_color (MAXJOBS, color, jobs))
+       do i = jobs(1) + 1, jobs(2)
+          print *, "Doing job", i, "of color", color
+       enddo
+    enddo
 
-  call dlb_setup_rr(NJOBS)
-  do while (dlb_give_more_rr (MAXJOBS, jobs))
-     do i = jobs(1) + 1, jobs(2), jobs(3)
-        print *, "Doing job", i
-     enddo
-  enddo
+    call dlb_setup_rr(NJOBS)
+    do while (dlb_give_more_rr (MAXJOBS, jobs))
+       do i = jobs(1) + 1, jobs(2), jobs(3)
+          print *, "Doing job", i
+       enddo
+    enddo
 
-  call dlb_finalize()
+    call dlb_finalize()
 
-  call MPI_FINALIZE(ierr)
+    call MPI_FINALIZE(ierr)
 
 * COMPILATION
 
