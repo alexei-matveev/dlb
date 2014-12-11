@@ -1,5 +1,5 @@
 
-* DYNAMIC LOAD BALANCING
+# DYNAMIC LOAD BALANCING #
 
 The library created in this sub-folder (called libdlb.a) takes care of
 dynamical load balancing.  There are two different cases possible: one
@@ -8,7 +8,7 @@ special color.  There are  6 different functions altogether, where two
 are common ones,  while of the other each two belong  to the case with
 and without color.
 
-* DIFFERENT VARIANTS
+# DIFFERENT VARIANTS #
 
 Which of  the different variants of  the DLB implementions  is used is
 selected by  DLB_VARIANT. In the  case of DLB_VARIANT  = 0 there  is a
@@ -40,7 +40,7 @@ them is given back exactly once.   If a processor runs out of jobs, he
 can, for DLB_VARIANT  > 0, ask the other processors  to give them some
 of theirs.
 
-* INTERFACE
+# INTERFACE #
 
 All functions  have to  be called on  all processors.  The  two common
 functions are:  dlb_init() and dlb_finalize().  They  have to surround
@@ -153,7 +153,7 @@ Usage:
 
 Here level is an integer.
 
-* DLB AND THREAD SAFETY
+# DLB AND THREAD SAFETY #
 
 Different  implementations   have  different  requirements  concerning
 thread  safety,  especially  as  some  of  the  implementations  build
@@ -173,7 +173,7 @@ but    MPI_THREAD_SERIALIZED     should    then    be     raised    to
 MPI_THREAD_MULTIPLE.
 
 
-* EXAMPLE
+# EXAMPLE #
 
     use mpi
     use dlb
@@ -219,12 +219,12 @@ MPI_THREAD_MULTIPLE.
 
     call MPI_FINALIZE(ierr)
 
-* COMPILATION
+# COMPILATION #
 
 If DLB is used external from the ParaGauss repository set DLB_EXTERNAL
 = 1 on top of the DLB Makefile.
 
-** OUTPUT LEVEL
+## OUTPUT LEVEL ##
 
 DLB is able  to run without producing output. But  it may also provide
 some  informations and  statistics  up to  very detailed  informations
