@@ -94,7 +94,7 @@ dlb_give_more()  or their  counterparts with  colors dlb_setup_color()
 and  dlb_give_more_color()   or  an  additional   round  robin  method
 dlb_setup_rr() and dlb_give_more_rr(). It  is possible to have several
 of  such  calculations to  be  performed  in  between the  two  common
-functions, one  might also choose different interfaces  for them. ThUe
+functions, one  might also choose  different interfaces for  them. The
 only restriction  is that  the new calculation  should not  be started
 inside  the previous  one  (there  must be  the  possibility that  one
 calculation has finished before the  next starts) and one must not mix
