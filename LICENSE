@@ -1,0 +1,22 @@
+DLB: a Dynamic Load Balancing library for MPI applications
+
+Copyright (c) 2010-2014 Astrid Nikodem, Alexei Matveev
+
+This program is  free software; you can redistribute  it and/or modify
+it under  the terms  of the  GNU General Public  License version  2 as
+published by the Free Software Foundation [1].
+
+This program  is distributed in the  hope that it will  be useful, but
+WITHOUT   ANY  WARRANTY;   without  even   the  implied   warranty  of
+MERCHANTABILITY  or FITNESS  FOR  A PARTICULAR  PURPOSE.  See the  GNU
+General Public License for more details.
+
+[1] http://www.gnu.org/licenses/gpl-2.0.html
+
+
+When using this program consider citing the following publication
+
+Load  balancing by  work–stealing in  quantum  chemistry calculations:
+application  to   hybrid  density  functional   methods,  A.  Nikodem,
+A.V. Matveev,  T.M. Soini,  N. Rösch, Int.  J. Quantum Chem.  114, 813
+(2014).
